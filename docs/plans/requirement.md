@@ -332,3 +332,7 @@ Node{
 | 日期 | 变更 | 原因 | 影响 |
 |---|---|---|---|
 | 2026-11-16 | v1.0 建立 | 用户指令：Cairn 模板 + 四份材料 | 初始化 task.md / todo.md |
+| 2026-11-16 | R13（Web 面板与 Finding 报告）后置到后续迭代 | 本迭代计划将其标注为“后置面板”（task.md Self-Review），最终评审确认未实现；不把未交付项计为完成 | 本迭代只交付 `/api/graph` 与 runbook；图视图、补丁面板、Finding 报告留待后续；`todo.md` 状态同步修正 |
+| 2026-11-16 | R6 的 native driver 定义为“一次性补全”，不接 `toolCalling/` 工具循环 | task.md:471 明确该设计；最终评审确认与 R6 原文“复用 toolCalling/”存在差距 | explore 单任务最多执行一条模型给出的沙箱命令；以更多 reason/explore 轮次补偿迭代能力；后续迭代可补工具循环 |
+| 2026-11-16 | R14 “finding” 采用运行代理口径 | 本迭代没有 Finding 节点生产者（随 R13 后置） | finding = 项目 completed + `exploit_idea` Fact + ≥1 条带 `support` 边的 verdict；`tokens_per_finding` 为该口径下的代理值，已在 `eval` 包内注明 |
+| 2026-11-16 | R15 的本次验收证据 = 离线端到端集成测试 + 可执行 runbook，实弹 CVE 运行后置为人工步骤 | 本环境无 Docker 靶标与可用 LLM 配置；不伪造运行输出 | 规则库增长与证据链由离线测试覆盖；真实 CVE-2025-3248 实弹仍需人工按 runbook 执行后才能勾选 |

@@ -9,9 +9,10 @@
 ## 0. 下一步动作（只做这一件）
 
 > **Task 11 已完成**：`b794e85` + `2c40df2` + `6cc683c`；评审 2 轮修复后 scoped re-review 全部 ADDRESSED。
-> `go build ./...` exit 0；`go test ./eval/ ./dispatch/... ./graphserver/ ./misc/ ./Web/ -race` 全 `ok`；全量仅遗留 ProjectManager 既有失败（base 可复现）。
-> 遗留：真实 CVE 实弹未跑；对照数据未落盘（两项已在 §4 标注）。
-> 下一动作：整支最终评审（whole-branch，merge-base `7d0e635` → `6cc683c`），评审后单轮修复 + 收尾。
+> **整支最终评审已完成**：`7d0e635..e83793f`；初评 1 Critical + 6 Important + 8 Minor；单轮修复 `f118081`、`5d56134`、`4c6b10a`、`c15edbd`、`9b2c2fa`、`e83793f`；scoped re-review 全部 findings ADDRESSED，无新增 Critical/Important。
+> 证据：`CGO_ENABLED=0 go build ./...` → BUILD_OK；`go test ./graph/ ./graphserver/ ./dispatch/... ./eval/ -race -count=1` 全 `ok`；全量仅遗留 ProjectManager 既有失败（base 可复现）。
+> 遗留（已裁定并记录）：R13 Web 面板/Finding 报告后置（requirement §12）；R6 一次性 driver；真实 CVE 实弹未跑；explore prompt 仍把 `command` 标为可选（无命令的 verdict 会被证据闸门丢弃，需后续收紧 prompt）。
+> 下一动作：收尾（finishing-a-development-branch）并推送 `origin/main`。
 
 ---
 
@@ -72,7 +73,7 @@
 | 9 | explore 沙箱实证与判决 | R9, R10 | 完成 | G3 | `59b12d5`+`ffb5a4e`；评审 1 轮修复后 ADDRESSED |
 | 9b | 调度接线（执行/并发/超时） | R5, R9 | 完成 | G3 | `87474a4`；评审 Approved（5 Minor 延后） |
 | 10 | CE4 规则回流 | R11 | 完成 | G3 | `48c1ed3`+`e93148d`；评审 1 轮修复后 ADDRESSED |
-| 11 | 评测、端到端与灰度 | R13–R16 | 完成 | G4 | `b794e85`+`2c40df2`+`6cc683c`；评审 2 轮修复后通过（附带 2 项环境性遗留） |
+| 11 | 评测、端到端与灰度 | R13–R16 | 完成（R13 面板后置） | G4 | `b794e85`+`2c40df2`+`6cc683c`；最终评审后单轮修复 `f118081`..`e83793f`；re-review ADDRESSED；R13 面板/报告见 requirement §12 |
 
 状态取值：`未开始` / `进行中` / `阻塞` / `完成`。
 
@@ -245,12 +246,14 @@
 - [x] `graph_lane_enabled` 默认 `false`
   - 证据：`misc/ConfigDB.go` 默认值 `false`；`TestGraphLaneFlagDefaultsOff` PASS；main.go 仅在开启时启动车道
 - [x] CVE-2025-3248 runbook 可从零复现
-  - 证据：`docs/runbooks/cve-2025-3248.md`（靶标、diff 导入、验收命令、timeline、降级路径）；车道路由已挂载且带 Bearer 鉴权
-  - 遗留：本环境无 Docker/LLM，真实 CVE 实弹未执行（裁定见 ledger）；离线等价闭环见 `dispatch/lane_outcome_test.go`
+  - 证据：`docs/runbooks/cve-2025-3248.md`（靶标、diff 导入、lab UUID 作为图项目 id、沙箱容器 preflight、验收命令、timeline、降级路径）；车道路由已挂载且带 Bearer 鉴权；`GET /projects/:name` 暴露 `sandboxContainerID`（`TestGetProjectReportsSandboxContainerID` PASS）
+  - 遗留：本环境无 Docker/LLM，真实 CVE 实弹未执行（裁定见 requirement §12）；离线等价闭环见 `dispatch/lane_outcome_test.go` 与 `dispatch/lane_e2e_test.go`
 - [ ] `go build ./...` exit 0；`go test ./...` 无 FAIL
   - 证据：`go build ./...` exit 0；`go test ./...` 仅 `ProjectManager.TestEnsureProjectOverviewSandboxReusesExistingSandbox` FAIL（已在本分支 base 复现，与改造无关；未修）
 - [ ] 新旧车道对照数据落盘（路径写在此处）
   - 现状：`eval.Report.JSON()` 可输出逐条对照 NDJSON；**未**落盘为仓库内固定路径产物（未打勾）
+- [x] 最终评审修复轮（R10 证据闸门、verdict 溯源、R14 finding 口径、R11 规则库接线、R15 runbook、R6 health 窗口）
+  - 证据：`f118081`..`e83793f`；scoped re-review 全部 ADDRESSED；`go build ./...` BUILD_OK；`go test ./graph/ ./graphserver/ ./dispatch/... ./eval/ -race` 全 `ok`
 
 ---
 

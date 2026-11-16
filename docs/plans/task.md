@@ -731,7 +731,7 @@ git commit -m "feat(eval): add patcheval dual-condition metrics and graph lane f
 
 ## Self-Review
 
-**1. Spec coverage:** R1→T1，R2→T1，R3→T2，R4→T4，R5→T5，R6→T6，R7→T7，R8→T3/T8，R9→T9，R10→T9，R11→T10，R12→T8（Hint 读取）与 T4（Hint 写入），R13→T11 Step 3 后置面板，R14→T11，R15→T11 + runbook，R16→T11 Step 3。无遗漏。
+**1. Spec coverage:** R1→T1，R2→T1，R3→T2，R4→T4，R5→T5，R6→T6，R7→T7，R8→T3/T8，R9→T9，R10→T9，R11→T10，R12→T8（Hint 读取）与 T4（Hint 写入），R14→T11，R15→T11 + runbook，R16→T11 Step 3。R13 的 Web 面板与 Finding 报告按本计划“后置面板”定位**不在本迭代交付**，已记入 `requirement.md` §12；本迭代交付 `/api/graph` 与 runbook。R6 的 native driver 为一次性补全，未接 `toolCalling/` 工具循环（见 §12）。
 
 **2. Step scan:** 每个 Step 只有一个动作与一个可检查结果；无 TBD、无“适当处理”。
 
