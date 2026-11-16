@@ -74,6 +74,35 @@ func TestGraphLaneShutdownWaitsForRun(t *testing.T) {
 	}
 }
 
+// TestGraphLaneShutdownBoundedWhenRunStuck proves a scheduler or executor that
+// ignores cancellation cannot hang process exit: shutdown warns after its
+// timeout and still returns (best-effort close).
+func TestGraphLaneShutdownBoundedWhenRunStuck(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	dispatcher := dispatch.New(lifecycleTestConfig(), nil, nil)
+	neverDone := make(chan struct{})
+	lane := &graphLane{
+		dispatcher:      dispatcher,
+		done:            neverDone,
+		shutdownTimeout: 100 * time.Millisecond,
+	}
+
+	shutdownDone := make(chan struct{})
+	go func() {
+		lane.shutdown(cancel)
+		close(shutdownDone)
+	}()
+
+	select {
+	case <-shutdownDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("shutdown hung on a Run goroutine that ignored cancellation")
+	}
+	if ctx.Err() == nil {
+		t.Fatal("shutdown must cancel the lane context")
+	}
+}
+
 // blockingDriver blocks inside Execute until released, so the executor has an
 // in-flight goroutine when shutdown starts.
 type blockingDriver struct {

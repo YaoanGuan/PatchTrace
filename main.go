@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"strings"
+	"time"
 )
 
 //go:embed all:webui/dist
@@ -92,7 +93,15 @@ func main() {
 type graphLane struct {
 	dispatcher *dispatch.Dispatcher
 	done       <-chan struct{}
+	// shutdownTimeout bounds each wait. Zero means the default. It is a field
+	// so tests can prove a stuck driver cannot hang process exit.
+	shutdownTimeout time.Duration
 }
+
+// defaultGraphLaneShutdownTimeout is generous enough for a normal in-flight
+// graph write to finish but short enough that a driver ignoring cancellation
+// cannot hang process exit indefinitely.
+const defaultGraphLaneShutdownTimeout = 15 * time.Second
 
 // shutdown stops the lane in the order the dispatcher contract requires:
 // cancel the lane context, wait for Run to return (it may be inside a tick that
@@ -107,12 +116,36 @@ func (l *graphLane) shutdown(cancel context.CancelFunc) {
 	if l == nil || l.dispatcher == nil {
 		return
 	}
-	if l.done != nil {
-		<-l.done
+	timeout := l.shutdownTimeout
+	if timeout <= 0 {
+		timeout = defaultGraphLaneShutdownTimeout
 	}
-	l.dispatcher.Wait()
+	if l.done != nil && !waitGraphLane(l.done, timeout) {
+		misc.Warn("graph-lane", fmt.Sprintf("等待图调度循环退出超时（%v），继续关闭", timeout), nil)
+	}
+	// Bound the executor drain too: a driver that ignores cancellation must
+	// not hang process exit. On timeout the close below is best-effort and the
+	// warning makes the risk explicit.
+	executorDone := make(chan struct{})
+	go func() {
+		l.dispatcher.Wait()
+		close(executorDone)
+	}()
+	if !waitGraphLane(executorDone, timeout) {
+		misc.Warn("graph-lane", fmt.Sprintf("等待图调度在途任务超时（%v），继续关闭", timeout), nil)
+	}
 	if err := l.dispatcher.Close(); err != nil {
 		misc.Warn("graph-lane", fmt.Sprintf("关闭图调度车道失败: %v", err), nil)
+	}
+}
+
+// waitGraphLane waits for done or timeout, reporting whether done closed.
+func waitGraphLane(done <-chan struct{}, timeout time.Duration) bool {
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
 	}
 }
 
