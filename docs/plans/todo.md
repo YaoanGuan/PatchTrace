@@ -8,9 +8,9 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> **Task 3 已完成（G1 查询与导出通过）**：提交 `a31275d` + 修复 `a111d4f`，独立评审 spec ✅ / quality Approved（修复轮复核 ADDRESSED）。
-> `go test ./graph/ -race` → 16/16 PASS；`go build ./...` exit 0。
-> 下一动作：Task 4 · Step 1，写 `graphserver/server_test.go` 失败测试（生命周期路由 + 403/409/422）。
+> **Task 4 已完成（G1 图协议 API 通过）**：提交 `fc3fc1e`，独立评审 spec ✅ / quality Approved，0 Critical / 0 Important。
+> `go test ./graphserver/ -race` → 8/8 PASS；`go build ./...` exit 0。
+> 下一动作：按预审裁定顺序执行 Task 6 · Step 1，写 `dispatch/worker/native_test.go` 失败测试（ParseResult 契约）。
 
 ---
 
@@ -63,9 +63,9 @@
 | 1 | 迭代地基与两个 Skill | R1, R2 | 完成 | G0 | `7ec3ca7`；评审通过；新会话实读通过 |
 | 2 | 溯源图模型与存储 | R3 | 完成 | G1 | `6f2a6b3`；race 6/6；评审 Approved |
 | 3 | 溯源图查询与导出 | R8 | 完成 | G1 | `a31275d`+`a111d4f`；race 16/16；评审 Approved |
-| 4 | 图协议 API | R4 | 进行中 | G1 | — |
-| 5 | 调度核心 | R5 | 未开始 | G2 | — |
-| 6 | Worker driver 与 native 实现 | R6 | 未开始 | G2 | — |
+| 4 | 图协议 API | R4 | 完成 | G1 | `fc3fc1e`；8/8；评审 Approved |
+| 5 | 调度核心 | R5 | 未开始 | G2 | 预审裁定：T6 先行 |
+| 6 | Worker driver 与 native 实现 | R6 | 进行中 | G2 | — |
 | 7 | bootstrap 补丁反演任务 | R7 | 未开始 | G2 | — |
 | 8 | reason 溯源图推理任务 | R8, R12 | 未开始 | G3 | — |
 | 9 | explore 沙箱实证与判决 | R9, R10 | 未开始 | G3 | — |
@@ -159,9 +159,13 @@
 
 ### Task 4 · 图协议 API（R4，G1）
 
-- [ ] 生命周期路由全通（201/200）
-- [ ] 403/409/422 各有一条测试
-- [ ] `go test ./graphserver/ -race` → `ok`
+- [x] 生命周期路由全通（201/200）
+  - 证据：`TestRoutesLifecycle` PASS；16 条路由全部注册于 `/api/graph`
+- [x] 403/409/422 各有一条测试
+  - 证据：`TestStoppedProjectRejectsWrites`(403) / `TestConflictStatusCodes`(409) / `TestInvalidBodyReturns422`(422) PASS
+- [x] `go test ./graphserver/ -race` → `ok AIxVuln/graphserver`
+  - 证据：8/8 PASS；`go vet ./graphserver/` → VET_EXIT=0
+- 完成标准：独立评审 spec ✅ / quality Approved；6 Minor 延后至整支评审。
 
 ### Task 5 · 调度核心（R5，G2）
 
