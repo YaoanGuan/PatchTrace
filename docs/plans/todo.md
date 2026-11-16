@@ -8,9 +8,9 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> **Task 1 实现已完成，等待验收**：§3.1.2–3.1.4、3.1.6 已附真实输出；3.1.5 已做等价静态检查，
-> 新会话实读留给验收轮（实现会话不允许再开新会话）。
-> 下一动作：验收轮先跑 `grep -c '^---' .claude/skills/*/SKILL.md`，再用新会话执行 3.1.5 并回写结果。
+> **Task 1 已完成（G0 通过）**：提交 `7ec3ca7`，独立评审 spec ✅ / quality Approved，
+> 新上下文会话仅凭 SKILL.md 答对六问（见 3.1.5 证据）。
+> 下一动作：Task 2 · Step 1，写 `graph/store_test.go` 失败测试（原子认领 / lease 回收 / block 环）。
 
 ---
 
@@ -60,8 +60,8 @@
 
 | # | Task | 需求 | 状态 | 闸门 | 证据 |
 |---|---|---|---|---|---|
-| 1 | 迭代地基与两个 Skill | R1, R2 | 进行中 | G0 | 基线 `7d0e635`；技能已提交，待新会话验收 |
-| 2 | 溯源图模型与存储 | R3 | 未开始 | G1 | — |
+| 1 | 迭代地基与两个 Skill | R1, R2 | 完成 | G0 | `7ec3ca7`；评审通过；新会话实读通过 |
+| 2 | 溯源图模型与存储 | R3 | 进行中 | G1 | — |
 | 3 | 溯源图查询与导出 | R8 | 未开始 | G1 | — |
 | 4 | 图协议 API | R4 | 未开始 | G1 | — |
 | 5 | 调度核心 | R5 | 未开始 | G2 | — |
@@ -113,11 +113,10 @@
   - 必须包含：三文档读取顺序、TDD 步骤、todo 回写格式、证据要求
   - 证据：`grep -c '^---' ...` → `2`；正文 `52` 行；`grep -nE 'requirement\.md|task\.md|todo\.md|TDD|没有命令输出|阻塞'` → 路由与纪律全部命中
 
-- [ ] **3.1.5** 用新会话验证可读性
-  - 方法：开一个新会话，只给一句“按 patchtrace-iteration 继续”，看它能否说出当前 Task 与下一步
-  - 已完成等价静态检查：`grep -nE '^## (四层组件|三个原语|三类任务|Intent 生命周期|Dispatcher 是唯一|导出与读取)' .claude/skills/cairn-architecture/SKILL.md` → 17/28/38/51/67/75 六节命中；
-    `grep -nE 'requirement\.md|task\.md|todo\.md|TDD|没有命令输出|阻塞' .claude/skills/patchtrace-iteration/SKILL.md` → 三文档顺序与纪律命中
-  - 待办：实现会话按约束不得再开新会话，新会话实读由验收轮执行并回写回答要点（≤5 行）。
+- [x] **3.1.5** 用新会话验证可读性
+  - 方法：无上下文新会话，只读 `.claude/skills/cairn-architecture/SKILL.md`，回答四层组件/三原语/三任务/lease/唯一写入者/导出格式
+  - 证据（fresh-context agent 回答要点，仅凭 SKILL.md）：四层＝Server(graph/)+Dispatcher(dispatch/)+Container(dockerManager/)+Worker(dispatch/worker/)；三原语＝Fact(节点)/Intent(边)/Hint(图外输入)；三任务＝bootstrap/reason/explore 及 complete|intent|空 输出契约；lease＝CAS 认领+心跳超时回收+409；导出＝yaml|timeline
+  - 结论：六问全部答对，无“not stated”
 
 - [x] **3.1.6** 提交
   - 命令：`git add .claude .gitignore docs/plans/todo.md && git commit -m "feat: add cairn-architecture and patchtrace-iteration skills"`
