@@ -98,6 +98,109 @@ func (s *Store) Provenance(ctx context.Context, projectID, nodeID string) ([]Nod
 	return nil, fmt.Errorf("%w: no provenance path from origin to %s", ErrNotFound, nodeID)
 }
 
+// Gap is one open intent ranked by GapScore.
+//
+// OpenBlockers is the number of distinct block-edge blockers of the intent
+// whose state is not "resolved" (the same predicate Gaps uses to decide
+// readiness). DepthFromOrigin is 1 plus the minimum BFS hop distance from the
+// project's "origin" fact to any of the intent's from facts, walking every
+// edge in its from -> to direction; when the intent has no from facts or none
+// of them is reachable, it is len(nodes)+1. Small values mean the intent sits
+// close to the patch.
+type Gap struct {
+	IntentID        string
+	Description     string
+	OpenBlockers    int
+	DepthFromOrigin int
+}
+
+// GapScore ranks every open intent of a project. Results are ordered by
+// OpenBlockers ascending, then DepthFromOrigin ascending, then IntentID
+// ascending. The ordering is deterministic and intended for prompt context.
+func (s *Store) GapScore(ctx context.Context, projectID string) ([]Gap, error) {
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return nil, fmt.Errorf("%w: project is required", ErrInvalid)
+	}
+	if _, err := s.GetProject(ctx, projectID); err != nil {
+		return nil, err
+	}
+	nodes, err := s.Nodes(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	edges, err := s.Edges(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	state := make(map[string]string, len(nodes))
+	for _, n := range nodes {
+		state[n.ID] = n.State
+	}
+
+	// openBlockers[id] is the set of distinct unmet blockers pointing at id. A
+	// block edge runs blocker -> blocked and is met only once the blocker is
+	// resolved; open, claimed and unknown states are all unmet.
+	openBlockers := make(map[string]map[string]struct{})
+	adjacency := make(map[string][]string)
+	for _, e := range edges {
+		if e.Kind == "block" && state[e.From] != "resolved" {
+			if openBlockers[e.To] == nil {
+				openBlockers[e.To] = make(map[string]struct{})
+			}
+			openBlockers[e.To][e.From] = struct{}{}
+		}
+		adjacency[e.From] = append(adjacency[e.From], e.To)
+	}
+
+	// BFS from origin over every edge kind. Unreachable ids stay absent.
+	distance := map[string]int{"origin": 0}
+	queue := []string{"origin"}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		for _, next := range adjacency[cur] {
+			if _, seen := distance[next]; seen {
+				continue
+			}
+			distance[next] = distance[cur] + 1
+			queue = append(queue, next)
+		}
+	}
+	unreachableDepth := len(nodes) + 1
+
+	gaps := make([]Gap, 0)
+	for _, n := range nodes {
+		if n.Kind != "intent" || n.State != "open" {
+			continue
+		}
+		depth := unreachableDepth
+		for _, from := range n.From {
+			if hops, ok := distance[from]; ok && hops+1 < depth {
+				depth = hops + 1
+			}
+		}
+		gaps = append(gaps, Gap{
+			IntentID:        n.ID,
+			Description:     n.Content,
+			OpenBlockers:    len(openBlockers[n.ID]),
+			DepthFromOrigin: depth,
+		})
+	}
+
+	sort.Slice(gaps, func(i, j int) bool {
+		if gaps[i].OpenBlockers != gaps[j].OpenBlockers {
+			return gaps[i].OpenBlockers < gaps[j].OpenBlockers
+		}
+		if gaps[i].DepthFromOrigin != gaps[j].DepthFromOrigin {
+			return gaps[i].DepthFromOrigin < gaps[j].DepthFromOrigin
+		}
+		return gaps[i].IntentID < gaps[j].IntentID
+	})
+	return gaps, nil
+}
+
 // Gaps returns open intents that no unsettled intent blocks. Results are
 // ordered by the number of unmet block dependencies ascending, then created_at
 // ascending.

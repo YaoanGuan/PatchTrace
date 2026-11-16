@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	yaml "github.com/goccy/go-yaml"
 )
@@ -352,6 +353,112 @@ func TestTimelineIsChronological(t *testing.T) {
 		if !lineRe.MatchString(line) {
 			t.Fatalf("timeline line %q lacks a YYYY-MM-DD HH:mm:ss timestamp", line)
 		}
+	}
+}
+
+func findGap(t *testing.T, gaps []Gap, intentID string) Gap {
+	t.Helper()
+	for _, g := range gaps {
+		if g.IntentID == intentID {
+			return g
+		}
+	}
+	t.Fatalf("gap %s missing from %+v", intentID, gaps)
+	return Gap{}
+}
+
+func TestGapScoreRanksOpenIntents(t *testing.T) {
+	s := newTestStore(t)
+	p := mustProject(t, s)
+
+	f1 := concludeNewFact(t, s, p.ID, []string{"origin"}, "patch_profile", "profile the patch", "fact one")
+	f2 := concludeNewFact(t, s, p.ID, []string{f1.ID}, "exploit_idea", "extend the idea", "fact two")
+
+	// An orphan fact has no edge connecting it to origin. Bypass the intent API
+	// to create it so the unreachable-from sentinel can be pinned.
+	now := time.Now()
+	orphan := Node{
+		ID: "f900", ProjectID: p.ID, Kind: "fact", Type: "orphan",
+		Content: "unreachable", State: "resolved", CreatedAt: &now,
+	}
+	if err := insertNode(ctx, s.db, orphan); err != nil {
+		t.Fatalf("insert orphan fact: %v", err)
+	}
+
+	iA := declareOpenIntent(t, s, p.ID, []string{"origin"}, "gap", "near origin")
+	iB := declareOpenIntent(t, s, p.ID, []string{f2.ID}, "gap", "deep")
+	iC := declareOpenIntent(t, s, p.ID, []string{f1.ID}, "gap", "blocked")
+	iD := declareOpenIntent(t, s, p.ID, []string{orphan.ID}, "gap", "unreachable")
+	if err := s.AddEdge(ctx, p.ID, iA.ID, iC.ID, "block"); err != nil {
+		t.Fatalf("AddEdge block iA->iC: %v", err)
+	}
+	if err := s.AddEdge(ctx, p.ID, iB.ID, iC.ID, "block"); err != nil {
+		t.Fatalf("AddEdge block iB->iC: %v", err)
+	}
+
+	nodes, err := s.Nodes(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Nodes: %v", err)
+	}
+	if wantSentinel := len(nodes) + 1; wantSentinel != 12 {
+		t.Fatalf("fixture has %d nodes; the pinned sentinel 12 assumes 11", len(nodes))
+	}
+
+	gaps, err := s.GapScore(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("GapScore: %v", err)
+	}
+	want := []Gap{
+		{IntentID: iA.ID, Description: "near origin", OpenBlockers: 0, DepthFromOrigin: 1},
+		{IntentID: iB.ID, Description: "deep", OpenBlockers: 0, DepthFromOrigin: 3},
+		{IntentID: iD.ID, Description: "unreachable", OpenBlockers: 0, DepthFromOrigin: 12},
+		{IntentID: iC.ID, Description: "blocked", OpenBlockers: 2, DepthFromOrigin: 2},
+	}
+	if !reflect.DeepEqual(gaps, want) {
+		t.Fatalf("GapScore = %+v, want %+v", gaps, want)
+	}
+}
+
+func TestGapScoreIgnoresResolvedBlockers(t *testing.T) {
+	s := newTestStore(t)
+	p := mustProject(t, s)
+
+	blocker := declareOpenIntent(t, s, p.ID, []string{"origin"}, "gap", "blocker")
+	dependent := declareOpenIntent(t, s, p.ID, []string{"origin"}, "gap", "dependent")
+	if err := s.AddEdge(ctx, p.ID, blocker.ID, dependent.ID, "block"); err != nil {
+		t.Fatalf("AddEdge block: %v", err)
+	}
+
+	gaps, err := s.GapScore(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("GapScore: %v", err)
+	}
+	if got := findGap(t, gaps, dependent.ID); got.OpenBlockers != 1 {
+		t.Fatalf("dependent open blockers = %d, want 1", got.OpenBlockers)
+	}
+
+	if _, _, err := s.ConcludeIntent(ctx, p.ID, blocker.ID, "tester", "blocker resolved", "observation"); err != nil {
+		t.Fatalf("ConcludeIntent(blocker): %v", err)
+	}
+	gaps, err = s.GapScore(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("GapScore after resolve: %v", err)
+	}
+	if got := findGap(t, gaps, dependent.ID); got.OpenBlockers != 0 {
+		t.Fatalf("dependent open blockers after resolve = %d, want 0", got.OpenBlockers)
+	}
+	if len(gaps) != 1 || gaps[0].IntentID != dependent.ID {
+		t.Fatalf("GapScore after resolve = %+v, want only the open dependent", gaps)
+	}
+}
+
+func TestGapScoreRejectsUnknownProject(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.GapScore(ctx, "missing"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GapScore(missing) err = %v, want ErrNotFound", err)
+	}
+	if _, err := s.GapScore(ctx, "  "); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("GapScore(empty) err = %v, want ErrInvalid", err)
 	}
 }
 
