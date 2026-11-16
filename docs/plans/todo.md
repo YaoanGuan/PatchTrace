@@ -8,9 +8,9 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> **Task 1 已完成（G0 通过）**：提交 `7ec3ca7`，独立评审 spec ✅ / quality Approved，
-> 新上下文会话仅凭 SKILL.md 答对六问（见 3.1.5 证据）。
-> 下一动作：Task 2 · Step 1，写 `graph/store_test.go` 失败测试（原子认领 / lease 回收 / block 环）。
+> **Task 2 已完成（G1 图存储层通过）**：提交 `6f2a6b3`，独立评审 spec ✅ / quality Approved，
+> `go test ./graph/ -race` → 6/6 PASS；`go build ./...` exit 0。
+> 下一动作：Task 3 · Step 1，写 `graph/query_test.go` 失败测试（Provenance / Gaps / Export / Timeline）。
 
 ---
 
@@ -61,8 +61,8 @@
 | # | Task | 需求 | 状态 | 闸门 | 证据 |
 |---|---|---|---|---|---|
 | 1 | 迭代地基与两个 Skill | R1, R2 | 完成 | G0 | `7ec3ca7`；评审通过；新会话实读通过 |
-| 2 | 溯源图模型与存储 | R3 | 进行中 | G1 | — |
-| 3 | 溯源图查询与导出 | R8 | 未开始 | G1 | — |
+| 2 | 溯源图模型与存储 | R3 | 完成 | G1 | `6f2a6b3`；race 6/6；评审 Approved |
+| 3 | 溯源图查询与导出 | R8 | 进行中 | G1 | — |
 | 4 | 图协议 API | R4 | 未开始 | G1 | — |
 | 5 | 调度核心 | R5 | 未开始 | G2 | — |
 | 6 | Worker driver 与 native 实现 | R6 | 未开始 | G2 | — |
@@ -138,12 +138,13 @@
 
 ### Task 2 · 溯源图模型与存储（R3，闸门 G1）
 
-- [ ] `graph/` 包可编译；`Open/Close` 幂等
-- [ ] 并发认领测试通过：`go test ./graph/ -run TestClaimIntentIsAtomic -race -v`
-- [ ] lease 回收测试通过：`go test ./graph/ -run TestLeaseExpiry -v`
-- [ ] block 环检测测试通过：`go test ./graph/ -run TestBlockEdgeCycleRejected -v`
-- [ ] 全包：`go test ./graph/ -race` → `ok`
-- 完成标准：5 项全绿 + 一次提交。
+- [x] `graph/` 包可编译；`Open/Close` 幂等
+  - 证据：`CGO_ENABLED=0 go build ./...` → exit 0；`Close` 重复调用无错（评审未提异议）
+- [x] 并发认领测试通过：`go test ./graph/ -run TestClaimIntentIsAtomic -race -v` → PASS (0.10s)
+- [x] lease 回收测试通过：`go test ./graph/ -run TestLeaseExpiry -v` → PASS (0.07s)
+- [x] block 环检测测试通过：`go test ./graph/ -run TestBlockEdgeCycleRejected -v` → PASS (0.10s)
+- [x] 全包：`go test ./graph/ -race` → `ok AIxVuln/graph 1.559s`
+- 完成标准：5 项全绿 + 一次提交 → `6f2a6b3`；独立评审 spec ✅ / quality Approved（7 Minor parked）。
 
 ### Task 3 · 溯源图查询与导出（R8，G1）
 
