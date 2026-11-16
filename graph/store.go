@@ -921,6 +921,30 @@ func (s *Store) Complete(ctx context.Context, projectID string, from []string, d
 		return Project{}, err
 	}
 
+	// R10 provenance precondition: a completion may only rest on facts that
+	// trace back to the project origin. The check runs before the transaction
+	// because the store uses a single SQLite connection and a nested
+	// Provenance query would deadlock while the transaction holds it. `origin`
+	// is the chain root, so it is always valid.
+	if _, err := ensureActive(ctx, s.db, projectID); err != nil {
+		return Project{}, err
+	}
+	for _, raw := range from {
+		fromID := strings.TrimSpace(raw)
+		if fromID == "" || fromID == "goal" {
+			return Project{}, fmt.Errorf("%w: invalid from fact %q", ErrInvalid, raw)
+		}
+		if fromID == "origin" {
+			continue
+		}
+		if _, err := s.Provenance(ctx, projectID, fromID); err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return Project{}, fmt.Errorf("%w: from fact %s has no provenance path to origin", ErrInvalid, fromID)
+			}
+			return Project{}, err
+		}
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Project{}, fmt.Errorf("graph: begin complete: %w", err)

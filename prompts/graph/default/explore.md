@@ -14,6 +14,16 @@
 {"accepted":true,"data":{"description":"..."}}
 ```
 
+若本轮结论构成对当前意图的明确判决，可以在 `data` 中附加可选字段：
+
+```json
+{"accepted":true,"data":{"description":"...","verdict":"support","evidence_ref":"...","target":"..."}}
+```
+
+- `verdict`：可选，只能取 `support`（证据支持当前意图）或 `refute`（证据反驳当前意图）。没有明确判决时不要填写。
+- `evidence_ref`：可选，指向承载证据的沙箱文件或输出路径。
+- `target`：可选，判决针对的图中节点编号；缺省为当前意图，只有已存在的节点才会被采用。
+
 只有在确实应当拒绝任务时才返回：
 
 ```json

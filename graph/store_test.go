@@ -208,6 +208,80 @@ func TestCompleteRejectsUnknownFact(t *testing.T) {
 	}
 }
 
+func TestCompleteRejectsFindingWithoutProvenance(t *testing.T) {
+	s := newTestStore(t)
+	p := mustProject(t, s)
+
+	// A finding that is a fact but has no causal edge back to origin. This
+	// shape is unreachable through the public API on purpose: every fact the
+	// protocol writes carries a provenance path. Insert it directly to prove
+	// Complete rejects one anyway.
+	now := time.Now()
+	orphan := Node{
+		ID:        "f_orphan",
+		ProjectID: p.ID,
+		Kind:      "fact",
+		Type:      "finding",
+		Content:   "a finding with no evidence chain",
+		State:     "resolved",
+		CreatedAt: &now,
+	}
+	if err := insertNode(ctx, s.db, orphan); err != nil {
+		t.Fatalf("insertNode: %v", err)
+	}
+
+	_, err := s.Complete(ctx, p.ID, []string{"f_orphan"}, "goal reached", "w1")
+	if !errors.Is(err, ErrInvalid) {
+		t.Fatalf("Complete err = %v, want ErrInvalid", err)
+	}
+	got, err := s.GetProject(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("GetProject: %v", err)
+	}
+	if got.Status != "active" {
+		t.Fatalf("status = %q, want active after rejected complete", got.Status)
+	}
+	nodes, err := s.Nodes(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Nodes: %v", err)
+	}
+	for _, n := range nodes {
+		if n.Kind == "intent" && n.To != nil && *n.To == "goal" {
+			t.Fatalf("a rejected complete must not write a completion intent: %+v", n)
+		}
+	}
+	edges, err := s.Edges(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Edges: %v", err)
+	}
+	for _, e := range edges {
+		if e.To == "goal" {
+			t.Fatalf("a rejected complete must not write a goal edge: %+v", e)
+		}
+	}
+}
+
+func TestCompleteAcceptsFactWithProvenance(t *testing.T) {
+	s := newTestStore(t)
+	p := mustProject(t, s)
+	it := mustIntent(t, s, p.ID)
+	if _, err := s.ClaimIntent(ctx, p.ID, it.ID, "w1", time.Minute); err != nil {
+		t.Fatalf("ClaimIntent: %v", err)
+	}
+	fact, _, err := s.ConcludeIntent(ctx, p.ID, it.ID, "w1", "the sink is reachable", "observation")
+	if err != nil {
+		t.Fatalf("ConcludeIntent: %v", err)
+	}
+
+	completed, err := s.Complete(ctx, p.ID, []string{fact.ID}, "goal reached", "w2")
+	if err != nil {
+		t.Fatalf("Complete with a provenance-backed fact: %v", err)
+	}
+	if completed.Status != "completed" {
+		t.Fatalf("status = %q, want completed", completed.Status)
+	}
+}
+
 func TestReopenCreatesCorrectionFact(t *testing.T) {
 	s := newTestStore(t)
 	p := mustProject(t, s)
