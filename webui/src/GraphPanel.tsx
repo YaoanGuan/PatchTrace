@@ -189,7 +189,12 @@ export default function GraphPanel({ baseURL, authHeader }: GraphPanelProps) {
 
     useEffect(() => {
         if (!authHeader || !selectedId) {
+            // Reset the in-flight flags too: the previous request's cleanup
+            // skips them once aborted, so leaving them set would pin the pane
+            // on "加载中…" after the project list empties.
             setSnapshot(null);
+            setSnapshotLoading(false);
+            setSnapshotError('');
             return;
         }
         const controller = new AbortController();
