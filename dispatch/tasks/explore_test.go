@@ -90,15 +90,25 @@ func (c *fakeExploreClient) HeartbeatIntent(_ context.Context, projectID, intent
 	return graph.Node{ID: intentID, ProjectID: projectID, State: "claimed", Worker: workerName}, c.hbErr
 }
 
-func (c *fakeExploreClient) ReleaseIntent(_ context.Context, projectID, intentID, workerName string) (graph.Node, error) {
+func (c *fakeExploreClient) ReleaseIntent(ctx context.Context, projectID, intentID, workerName string) (graph.Node, error) {
 	c.releases = append(c.releases, exploreReleaseCall{IntentID: intentID, Worker: workerName})
+	// Post-execute graph writes must run on a detached context: a cancelled
+	// caller must not lose the release.
+	if err := ctx.Err(); err != nil {
+		return graph.Node{}, err
+	}
 	return graph.Node{ID: intentID, ProjectID: projectID, State: "open"}, c.releaseErr
 }
 
-func (c *fakeExploreClient) ConcludeIntent(_ context.Context, projectID, intentID, workerName, description, factType string) (graph.Node, graph.Node, error) {
+func (c *fakeExploreClient) ConcludeIntent(ctx context.Context, projectID, intentID, workerName, description, factType string) (graph.Node, graph.Node, error) {
 	c.concludes = append(c.concludes, exploreConcludeCall{
 		IntentID: intentID, Worker: workerName, Description: description, FactType: factType,
 	})
+	// A cancelled caller context must never be used for the objective fact:
+	// R9 requires the conclusion even when Execute was timed out.
+	if err := ctx.Err(); err != nil {
+		return graph.Node{}, graph.Node{}, err
+	}
 	if c.concludeErr != nil {
 		return graph.Node{}, graph.Node{}, c.concludeErr
 	}
@@ -121,11 +131,14 @@ type fakeVerdictExploreClient struct {
 	verdicts   []exploreVerdictCall
 }
 
-func (c *fakeVerdictExploreClient) AddVerdict(_ context.Context, projectID, targetID, verdict, description, evidenceRef string) (graph.Node, error) {
+func (c *fakeVerdictExploreClient) AddVerdict(ctx context.Context, projectID, targetID, verdict, description, evidenceRef string) (graph.Node, error) {
 	c.verdicts = append(c.verdicts, exploreVerdictCall{
 		ProjectID: projectID, TargetID: targetID, Verdict: verdict,
 		Description: description, EvidenceRef: evidenceRef,
 	})
+	if err := ctx.Err(); err != nil {
+		return graph.Node{}, err
+	}
 	if c.verdictErr != nil {
 		return graph.Node{}, c.verdictErr
 	}
@@ -166,13 +179,32 @@ func (d *fakeExploreDriver) Conclude(ctx context.Context, t worker.Task) (worker
 }
 func (d *fakeExploreDriver) SupportsConclude() bool { return d.supportsConclude }
 
-type fakeSandboxRuntime struct {
-	calls atomic.Int64
+type exploreExecCall struct {
+	ProjectID string
+	Request   runtime.ExecRequest
 }
 
-func (r *fakeSandboxRuntime) Exec(context.Context, string, runtime.ExecRequest) (runtime.ExecResult, error) {
-	r.calls.Add(1)
-	return runtime.ExecResult{}, nil
+type fakeSandboxRuntime struct {
+	mu     sync.Mutex
+	calls  []exploreExecCall
+	result runtime.ExecResult
+	err    error
+}
+
+func (r *fakeSandboxRuntime) Exec(_ context.Context, projectID string, req runtime.ExecRequest) (runtime.ExecResult, error) {
+	r.mu.Lock()
+	r.calls = append(r.calls, exploreExecCall{ProjectID: projectID, Request: req})
+	r.mu.Unlock()
+	if r.err != nil {
+		return r.result, r.err
+	}
+	return r.result, nil
+}
+
+func (r *fakeSandboxRuntime) recordedCalls() []exploreExecCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]exploreExecCall(nil), r.calls...)
 }
 
 // --- fixtures --------------------------------------------------------------
@@ -309,6 +341,200 @@ func TestExploreConcludesObservationFact(t *testing.T) {
 	if len(client.verdicts) != 0 {
 		t.Fatalf("a verdict-free result must not write a verdict: %+v", client.verdicts)
 	}
+	if got := rt.recordedCalls(); len(got) != 0 {
+		t.Fatalf("a command-free result must not exec in the sandbox: %+v", got)
+	}
+}
+
+// TestExploreRunsSandboxVerification is R9's core acceptance test: an accepted
+// explore result that asks for a command runs it through the SandboxRuntime and
+// records the observed output in the objective conclusion.
+func TestExploreRunsSandboxVerification(t *testing.T) {
+	exploreWorkdir(t)
+	client := newExploreClient()
+	driver := &fakeExploreDriver{
+		name:             "native-test",
+		supportsConclude: true,
+		execute: func(context.Context, worker.Task) (worker.Result, error) {
+			return acceptedResult("已验证输入可到达 eval 入口",
+				`{"accepted":true,"data":{"description":"已验证输入可到达 eval 入口","command":"curl -s http://target/x","workdir":"/workspace/src","verdict":"support"}}`), nil
+		},
+	}
+	rt := &fakeSandboxRuntime{result: runtime.ExecResult{
+		Stdout:   "HTTP/1.1 200 OK\neval sink reached\n",
+		Stderr:   "connection warning\n",
+		ExitCode: 0,
+	}}
+
+	if err := RunExplore(context.Background(), client, driver, rt, exploreProject(), "i001"); err != nil {
+		t.Fatalf("RunExplore: %v", err)
+	}
+
+	calls := rt.recordedCalls()
+	if len(calls) != 1 {
+		t.Fatalf("sandbox Exec calls = %d, want 1", len(calls))
+	}
+	call := calls[0]
+	if call.ProjectID != "p1" {
+		t.Fatalf("exec project = %q, want p1", call.ProjectID)
+	}
+	if call.Request.Command != "curl -s http://target/x" || call.Request.Workdir != "/workspace/src" {
+		t.Fatalf("exec request = %+v, want the model-provided command and workdir", call.Request)
+	}
+	if call.Request.Timeout != exploreExecTimeout {
+		t.Fatalf("exec timeout = %v, want %v", call.Request.Timeout, exploreExecTimeout)
+	}
+
+	if len(client.concludes) != 1 {
+		t.Fatalf("ConcludeIntent calls = %d, want 1", len(client.concludes))
+	}
+	description := client.concludes[0].Description
+	if !strings.HasPrefix(description, "已验证输入可到达 eval 入口") {
+		t.Fatalf("conclusion = %q, want it to keep the worker description", description)
+	}
+	for _, want := range []string{
+		"curl -s http://target/x", "退出码 0", "HTTP/1.1 200 OK", "eval sink reached", "connection warning",
+	} {
+		if !strings.Contains(description, want) {
+			t.Fatalf("conclusion is missing %q:\n%s", want, description)
+		}
+	}
+	if got := client.concludes[0].FactType; got != "observation" {
+		t.Fatalf("fact type = %q, want observation", got)
+	}
+	if len(client.releases) != 0 {
+		t.Fatalf("a verified conclusion must not release: %+v", client.releases)
+	}
+	if len(driver.concludeTasks) != 0 {
+		t.Fatalf("a verified conclusion must not ask the driver to conclude: %+v", driver.concludeTasks)
+	}
+	if len(client.verdicts) != 1 {
+		t.Fatalf("AddVerdict calls = %d, want 1", len(client.verdicts))
+	}
+	verdict := client.verdicts[0]
+	if verdict.Verdict != "support" || verdict.TargetID != "i001" {
+		t.Fatalf("verdict = %+v, want support/i001", verdict)
+	}
+	for _, want := range []string{"sandbox: command=", "exit=0", "/workspace/src"} {
+		if !strings.Contains(verdict.EvidenceRef, want) {
+			t.Fatalf("evidence ref = %q, want it to cite the sandbox execution (%q)", verdict.EvidenceRef, want)
+		}
+	}
+}
+
+func TestExploreSandboxOutputIsTruncated(t *testing.T) {
+	exploreWorkdir(t)
+	client := newExploreClient()
+	driver := &fakeExploreDriver{
+		name: "native-test",
+		execute: func(context.Context, worker.Task) (worker.Result, error) {
+			return acceptedResult("长输出结论",
+				`{"accepted":true,"data":{"description":"长输出结论","command":"cat big.log"}}`), nil
+		},
+	}
+	rt := &fakeSandboxRuntime{result: runtime.ExecResult{
+		Stdout:   strings.Repeat("A", exploreMaxOutputRunes+50),
+		Stderr:   strings.Repeat("B", exploreMaxOutputRunes+50),
+		ExitCode: 0,
+	}}
+
+	if err := RunExplore(context.Background(), client, driver, rt, exploreProject(), "i001"); err != nil {
+		t.Fatalf("RunExplore: %v", err)
+	}
+	description := client.concludes[0].Description
+	if !strings.Contains(description, "…(输出已截断)") {
+		t.Fatalf("conclusion = %q, want truncated output markers", description)
+	}
+	if strings.Count(description, "A") > exploreMaxOutputRunes || strings.Count(description, "B") > exploreMaxOutputRunes {
+		t.Fatalf("conclusion kept too much output: A=%d B=%d", strings.Count(description, "A"), strings.Count(description, "B"))
+	}
+}
+
+// TestExploreSandboxVerificationFailureStillWritesFact covers R9's failure
+// clause: a failed sandbox command still lands an objective observation, and
+// the error is surfaced to the dispatcher.
+func TestExploreSandboxVerificationFailureStillWritesFact(t *testing.T) {
+	exploreWorkdir(t)
+	client := newExploreClient()
+	driver := &fakeExploreDriver{
+		name:             "native-test",
+		supportsConclude: true,
+		execute: func(context.Context, worker.Task) (worker.Result, error) {
+			return acceptedResult("初步判断可触发",
+				`{"accepted":true,"data":{"description":"初步判断可触发","command":"run-poc.sh","verdict":"support"}}`), nil
+		},
+	}
+	rt := &fakeSandboxRuntime{err: errors.New("container not running")}
+
+	err := RunExplore(context.Background(), client, driver, rt, exploreProject(), "i001")
+	if err == nil || !strings.Contains(err.Error(), "container not running") {
+		t.Fatalf("RunExplore err = %v, want the sandbox exec failure", err)
+	}
+
+	calls := rt.recordedCalls()
+	if len(calls) != 1 || calls[0].Request.Command != "run-poc.sh" {
+		t.Fatalf("sandbox Exec calls = %+v, want one run-poc.sh call", calls)
+	}
+	if len(client.concludes) != 1 {
+		t.Fatalf("ConcludeIntent calls = %d, want 1", len(client.concludes))
+	}
+	description := client.concludes[0].Description
+	if !strings.Contains(description, "run-poc.sh") || !strings.Contains(description, "container not running") {
+		t.Fatalf("failure conclusion = %q, want the command and the failure reason", description)
+	}
+	if got := client.concludes[0].FactType; got != "observation" {
+		t.Fatalf("fact type = %q, want observation", got)
+	}
+	if len(client.releases) != 0 {
+		t.Fatalf("a concluded sandbox failure must not release: %+v", client.releases)
+	}
+	if len(client.verdicts) != 0 {
+		t.Fatalf("a failed verification must not record a verdict: %+v", client.verdicts)
+	}
+}
+
+func TestExploreSkipsSandboxWithoutCommandOrRuntime(t *testing.T) {
+	t.Run("no command", func(t *testing.T) {
+		exploreWorkdir(t)
+		client := newExploreClient()
+		driver := &fakeExploreDriver{
+			name: "native-test",
+			execute: func(context.Context, worker.Task) (worker.Result, error) {
+				return acceptedResult("无需命令的结论",
+					`{"accepted":true,"data":{"description":"无需命令的结论"}}`), nil
+			},
+		}
+		rt := &fakeSandboxRuntime{}
+
+		if err := RunExplore(context.Background(), client, driver, rt, exploreProject(), "i001"); err != nil {
+			t.Fatalf("RunExplore: %v", err)
+		}
+		if got := rt.recordedCalls(); len(got) != 0 {
+			t.Fatalf("a result without data.command must not exec: %+v", got)
+		}
+		if got := client.concludes[0].Description; got != "无需命令的结论" {
+			t.Fatalf("conclusion = %q, want the unchanged worker description", got)
+		}
+	})
+
+	t.Run("nil runtime", func(t *testing.T) {
+		exploreWorkdir(t)
+		client := newExploreClient()
+		driver := &fakeExploreDriver{
+			name: "native-test",
+			execute: func(context.Context, worker.Task) (worker.Result, error) {
+				return acceptedResult("无运行时结论",
+					`{"accepted":true,"data":{"description":"无运行时结论","command":"true"}}`), nil
+			},
+		}
+
+		if err := RunExplore(context.Background(), client, driver, nil, exploreProject(), "i001"); err != nil {
+			t.Fatalf("RunExplore: %v", err)
+		}
+		if len(client.concludes) != 1 || client.concludes[0].Description != "无运行时结论" {
+			t.Fatalf("conclusion = %+v, want the unchanged worker description", client.concludes)
+		}
+	})
 }
 
 func TestExploreTimeoutFallsBackToConclude(t *testing.T) {
@@ -337,7 +563,8 @@ func TestExploreTimeoutFallsBackToConclude(t *testing.T) {
 	parent, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	if err := RunExplore(parent, client, driver, &fakeSandboxRuntime{}, exploreProject(), "i001"); err != nil {
+	rt := &fakeSandboxRuntime{}
+	if err := RunExplore(parent, client, driver, rt, exploreProject(), "i001"); err != nil {
 		t.Fatalf("RunExplore: %v", err)
 	}
 
@@ -355,6 +582,74 @@ func TestExploreTimeoutFallsBackToConclude(t *testing.T) {
 	}
 	if len(client.releases) != 0 {
 		t.Fatalf("a concluded fallback must not release the intent: %+v", client.releases)
+	}
+	if got := rt.recordedCalls(); len(got) != 0 {
+		t.Fatalf("a timeout fallback must not run sandbox commands: %+v", got)
+	}
+}
+
+// TestExploreTimeoutReleaseUsesDetachedContext proves a cancelled caller
+// context cannot lose the release after a failed post-execute graph write: the
+// fake client rejects any already-cancelled context, so a release only succeeds
+// when RunExplore detaches it.
+func TestExploreTimeoutReleaseUsesDetachedContext(t *testing.T) {
+	exploreWorkdir(t)
+	client := newExploreClient()
+	client.concludeErr = errors.New("graph write failed")
+	driver := &fakeExploreDriver{
+		name:             "native-test",
+		supportsConclude: true,
+		execute: func(ctx context.Context, _ worker.Task) (worker.Result, error) {
+			return worker.Result{}, ctx.Err()
+		},
+		conclude: func(context.Context, worker.Task) (worker.Result, error) {
+			return acceptedResult("超时收尾结论", `{"accepted":true,"data":{"description":"超时收尾结论"}}`), nil
+		},
+	}
+	parent, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := RunExplore(parent, client, driver, &fakeSandboxRuntime{}, exploreProject(), "i001")
+	if err == nil {
+		t.Fatal("a failed ConcludeIntent must surface an error")
+	}
+	if !strings.Contains(err.Error(), "conclude intent") {
+		t.Fatalf("RunExplore err = %v, want the conclude failure", err)
+	}
+	if strings.Contains(err.Error(), "release intent") {
+		t.Fatalf("release must succeed on a detached context, err = %v", err)
+	}
+	if len(client.releases) != 1 || client.releases[0].IntentID != "i001" {
+		t.Fatalf("releases = %+v, want one release of i001 despite the cancelled caller", client.releases)
+	}
+}
+
+// TestExploreVerdictWriteUsesDetachedContext proves the optional verdict fact is
+// also written on a detached context after Execute timed out.
+func TestExploreVerdictWriteUsesDetachedContext(t *testing.T) {
+	exploreWorkdir(t)
+	client := newExploreClient()
+	driver := &fakeExploreDriver{
+		name:             "native-test",
+		supportsConclude: true,
+		execute: func(ctx context.Context, _ worker.Task) (worker.Result, error) {
+			return acceptedResult("结论成立",
+				`{"accepted":true,"data":{"description":"结论成立","verdict":"support"}}`), nil
+		},
+	}
+	parent, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// Execute ignores the cancelled context in this fake and still reports an
+	// accepted result; the graph writes afterwards must not inherit it.
+	if err := RunExplore(parent, client, driver, &fakeSandboxRuntime{}, exploreProject(), "i001"); err != nil {
+		t.Fatalf("RunExplore: %v", err)
+	}
+	if len(client.concludes) != 1 {
+		t.Fatalf("ConcludeIntent calls = %d, want 1", len(client.concludes))
+	}
+	if len(client.verdicts) != 1 {
+		t.Fatalf("AddVerdict calls = %d, want 1", len(client.verdicts))
 	}
 }
 

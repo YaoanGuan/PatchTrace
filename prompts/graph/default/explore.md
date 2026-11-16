@@ -24,6 +24,16 @@
 - `evidence_ref`：可选，指向承载证据的沙箱文件或输出路径。
 - `target`：可选，判决针对的图中节点编号；缺省为当前意图，只有已存在的节点才会被采用。
 
+若需要在沙箱中实际执行验证命令，可在 `data` 中附加可选字段，Runner 会替你执行并记录客观结果：
+
+```json
+{"accepted":true,"data":{"description":"...","command":"...","workdir":"...","verdict":"support","evidence_ref":"...","target":"..."}}
+```
+
+- `command`：可选，交给沙箱执行的完整 shell 命令（应可复现、无破坏性）。
+- `workdir`：可选，命令的工作目录；缺省时由沙箱默认目录决定。
+- 请在 `description` 中说明这条命令的预期结果（例如“预期返回 200 并进入 eval 分支”）；Runner 会把实际退出码、stdout 与 stderr 追加到客观结论中。
+
 只有在确实应当拒绝任务时才返回：
 
 ```json

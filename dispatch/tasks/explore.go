@@ -25,9 +25,16 @@ const (
 	exploreWorkerName      = "explore"
 	exploreIntentLease     = 5 * time.Minute
 	exploreConcludeTimeout = 2 * time.Minute
+	exploreExecTimeout     = 2 * time.Minute
 	exploreObservationType = "observation"
 	exploreMaxReasonRunes  = 160
+	exploreMaxOutputRunes  = 1200
 	exploreFailurePrefix   = "explore 未完成："
+
+	// exploreGraphWriteTimeout bounds every graph write issued after Execute.
+	// Those writes run on a detached context so a dispatcher timeout cannot
+	// suppress R9's objective conclusion or leave the intent claimed.
+	exploreGraphWriteTimeout = 30 * time.Second
 )
 
 // exploreDeps groups the injectable lookups so tests can exercise the runner
@@ -36,12 +43,14 @@ type exploreDeps struct {
 	loadPrompt        func(string, worker.TaskType, bool) (string, error)
 	heartbeatInterval time.Duration
 	concludeTimeout   time.Duration
+	execTimeout       time.Duration
 }
 
 var defaultExploreDeps = exploreDeps{
 	loadPrompt:        worker.LoadPrompt,
 	heartbeatInterval: exploreIntentLease / 2,
 	concludeTimeout:   exploreConcludeTimeout,
+	execTimeout:       exploreExecTimeout,
 }
 
 // verdictWriter is optionally implemented by a graph client that can persist
@@ -72,9 +81,13 @@ type verdictWriter interface {
 // timeout) or writes an objective "explore 未完成" failure fact. It never
 // fabricates a successful conclusion.
 //
-// rt is the sandbox execution seam. The runner itself does not exec commands:
-// the worker driver owns tool execution, so rt is carried for dispatcher wiring
-// rather than used here.
+// R9 verification: when an accepted result carries data.command and rt is
+// non-nil, the runner executes that command in the project sandbox through rt
+// and folds the demultiplexed output and exit code into the observation fact.
+// A failed or timed-out command still concludes an objective observation, then
+// returns the exec error. Every graph write after Execute runs on a detached
+// context bounded by exploreGraphWriteTimeout so an expired caller context
+// cannot lose the conclusion or the release.
 func RunExplore(ctx context.Context, c graphserver.Client, d worker.Driver, rt runtime.SandboxRuntime, p graph.Project, intentID string) error {
 	return runExplore(ctx, c, d, rt, p, intentID, defaultExploreDeps)
 }
@@ -83,7 +96,6 @@ func runExplore(ctx context.Context, c graphserver.Client, d worker.Driver, rt r
 	if c == nil || d == nil {
 		return errors.New("explore: graph client and worker driver are required")
 	}
-	_ = rt
 
 	intentID = strings.TrimSpace(intentID)
 	workerName := strings.TrimSpace(d.Name())
@@ -100,13 +112,18 @@ func runExplore(ctx context.Context, c graphserver.Client, d worker.Driver, rt r
 	}
 
 	// fail releases the claim only before a conclusion. Once ConcludeIntent has
-	// succeeded the intent is resolved and must never be reopened here.
+	// succeeded the intent is resolved and must never be reopened here. The
+	// release is detached from the caller so a dispatcher timeout cannot leave
+	// the intent claimed for the full lease.
 	concluded := false
 	fail := func(cause error) error {
 		if concluded {
 			return cause
 		}
-		if _, relErr := c.ReleaseIntent(ctx, p.ID, intentID, workerName); relErr != nil {
+		releaseCtx, cancelRelease := exploreGraphWriteContext(ctx)
+		_, relErr := c.ReleaseIntent(releaseCtx, p.ID, intentID, workerName)
+		cancelRelease()
+		if relErr != nil {
 			misc.Warn("dispatch.tasks", fmt.Sprintf("explore: release intent %s: %v", intentID, relErr), nil)
 			return errors.Join(cause, fmt.Errorf("explore: release intent %s: %w", intentID, relErr))
 		}
@@ -150,8 +167,13 @@ func runExplore(ctx context.Context, c graphserver.Client, d worker.Driver, rt r
 	// execute result: a verdict is evidence produced by a completed
 	// exploration, not by a timeout fallback or a refusal.
 	var (
-		conclusion string
-		verdictRaw string
+		conclusion  string
+		verdictRaw  string
+		payload     *exploreResultPayload
+		payloadErr  error
+		verify      *exploreVerification
+		evidenceRef string
+		verifyErr   error
 	)
 	switch {
 	case execErr != nil:
@@ -163,17 +185,123 @@ func runExplore(ctx context.Context, c graphserver.Client, d worker.Driver, rt r
 	default:
 		conclusion = strings.TrimSpace(result.Description)
 		verdictRaw = result.Raw
+		parsed, err := parseExploreResultPayload(result.Raw)
+		if err != nil {
+			// The observation fact still lands; the parse error is surfaced
+			// with the verdict handling after the conclusion is written.
+			payloadErr = err
+		} else {
+			payload = parsed
+			if command := strings.TrimSpace(parsed.Data.Command); command != "" {
+				verify = &exploreVerification{Command: command, Workdir: strings.TrimSpace(parsed.Data.Workdir)}
+			}
+		}
 	}
 
-	if _, _, err := c.ConcludeIntent(ctx, p.ID, intentID, workerName, conclusion, exploreObservationType); err != nil {
-		return fail(fmt.Errorf("explore: conclude intent %s: %w", intentID, err))
+	// R9: run the verification the worker asked for, before concluding. A
+	// failure is recorded in the observation and surfaced afterwards.
+	if verify != nil && rt != nil {
+		execResult, execErr := rt.Exec(ctx, p.ID, runtime.ExecRequest{
+			Command: verify.Command,
+			Workdir: verify.Workdir,
+			Timeout: exploreExecTimeoutOrDefault(deps.execTimeout),
+		})
+		if err := errors.Join(execErr, execResult.Err); err != nil {
+			verifyErr = fmt.Errorf("explore: sandbox verification: %w", err)
+			conclusion += "\n\n" + exploreVerificationFailure(verify, err)
+			// A verification that did not run is not evidence: never write a
+			// support/refute verdict from it.
+			verdictRaw = ""
+			payload = nil
+		} else {
+			conclusion += "\n\n" + exploreVerificationSuccess(verify, execResult)
+			evidenceRef = exploreVerificationEvidenceRef(verify, execResult)
+		}
+	}
+
+	writeCtx, cancelWrite := exploreGraphWriteContext(ctx)
+	_, _, concludeErr := c.ConcludeIntent(writeCtx, p.ID, intentID, workerName, conclusion, exploreObservationType)
+	cancelWrite()
+	if concludeErr != nil {
+		return fail(fmt.Errorf("explore: conclude intent %s: %w", intentID, concludeErr))
 	}
 	concluded = true
 
 	if verdictRaw == "" {
-		return nil
+		return verifyErr
 	}
-	return recordExploreVerdict(ctx, c, p.ID, intentID, conclusion, verdictRaw, nodeIDs)
+	verdictCtx, cancelVerdict := exploreGraphWriteContext(ctx)
+	defer cancelVerdict()
+	if payloadErr != nil {
+		return errors.Join(verifyErr, fmt.Errorf("explore: parse verdict data: %w", payloadErr))
+	}
+	return errors.Join(verifyErr, recordExploreVerdict(verdictCtx, c, p.ID, intentID, conclusion, payload, evidenceRef, nodeIDs))
+}
+
+// exploreGraphWriteContext detaches a post-Execute graph write from the
+// caller's cancellation (the dispatcher applies per-type deadlines) while
+// keeping its values and bounding it with a short fresh timeout.
+func exploreGraphWriteContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), exploreGraphWriteTimeout)
+}
+
+func exploreExecTimeoutOrDefault(timeout time.Duration) time.Duration {
+	if timeout > 0 {
+		return timeout
+	}
+	return exploreExecTimeout
+}
+
+// exploreVerification is the optional sandbox command an accepted explore
+// result asked the runner to execute.
+type exploreVerification struct {
+	Command string
+	Workdir string
+}
+
+func exploreVerificationSuccess(verify *exploreVerification, result runtime.ExecResult) string {
+	var b strings.Builder
+	b.WriteString("沙箱验证：命令 `")
+	b.WriteString(verify.Command)
+	b.WriteString("`")
+	if verify.Workdir != "" {
+		b.WriteString("（工作目录 ")
+		b.WriteString(verify.Workdir)
+		b.WriteString("）")
+	}
+	fmt.Fprintf(&b, " 退出码 %d", result.ExitCode)
+	if out := strings.TrimSpace(result.Stdout); out != "" {
+		b.WriteString("\nstdout:\n")
+		b.WriteString(truncateExploreOutput(out))
+	}
+	if errOut := strings.TrimSpace(result.Stderr); errOut != "" {
+		b.WriteString("\nstderr:\n")
+		b.WriteString(truncateExploreOutput(errOut))
+	}
+	return b.String()
+}
+
+func exploreVerificationFailure(verify *exploreVerification, cause error) string {
+	if verify.Workdir == "" {
+		return fmt.Sprintf("沙箱验证失败：命令 `%s` 未完成：%v", verify.Command, cause)
+	}
+	return fmt.Sprintf("沙箱验证失败：命令 `%s`（工作目录 %s）未完成：%v", verify.Command, verify.Workdir, cause)
+}
+
+func exploreVerificationEvidenceRef(verify *exploreVerification, result runtime.ExecResult) string {
+	ref := fmt.Sprintf("sandbox: command=%q exit=%d", verify.Command, result.ExitCode)
+	if verify.Workdir != "" {
+		ref += fmt.Sprintf(" workdir=%q", verify.Workdir)
+	}
+	return ref
+}
+
+func truncateExploreOutput(output string) string {
+	runes := []rune(output)
+	if len(runes) <= exploreMaxOutputRunes {
+		return output
+	}
+	return string(runes[:exploreMaxOutputRunes]) + "…(输出已截断)"
 }
 
 // exploreFallbackConclusion asks the same session for a closing summary when it
@@ -315,9 +443,12 @@ func explorePrompt(template, graphYAML, intentID, intentDescription string) (str
 	return rendered, nil
 }
 
-// exploreVerdictPayload is the optional R10 section of the explore result.
-type exploreVerdictPayload struct {
+// exploreResultPayload is the optional R9/R10 section of the explore result:
+// the sandbox command to run, and the evidence verdict it supports.
+type exploreResultPayload struct {
 	Data struct {
+		Command     string `json:"command"`
+		Workdir     string `json:"workdir"`
 		Verdict     string `json:"verdict"`
 		EvidenceRef string `json:"evidence_ref"`
 		Target      string `json:"target"`
@@ -333,21 +464,29 @@ func stripExploreFence(raw string) string {
 	return raw
 }
 
-// recordExploreVerdict parses the optional verdict fields and writes a verdict
-// fact through AddVerdict. The default target is the explored intent; an
-// explicit data.target only overrides it when it names an existing project
-// node. A verdict failure is returned after the observation fact is already
-// written.
-func recordExploreVerdict(ctx context.Context, c graphserver.Client, projectID, intentID, description, raw string, nodeIDs map[string]struct{}) error {
+func parseExploreResultPayload(raw string) (*exploreResultPayload, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
+		return &exploreResultPayload{}, nil
+	}
+	var payload exploreResultPayload
+	if err := json.Unmarshal([]byte(stripExploreFence(trimmed)), &payload); err != nil {
+		return nil, fmt.Errorf("explore: parse result data: %w", err)
+	}
+	return &payload, nil
+}
+
+// recordExploreVerdict writes the optional verdict fields through AddVerdict.
+// The default target is the explored intent; an explicit data.target only
+// overrides it when it names an existing project node. defaultEvidenceRef
+// describes the sandbox execution that produced the evidence and is appended to
+// any model-supplied reference. A verdict failure is returned after the
+// observation fact is already written.
+func recordExploreVerdict(ctx context.Context, c graphserver.Client, projectID, intentID, description string, payload *exploreResultPayload, defaultEvidenceRef string, nodeIDs map[string]struct{}) error {
+	if payload == nil {
 		return nil
 	}
-	var envelope exploreVerdictPayload
-	if err := json.Unmarshal([]byte(stripExploreFence(trimmed)), &envelope); err != nil {
-		return fmt.Errorf("explore: parse verdict data: %w", err)
-	}
-	verdict := strings.TrimSpace(envelope.Data.Verdict)
+	verdict := strings.TrimSpace(payload.Data.Verdict)
 	if verdict == "" {
 		return nil
 	}
@@ -356,9 +495,18 @@ func recordExploreVerdict(ctx context.Context, c graphserver.Client, projectID, 
 	}
 
 	targetID := intentID
-	if requested := strings.TrimSpace(envelope.Data.Target); requested != "" {
+	if requested := strings.TrimSpace(payload.Data.Target); requested != "" {
 		if _, ok := nodeIDs[requested]; ok {
 			targetID = requested
+		}
+	}
+
+	evidenceRef := strings.TrimSpace(payload.Data.EvidenceRef)
+	if defaultEvidenceRef != "" {
+		if evidenceRef == "" {
+			evidenceRef = defaultEvidenceRef
+		} else {
+			evidenceRef += "; " + defaultEvidenceRef
 		}
 	}
 
@@ -366,7 +514,7 @@ func recordExploreVerdict(ctx context.Context, c graphserver.Client, projectID, 
 	if !ok {
 		return errors.New("explore: graph client cannot record verdicts (missing AddVerdict)")
 	}
-	if _, err := writer.AddVerdict(ctx, projectID, targetID, verdict, description, strings.TrimSpace(envelope.Data.EvidenceRef)); err != nil {
+	if _, err := writer.AddVerdict(ctx, projectID, targetID, verdict, description, evidenceRef); err != nil {
 		return fmt.Errorf("explore: record verdict: %w", err)
 	}
 	return nil
