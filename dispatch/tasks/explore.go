@@ -44,6 +44,7 @@ type exploreDeps struct {
 	heartbeatInterval time.Duration
 	concludeTimeout   time.Duration
 	execTimeout       time.Duration
+	onVerdict         func(context.Context, string, string) error
 }
 
 var defaultExploreDeps = exploreDeps{
@@ -67,6 +68,12 @@ type verdictWriter interface {
 // defaults; a non-positive ConcludeTimeout falls back to the 2m default.
 type ExploreOptions struct {
 	ConcludeTimeout time.Duration
+
+	// OnVerdict is invoked after an evidence verdict fact has been written,
+	// with that fact's project and node id. It lets the dispatcher feed the
+	// verdict into the PatchOracle rule base (CE4). A nil hook changes nothing,
+	// and a failed verdict write never invokes it.
+	OnVerdict func(ctx context.Context, projectID, verdictFactID string) error
 }
 
 // RunExplore validates one claimed intent inside the sandbox and writes an
@@ -106,6 +113,7 @@ func RunExploreWithOptions(ctx context.Context, c graphserver.Client, d worker.D
 	if opts.ConcludeTimeout > 0 {
 		deps.concludeTimeout = opts.ConcludeTimeout
 	}
+	deps.onVerdict = opts.OnVerdict
 	return runExplore(ctx, c, d, rt, p, intentID, deps)
 }
 
@@ -252,7 +260,18 @@ func runExplore(ctx context.Context, c graphserver.Client, d worker.Driver, rt r
 	if payloadErr != nil {
 		return errors.Join(verifyErr, fmt.Errorf("explore: parse verdict data: %w", payloadErr))
 	}
-	return errors.Join(verifyErr, recordExploreVerdict(verdictCtx, c, p.ID, intentID, conclusion, payload, evidenceRef, nodeIDs))
+	verdictFactID, verdictErr := recordExploreVerdict(verdictCtx, c, p.ID, intentID, conclusion, payload, evidenceRef, nodeIDs)
+	if verdictErr != nil {
+		return errors.Join(verifyErr, verdictErr)
+	}
+	// CE4 feedback runs only after the verdict fact exists, so a failed or
+	// rejected verdict can never grow the rule base.
+	if verdictFactID != "" && deps.onVerdict != nil {
+		if err := deps.onVerdict(verdictCtx, p.ID, verdictFactID); err != nil {
+			return errors.Join(verifyErr, fmt.Errorf("explore: apply verdict outcome: %w", err))
+		}
+	}
+	return verifyErr
 }
 
 // exploreGraphWriteContext detaches a post-Execute graph write from the
@@ -497,18 +516,19 @@ func parseExploreResultPayload(raw string) (*exploreResultPayload, error) {
 // The default target is the explored intent; an explicit data.target only
 // overrides it when it names an existing project node. defaultEvidenceRef
 // describes the sandbox execution that produced the evidence and is appended to
-// any model-supplied reference. A verdict failure is returned after the
-// observation fact is already written.
-func recordExploreVerdict(ctx context.Context, c graphserver.Client, projectID, intentID, description string, payload *exploreResultPayload, defaultEvidenceRef string, nodeIDs map[string]struct{}) error {
+// any model-supplied reference. It returns the new verdict fact id, or "" when
+// no verdict was requested. A verdict failure is returned after the observation
+// fact is already written.
+func recordExploreVerdict(ctx context.Context, c graphserver.Client, projectID, intentID, description string, payload *exploreResultPayload, defaultEvidenceRef string, nodeIDs map[string]struct{}) (string, error) {
 	if payload == nil {
-		return nil
+		return "", nil
 	}
 	verdict := strings.TrimSpace(payload.Data.Verdict)
 	if verdict == "" {
-		return nil
+		return "", nil
 	}
 	if verdict != "support" && verdict != "refute" {
-		return fmt.Errorf("%w: explore: verdict %q must be support or refute", graph.ErrInvalid, verdict)
+		return "", fmt.Errorf("%w: explore: verdict %q must be support or refute", graph.ErrInvalid, verdict)
 	}
 
 	targetID := intentID
@@ -529,12 +549,13 @@ func recordExploreVerdict(ctx context.Context, c graphserver.Client, projectID, 
 
 	writer, ok := c.(verdictWriter)
 	if !ok {
-		return errors.New("explore: graph client cannot record verdicts (missing AddVerdict)")
+		return "", errors.New("explore: graph client cannot record verdicts (missing AddVerdict)")
 	}
-	if _, err := writer.AddVerdict(ctx, projectID, targetID, verdict, description, evidenceRef); err != nil {
-		return fmt.Errorf("explore: record verdict: %w", err)
+	fact, err := writer.AddVerdict(ctx, projectID, targetID, verdict, description, evidenceRef)
+	if err != nil {
+		return "", fmt.Errorf("explore: record verdict: %w", err)
 	}
-	return nil
+	return strings.TrimSpace(fact.ID), nil
 }
 
 // startExploreHeartbeat refreshes the claimed intent lease until the returned

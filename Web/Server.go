@@ -46,6 +46,11 @@ type Server struct {
 	restoreCompleted bool
 	restoreErr       string
 	restoreDone      chan struct{}
+
+	// apiRoutesMu guards the optional route families registered through
+	// RegisterAPIRoutes. They are applied once while Handler builds the engine.
+	apiRoutesMu sync.Mutex
+	apiRoutes   []func(gin.IRouter)
 }
 
 const (
@@ -259,6 +264,19 @@ func (s *Server) loadProjectInfosFromLegacyJSON(pmPath string) ([]taskManager.Pr
 	return pmsl, nil
 }
 
+// RegisterAPIRoutes adds an optional route family to the server's gin engine.
+// It must be called before the server starts; the hook runs once while Handler
+// builds the engine, after the built-in routes are mounted. Existing routes are
+// untouched.
+func (s *Server) RegisterAPIRoutes(register func(gin.IRouter)) {
+	if register == nil {
+		return
+	}
+	s.apiRoutesMu.Lock()
+	s.apiRoutes = append(s.apiRoutes, register)
+	s.apiRoutesMu.Unlock()
+}
+
 func (s *Server) StartWebServer(port string) {
 	s.startWebServer(port, nil)
 }
@@ -445,6 +463,15 @@ func (s *Server) Handler(uiFS fs.FS) http.Handler {
 	authorized.GET("/healthz", func(c *gin.Context) {
 		c.JSON(200, gin.H{"msg": "ok"})
 	})
+
+	// Optional route families (e.g. /api/graph when the graph lane is enabled)
+	// are applied last so they cannot shadow or alter the built-in routes.
+	s.apiRoutesMu.Lock()
+	apiRoutes := append([]func(gin.IRouter){}, s.apiRoutes...)
+	s.apiRoutesMu.Unlock()
+	for _, register := range apiRoutes {
+		register(r)
+	}
 
 	manager := &ClientManager{
 		clients: make(map[string]map[*websocket.Conn]bool),

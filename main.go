@@ -3,6 +3,7 @@ package main
 import (
 	"AIxVuln/Web"
 	"AIxVuln/dispatch"
+	"AIxVuln/graphserver"
 	"AIxVuln/misc"
 	"AIxVuln/toolCalling"
 	"context"
@@ -77,35 +78,53 @@ func main() {
 		misc.PanicWithStack("加载前端静态资源失败: %v", err)
 	}
 	server := Web.NewServer()
-	startGraphLane(context.Background())
+	laneCtx, cancelLane := context.WithCancel(context.Background())
+	dispatcher := startGraphLane(laneCtx, server)
+	// StartWebServerWithUIFS blocks until SIGINT/SIGTERM. Cancelling stops the
+	// scheduler loop; Close then releases the stores the lane opened (caller
+	// supplied stores are already excluded by ownership flags).
+	defer func() {
+		cancelLane()
+		if dispatcher != nil {
+			if err := dispatcher.Close(); err != nil {
+				misc.Warn("graph-lane", fmt.Sprintf("关闭图调度车道失败: %v", err), nil)
+			}
+		}
+	}()
 	server.StartWebServerWithUIFS(strings.TrimSpace(*port), uiFS)
 }
 
 // startGraphLane starts the optional graph dispatcher lane when
-// misc.graph_lane_enabled is on (default false).
+// misc.graph_lane_enabled is on (default false) and mounts its HTTP protocol
+// under /api/graph on the existing web server. The routes are mounted only when
+// the lane actually started, because they need the lane's store.
 //
 // The lane is strictly additive: every failure is logged and the existing
 // closed loop still starts. The graph lane must never block web-server startup,
-// so Run executes in its own goroutine.
-func startGraphLane(ctx context.Context) {
+// so Run executes in its own goroutine. The returned dispatcher is owned by
+// main and closed on shutdown.
+func startGraphLane(ctx context.Context, server *Web.Server) *dispatch.Dispatcher {
 	if !misc.GraphLaneEnabled() {
-		return
+		return nil
 	}
 	configPath := strings.TrimSpace(misc.GetConfigValueDefault("misc", "graph_lane_config", "dispatch.yaml"))
 	cfg, err := dispatch.LoadConfig(configPath)
 	if err != nil {
 		misc.Warn("graph-lane", fmt.Sprintf("未启动图调度车道（配置 %s）: %v", configPath, err), nil)
-		return
+		return nil
 	}
 	complete, err := dispatch.NativeComplete("main_setting")
 	if err != nil {
 		misc.Warn("graph-lane", fmt.Sprintf("未启动图调度车道: %v", err), nil)
-		return
+		return nil
 	}
 	dispatcher, err := dispatch.StartLane(ctx, dispatch.LaneOptions{Config: cfg, Complete: complete})
 	if err != nil {
 		misc.Warn("graph-lane", fmt.Sprintf("未启动图调度车道: %v", err), nil)
-		return
+		return nil
+	}
+	if server != nil && dispatcher.Store() != nil {
+		server.RegisterAPIRoutes(graphserver.New(dispatcher.Store()).Register)
 	}
 	misc.Info("graph-lane", fmt.Sprintf("图调度车道已启动，配置: %s", configPath), nil)
 	go func() {
@@ -113,4 +132,5 @@ func startGraphLane(ctx context.Context) {
 			misc.Warn("graph-lane", fmt.Sprintf("图调度车道退出: %v", err), nil)
 		}
 	}()
+	return dispatcher
 }

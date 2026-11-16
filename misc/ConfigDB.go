@@ -43,6 +43,8 @@ var allDefaults = []configDefault{
 	// graph_lane_enabled gates the optional Cairn-style graph dispatcher lane.
 	// It is off by default so enabling it is an explicit opt-in.
 	{Section: "misc", Key: "graph_lane_enabled", Value: "false"},
+	// graph_lane_config is the dispatch.yaml path read when the lane is on.
+	{Section: "misc", Key: "graph_lane_config", Value: "dispatch.yaml"},
 
 	// [skills] — local skill discovery roots
 	// Empty means "use runtime defaults": ./skills and <DATA_DIR>/skills.

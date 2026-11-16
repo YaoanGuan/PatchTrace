@@ -48,6 +48,10 @@ type Executor struct {
 	registry *worker.Registry
 	rt       runtime.SandboxRuntime
 	deps     executorDeps
+	// exploreOpts carries dispatcher-wide explore options (notably the CE4
+	// verdict hook). The per-invocation conclude timeout is still applied from
+	// cfg.
+	exploreOpts tasks.ExploreOptions
 
 	mu          sync.Mutex
 	inFlight    int
@@ -159,6 +163,16 @@ func (e *Executor) Wait() {
 	e.wg.Wait()
 }
 
+// SetExploreOptions sets the options shared by every explore invocation. The
+// configured conclude timeout is still applied per invocation, so a zero value
+// here keeps the scheduler configuration authoritative.
+func (e *Executor) SetExploreOptions(opts tasks.ExploreOptions) {
+	if e == nil {
+		return
+	}
+	e.exploreOpts = opts
+}
+
 func (e *Executor) run(ctx context.Context, dec Decision, p graph.Project) {
 	// Defers run LIFO: release the counts before Done so Wait returning means
 	// the executor is fully quiescent.
@@ -211,7 +225,8 @@ func (e *Executor) invoke(ctx context.Context, dec Decision, p graph.Project, dr
 	case worker.TaskReason:
 		return e.deps.reason(ctx, e.client, driver, p)
 	case worker.TaskExplore:
-		opts := tasks.ExploreOptions{ConcludeTimeout: e.cfg.ExploreConcludeTimeout}
+		opts := e.exploreOpts
+		opts.ConcludeTimeout = e.cfg.ExploreConcludeTimeout
 		if e.deps.exploreWithOptions != nil {
 			return e.deps.exploreWithOptions(ctx, e.client, driver, e.rt, p, dec.IntentID, opts)
 		}

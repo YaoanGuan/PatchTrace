@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"AIxVuln/graph"
 	"AIxVuln/graphserver"
 	"AIxVuln/misc"
+	"AIxVuln/patchintel"
 )
 
 // maxBootstrapAttempts bounds how many consecutive bootstrap starts a project
@@ -38,9 +40,13 @@ type Dispatcher struct {
 	registry *worker.Registry
 	running  map[string]int
 	executor *Executor
-	// store is set only when StartLane opened the graph store itself. Close
-	// releases it; a caller-supplied store is left open.
-	store *graph.Store
+	// store and ruleBase are the lane's stores. StartLane always records them
+	// so embedders can mount the HTTP API; ownsStore/ownsRuleBase decide
+	// whether Close releases them.
+	store        *graph.Store
+	ownsStore    bool
+	ruleBase     *patchintel.RuleBase
+	ownsRuleBase bool
 
 	stateMu    sync.Mutex
 	lastReason map[string]lastReason
@@ -71,14 +77,41 @@ func New(cfg Config, client graphserver.Client, drivers []worker.Driver) *Dispat
 	}
 }
 
-// Close releases a graph store opened by StartLane. A dispatcher built with
-// New, or one using a caller-supplied store, has nothing to close and returns
-// nil.
+// Store returns the graph store the lane works against, or nil for a
+// dispatcher built directly with New. It lets main.go mount graphserver's HTTP
+// routes on the same store the lane uses.
+func (d *Dispatcher) Store() *graph.Store {
+	if d == nil {
+		return nil
+	}
+	return d.store
+}
+
+// Wait blocks until every executor goroutine started so far has returned. Call
+// it after Run has stopped (the context is cancelled) and before closing stores
+// the executor may still be using.
+func (d *Dispatcher) Wait() {
+	if d == nil {
+		return
+	}
+	d.executor.Wait()
+}
+
+// Close releases the graph store and rule base opened by StartLane. A
+// dispatcher built with New, or one using caller-supplied stores, has nothing
+// to close and returns nil.
 func (d *Dispatcher) Close() error {
 	if d == nil {
 		return nil
 	}
-	return d.store.Close()
+	var errs []error
+	if d.ownsStore && d.store != nil {
+		errs = append(errs, d.store.Close())
+	}
+	if d.ownsRuleBase && d.ruleBase != nil {
+		errs = append(errs, d.ruleBase.Close())
+	}
+	return errors.Join(errs...)
 }
 
 // SetExecutor wires the execution layer. A nil executor restores plan-only

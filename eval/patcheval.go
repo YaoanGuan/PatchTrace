@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -211,13 +212,21 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 }
 
 func runOne(ctx context.Context, opts Options, condition string, run int, runOnce RunOnceFunc, tokens func(worker.Result) int64) (RunResult, error) {
-	store, err := graph.Open(conditionPath(opts.GraphDBPath, condition, run))
+	graphPath := conditionPath(opts.GraphDBPath, condition, run)
+	if err := clearConditionFile(graphPath); err != nil {
+		return RunResult{}, fmt.Errorf("clear graph store: %w", err)
+	}
+	store, err := graph.Open(graphPath)
 	if err != nil {
 		return RunResult{}, fmt.Errorf("open graph store: %w", err)
 	}
 	defer store.Close()
 
-	ruleBase, err := patchintel.OpenRuleBase(conditionPath(opts.RuleBasePath, condition, run))
+	rulePath := conditionPath(opts.RuleBasePath, condition, run)
+	if err := clearConditionFile(rulePath); err != nil {
+		return RunResult{}, fmt.Errorf("clear rule base: %w", err)
+	}
+	ruleBase, err := patchintel.OpenRuleBase(rulePath)
 	if err != nil {
 		return RunResult{}, fmt.Errorf("open rule base: %w", err)
 	}
@@ -262,6 +271,18 @@ func conditionPath(base, condition string, run int) string {
 	return fmt.Sprintf("%s-%s-%d%s", stem, condition, run, ext)
 }
 
+// clearConditionFile removes the derived SQLite artifacts (including WAL and
+// shared-memory files) so a repeated Run starts from a clean store. Only the
+// derived -<condition>-<run> path is touched; the base paths are never removed.
+func clearConditionFile(path string) error {
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		if err := os.Remove(path + suffix); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
+}
+
 func computeMetrics(runs []RunResult) Metrics {
 	if len(runs) == 0 {
 		return Metrics{}
@@ -294,9 +315,10 @@ func defaultRunOnce(opts Options) RunOnceFunc {
 		}
 		measured := &measuringDriver{inner: inner}
 		lane, err := dispatch.StartLane(ctx, dispatch.LaneOptions{
-			Config:  in.Config,
-			Store:   in.Store,
-			Drivers: []worker.Driver{measured},
+			Config:   in.Config,
+			Store:    in.Store,
+			RuleBase: in.RuleBase,
+			Drivers:  []worker.Driver{measured},
 		})
 		if err != nil {
 			return Observation{}, fmt.Errorf("start lane: %w", err)
@@ -321,30 +343,43 @@ func defaultRunOnce(opts Options) RunOnceFunc {
 		poll := time.NewTicker(pollInterval)
 		defer poll.Stop()
 
+		var (
+			runErr  error
+			runDone bool
+		)
 	wait:
 		for {
 			select {
 			case <-ctx.Done():
-				cancel()
-				<-done
-				return Observation{}, ctx.Err()
+				runErr = ctx.Err()
+				break wait
 			case err := <-done:
-				if err != nil {
-					return Observation{}, err
-				}
+				runDone = true
+				runErr = err
 				break wait
 			case <-deadline.C:
-				cancel()
-				<-done
 				break wait
 			case <-poll.C:
 				p, err := in.Client.GetProject(ctx, project.ID)
 				if err == nil && p.Status == "completed" {
-					cancel()
-					<-done
 					break wait
 				}
 			}
+		}
+
+		cancel()
+		if !runDone {
+			<-done
+		}
+		// Run stopped starting work, but executor goroutines may still be
+		// finishing graph writes. Wait for them before returning so runOne can
+		// close the caller-supplied stores safely.
+		lane.Wait()
+		if err := lane.Close(); err != nil {
+			return Observation{}, fmt.Errorf("close lane: %w", err)
+		}
+		if runErr != nil {
+			return Observation{}, runErr
 		}
 
 		results, trialRounds := measured.snapshot()
@@ -405,26 +440,28 @@ func (d *measuringDriver) HealthCheck(ctx context.Context) error {
 
 func (d *measuringDriver) Execute(ctx context.Context, t worker.Task) (worker.Result, error) {
 	result, err := d.inner.Execute(ctx, t)
-	d.record(t, result)
+	d.record(t, result, true)
 	return result, err
 }
 
 func (d *measuringDriver) Conclude(ctx context.Context, t worker.Task) (worker.Result, error) {
 	result, err := d.inner.Conclude(ctx, t)
-	d.record(t, result)
+	// Conclude is the fallback half of the same trial; only Execute starts a
+	// trial round. Its result still contributes to the token estimate.
+	d.record(t, result, false)
 	return result, err
 }
 
 func (d *measuringDriver) SupportsConclude() bool { return d.inner.SupportsConclude() }
 
-func (d *measuringDriver) record(t worker.Task, result worker.Result) {
+func (d *measuringDriver) record(t worker.Task, result worker.Result, countTrial bool) {
 	if d == nil {
 		return
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.results = append(d.results, result)
-	if worker.TaskType(strings.TrimSpace(t.Type)) == worker.TaskExplore {
+	if countTrial && worker.TaskType(strings.TrimSpace(t.Type)) == worker.TaskExplore {
 		d.explore++
 	}
 }
