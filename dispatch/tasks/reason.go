@@ -19,13 +19,38 @@ import (
 // Reason runtime defaults. The runner signature carries no dispatcher config,
 // so these mirror the graph protocol / native driver defaults.
 const (
-	reasonPromptDir    = "prompts/graph/default"
-	reasonWorkerName   = "reason"
-	reasonTrigger      = "reason"
-	reasonLease        = 5 * time.Minute
-	reasonGapTopK      = 5
-	fallbackReasonBody = "# 任务\n\n阅读溯源图快照，判断目标是否达成；未达成时提出新的探索方向。\n"
+	reasonPromptDir  = "prompts/graph/default"
+	reasonWorkerName = "reason"
+	reasonTrigger    = "reason"
+	reasonLease      = 5 * time.Minute
+	reasonGapTopK    = 5
 )
+
+// fallbackReasonBody is used when the shipped template cannot be read. It must
+// carry the same placeholders as reason.md so a missing file never silently
+// drops the graph snapshot, fact ids or open intents from the model context.
+const fallbackReasonBody = `# 任务
+
+阅读溯源图快照，判断目标是否达成；未达成时提出新的探索方向。
+
+## 图谱快照
+
+` + "```yaml\n{graph_yaml}\n```" + `
+
+## 可用事实编号
+
+` + "```json\n{fact_ids}\n```" + `
+
+## 开放意图
+
+` + "```json\n{open_intents}\n```" + "\n"
+
+// reasonPromptLoader reads the shipped reason contract. It is a variable so
+// tests can force the fallback path and future wiring can substitute a
+// template without touching the disk.
+var reasonPromptLoader = func(dir string, tt worker.TaskType, conclude bool) (string, error) {
+	return worker.LoadPrompt(dir, tt, conclude)
+}
 
 // reasonDeps groups the process-level lookups so tests can exercise the
 // runner without reading prompt files or opening a graph store.
@@ -53,6 +78,10 @@ type gapScorer interface {
 func reasonGaps(ctx context.Context, c graphserver.Client, projectID string) ([]graph.Gap, error) {
 	scorer, ok := c.(gapScorer)
 	if !ok {
+		// The HTTP protocol has no edge endpoint, so a client that only speaks
+		// the protocol can never rank gaps. Keep running (the gap section is an
+		// ordering aid, not a precondition) but make the omission observable.
+		misc.Warn("dispatch.tasks", "reason: graph client does not implement GapScore; gap ranking omitted", nil)
 		return nil, nil
 	}
 	return scorer.GapScore(ctx, projectID)
@@ -288,22 +317,44 @@ func formatGapLines(gaps []graph.Gap) []string {
 // Task.Prompt verbatim, so the runner never relies on template loading.
 //
 // The mandated signature carries no template parameter; the shipped template is
-// read from reasonPromptDir. A missing template falls back to a minimal
-// instruction that still carries every input.
+// read from reasonPromptDir through reasonPromptLoader. A missing or unusable
+// template falls back to fallbackReasonBody, which carries the same
+// placeholders, so the model still receives the graph snapshot, fact ids and
+// open intents.
 func reasonPrompt(p graph.Project, graphYAML string, factIDs, openIntentIDs, gaps, hints []string) string {
-	template, err := worker.LoadPrompt(reasonPromptDir, worker.TaskReason, false)
+	template, err := reasonPromptLoader(reasonPromptDir, worker.TaskReason, false)
 	if err != nil {
+		misc.Warn("dispatch.tasks", fmt.Sprintf("reason: load prompt: %v; using fallback template", err), nil)
 		template = fallbackReasonBody
 	}
-	return renderReasonPrompt(template, p, graphYAML, factIDs, openIntentIDs, gaps, hints)
+	prompt, err := renderReasonPrompt(template, graphYAML, factIDs, openIntentIDs, gaps, hints)
+	if err == nil {
+		return prompt
+	}
+	misc.Warn("dispatch.tasks", fmt.Sprintf("reason: render prompt: %v; using fallback template", err), nil)
+	prompt, _ = renderReasonPrompt(fallbackReasonBody, graphYAML, factIDs, openIntentIDs, gaps, hints)
+	return prompt
 }
 
-func renderReasonPrompt(template string, p graph.Project, graphYAML string, factIDs, openIntentIDs, gaps, hints []string) string {
-	rendered := worker.RenderPrompt(template, map[string]string{
-		"graph_yaml":   strings.TrimSpace(graphYAML),
-		"fact_ids":     jsonStringList(factIDs),
-		"open_intents": jsonStringList(openIntentIDs),
-	})
+// renderReasonPrompt substitutes the three context placeholders in a fixed
+// order, rejects a template that still contains one afterwards, and appends the
+// gap ranking and hint sections.
+func renderReasonPrompt(template string, graphYAML string, factIDs, openIntentIDs, gaps, hints []string) (string, error) {
+	values := []struct{ name, value string }{
+		{"graph_yaml", strings.TrimSpace(graphYAML)},
+		{"fact_ids", jsonStringList(factIDs)},
+		{"open_intents", jsonStringList(openIntentIDs)},
+	}
+	rendered := template
+	for _, v := range values {
+		rendered = strings.ReplaceAll(rendered, "{"+v.name+"}", v.value)
+	}
+	for _, v := range values {
+		if strings.Contains(rendered, "{"+v.name+"}") {
+			return "", fmt.Errorf("reason: unresolved prompt placeholder {%s}", v.name)
+		}
+	}
+
 	var b strings.Builder
 	b.WriteString(strings.TrimRight(rendered, "\n"))
 	b.WriteString("\n\n## 缺口排序（top-5）\n\n```json\n")
@@ -311,7 +362,7 @@ func renderReasonPrompt(template string, p graph.Project, graphYAML string, fact
 	b.WriteString("\n```\n\n## 人工提示\n\n```json\n")
 	b.WriteString(jsonStringList(hints))
 	b.WriteString("\n```\n")
-	return b.String()
+	return b.String(), nil
 }
 
 func topStrings(values []string, n int) []string {

@@ -40,9 +40,6 @@ type fakeReasonClient struct {
 	export    string
 	exportErr error
 
-	gaps    []graph.Gap
-	gapsErr error
-
 	claimErr   error
 	claims     []reasonClaim
 	claimCalls int
@@ -109,10 +106,22 @@ func (c *fakeReasonClient) DeclareIntent(_ context.Context, projectID string, n 
 	}, c.declareErr
 }
 
-// GapScore makes the fake an optional gap scorer, so RunReason's default
-// dependency ranks gaps without a graph.Store.
-func (c *fakeReasonClient) GapScore(context.Context, string) ([]graph.Gap, error) {
+// fakeGapClient adds the optional GapScore capability on top of the plain fake
+// client, so RunReason's default dependency ranks gaps without a graph.Store.
+type fakeGapClient struct {
+	*fakeReasonClient
+	gaps    []graph.Gap
+	gapsErr error
+}
+
+func (c *fakeGapClient) GapScore(context.Context, string) ([]graph.Gap, error) {
 	return c.gaps, c.gapsErr
+}
+
+// newReasonClient returns a gap-capable fake. Tests that need the missing
+// scorer path construct fakeReasonClient directly.
+func newReasonClient() *fakeGapClient {
+	return &fakeGapClient{fakeReasonClient: &fakeReasonClient{export: reasonExport}}
 }
 
 type fakeReasonDriver struct {
@@ -209,7 +218,7 @@ func reasonPointer(s string) *string { return &s }
 func TestReasonCompletesWhenGoalCovered(t *testing.T) {
 	reasonWorkdir(t)
 	description := "f001 已足以证明目标达成"
-	client := &fakeReasonClient{export: reasonExport}
+	client := newReasonClient()
 	driver := &fakeReasonDriver{name: "native-test", result: worker.Result{
 		Accepted:     true,
 		Complete:     reasonPointer(description),
@@ -255,7 +264,7 @@ func TestReasonCompletesWhenGoalCovered(t *testing.T) {
 func TestReasonDeclaresIntentWithValidFrom(t *testing.T) {
 	reasonWorkdir(t)
 	description := "验证 f001 的可利用路径"
-	client := &fakeReasonClient{export: reasonExport}
+	client := newReasonClient()
 	driver := &fakeReasonDriver{name: "native-test", result: worker.Result{
 		Accepted: true,
 		Intent:   reasonPointer(description),
@@ -291,7 +300,7 @@ func TestReasonDeclaresIntentWithValidFrom(t *testing.T) {
 func TestReasonRejectsIntentWithUnknownFrom(t *testing.T) {
 	reasonWorkdir(t)
 	description := "引用不存在的事实"
-	client := &fakeReasonClient{export: reasonExport}
+	client := newReasonClient()
 	driver := &fakeReasonDriver{name: "native-test", result: worker.Result{
 		Accepted: true,
 		Intent:   reasonPointer(description),
@@ -316,7 +325,7 @@ func TestReasonRejectsIntentWithUnknownFrom(t *testing.T) {
 func TestReasonRejectsCompleteWithUnknownFrom(t *testing.T) {
 	reasonWorkdir(t)
 	description := "无法证明目标达成"
-	client := &fakeReasonClient{export: reasonExport}
+	client := newReasonClient()
 	driver := &fakeReasonDriver{name: "native-test", result: worker.Result{
 		Accepted:     true,
 		Complete:     reasonPointer(description),
@@ -380,7 +389,7 @@ func TestReasonPromptKeepsTopFiveGaps(t *testing.T) {
 
 func TestReasonNoopWritesNothing(t *testing.T) {
 	reasonWorkdir(t)
-	client := &fakeReasonClient{export: reasonExport}
+	client := newReasonClient()
 	driver := &fakeReasonDriver{name: "native-test", result: worker.Result{Accepted: true}}
 
 	if err := RunReason(context.Background(), client, driver, reasonProject()); err != nil {
@@ -445,7 +454,8 @@ func TestReasonSurfacesClaimError(t *testing.T) {
 
 func TestReasonHeartbeatsWhileExecuting(t *testing.T) {
 	reasonWorkdir(t)
-	client := &fakeReasonClient{export: reasonExport, heartbeatCh: make(chan struct{})}
+	client := newReasonClient()
+	client.heartbeatCh = make(chan struct{})
 	driver := &fakeReasonDriver{name: "native-test"}
 	driver.execute = func(context.Context, worker.Task) (worker.Result, error) {
 		select {
@@ -471,7 +481,7 @@ func TestReasonHeartbeatsWhileExecuting(t *testing.T) {
 
 func TestReasonReleasesOnDriverFailure(t *testing.T) {
 	reasonWorkdir(t)
-	client := &fakeReasonClient{export: reasonExport}
+	client := newReasonClient()
 	driver := &fakeReasonDriver{name: "native-test", err: errors.New("worker exploded")}
 
 	err := RunReason(context.Background(), client, driver, reasonProject())
@@ -497,12 +507,191 @@ func TestReasonJoinsReleaseError(t *testing.T) {
 	}
 }
 
+func TestReasonPromptFallbackKeepsGraphContext(t *testing.T) {
+	original := reasonPromptLoader
+	t.Cleanup(func() { reasonPromptLoader = original })
+	reasonPromptLoader = func(string, worker.TaskType, bool) (string, error) {
+		return "", errors.New("prompt file missing")
+	}
+
+	prompt := reasonPrompt(graph.Project{ID: "p1"}, "facts:\n- id: f001\n",
+		[]string{"origin", "f001"},
+		[]string{"i001：验证输入能否到达 eval 入口"},
+		nil, []string{"先看输入解析路径"})
+
+	for _, want := range []string{
+		"facts:\n- id: f001",
+		"origin",
+		"i001：验证输入能否到达 eval 入口",
+		"先看输入解析路径",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("fallback prompt is missing %q:\n%s", want, prompt)
+		}
+	}
+	for _, placeholder := range []string{"{graph_yaml}", "{fact_ids}", "{open_intents}"} {
+		if strings.Contains(prompt, placeholder) {
+			t.Fatalf("fallback prompt still contains %s:\n%s", placeholder, prompt)
+		}
+	}
+}
+
+func TestRenderReasonPromptRejectsLeftoverPlaceholder(t *testing.T) {
+	_, err := renderReasonPrompt(
+		"graph={graph_yaml} facts={fact_ids} intents={open_intents}",
+		"facts: []",
+		[]string{"{graph_yaml}"},
+		nil, nil, nil,
+	)
+	if err == nil || !strings.Contains(err.Error(), "{graph_yaml}") {
+		t.Fatalf("renderReasonPrompt err = %v, want an unresolved {graph_yaml}", err)
+	}
+}
+
+func TestReasonRunnerToleratesClientWithoutGapScore(t *testing.T) {
+	reasonWorkdir(t)
+	// fakeReasonClient deliberately has no GapScore: this is the shape of a
+	// protocol-only client, whose HTTP API exposes no edge endpoint.
+	client := &fakeReasonClient{export: reasonExport}
+	driver := &fakeReasonDriver{name: "native-test", result: worker.Result{
+		Accepted:     true,
+		Complete:     reasonPointer("目标已覆盖"),
+		CompleteFrom: []string{"f001"},
+	}}
+
+	if err := RunReason(context.Background(), client, driver, reasonProject()); err != nil {
+		t.Fatalf("RunReason without a gap scorer: %v", err)
+	}
+	if len(driver.tasks) != 1 {
+		t.Fatalf("driver tasks = %d, want 1", len(driver.tasks))
+	}
+	if !strings.Contains(driver.tasks[0].Prompt, "## 缺口排序（top-5）\n\n```json\n[]\n```") {
+		t.Fatalf("prompt must render an empty gap ranking:\n%s", driver.tasks[0].Prompt)
+	}
+	if len(client.completes) != 1 {
+		t.Fatalf("the result branch must still complete, completes=%d", len(client.completes))
+	}
+	if client.releases.Load() != 1 {
+		t.Fatalf("ReleaseReason calls = %d, want 1", client.releases.Load())
+	}
+}
+
+func TestReasonRejectsRefusedResult(t *testing.T) {
+	reasonWorkdir(t)
+	client := newReasonClient()
+	driver := &fakeReasonDriver{name: "native-test", result: worker.Result{Accepted: false}}
+
+	err := RunReason(context.Background(), client, driver, reasonProject())
+	if err == nil || !strings.Contains(err.Error(), "refused") {
+		t.Fatalf("RunReason err = %v, want a refused-task error", err)
+	}
+	if len(client.completes) != 0 || len(client.declares) != 0 {
+		t.Fatalf("a refused result must write nothing: completes=%d declares=%d",
+			len(client.completes), len(client.declares))
+	}
+	if client.releases.Load() != 1 {
+		t.Fatalf("ReleaseReason calls = %d, want 1", client.releases.Load())
+	}
+}
+
+func TestReasonSurfacesExportError(t *testing.T) {
+	reasonWorkdir(t)
+	client := newReasonClient()
+	client.exportErr = errors.New("graph unavailable")
+	driver := &fakeReasonDriver{name: "native-test", result: worker.Result{Accepted: true}}
+
+	err := RunReason(context.Background(), client, driver, reasonProject())
+	if err == nil || !strings.Contains(err.Error(), "graph unavailable") {
+		t.Fatalf("RunReason err = %v, want the export failure", err)
+	}
+	if len(driver.tasks) != 0 {
+		t.Fatalf("an export failure must not run the worker, got %d tasks", len(driver.tasks))
+	}
+	if len(client.completes)+len(client.declares) != 0 {
+		t.Fatalf("an export failure must write nothing")
+	}
+	if client.releases.Load() != 1 {
+		t.Fatalf("ReleaseReason calls = %d, want 1", client.releases.Load())
+	}
+}
+
+func TestReasonSurfacesGapScoreError(t *testing.T) {
+	reasonWorkdir(t)
+	client := newReasonClient()
+	client.gapsErr = errors.New("gap scanner exploded")
+	driver := &fakeReasonDriver{name: "native-test", result: worker.Result{Accepted: true}}
+
+	err := RunReason(context.Background(), client, driver, reasonProject())
+	if err == nil || !strings.Contains(err.Error(), "gap scanner exploded") {
+		t.Fatalf("RunReason err = %v, want the gap-scoring failure", err)
+	}
+	if len(driver.tasks) != 0 {
+		t.Fatalf("a gap-scoring failure must not run the worker, got %d tasks", len(driver.tasks))
+	}
+	if client.releases.Load() != 1 {
+		t.Fatalf("ReleaseReason calls = %d, want 1", client.releases.Load())
+	}
+}
+
+func TestReasonSurfacesCompleteError(t *testing.T) {
+	reasonWorkdir(t)
+	client := newReasonClient()
+	client.completeErr = errors.New("complete denied")
+	driver := &fakeReasonDriver{name: "native-test", result: worker.Result{
+		Accepted:     true,
+		Complete:     reasonPointer("目标已覆盖"),
+		CompleteFrom: []string{"f001"},
+	}}
+
+	err := RunReason(context.Background(), client, driver, reasonProject())
+	if err == nil || !strings.Contains(err.Error(), "complete denied") {
+		t.Fatalf("RunReason err = %v, want the complete failure", err)
+	}
+	if len(client.completes) != 1 {
+		t.Fatalf("Complete calls = %d, want the attempted write", len(client.completes))
+	}
+	if len(client.declares) != 0 {
+		t.Fatalf("a completion must not declare intents: %+v", client.declares)
+	}
+	if client.releases.Load() != 1 {
+		t.Fatalf("ReleaseReason calls = %d, want 1", client.releases.Load())
+	}
+}
+
+func TestReasonSurfacesDeclareError(t *testing.T) {
+	reasonWorkdir(t)
+	client := newReasonClient()
+	client.declareErr = errors.New("declare denied")
+	driver := &fakeReasonDriver{name: "native-test", result: worker.Result{
+		Accepted: true,
+		Intent:   reasonPointer("验证 f001 的可利用路径"),
+		Intents: []worker.IntentSpec{
+			{From: []string{"f001"}, Description: "验证 f001 的可利用路径"},
+		},
+	}}
+
+	err := RunReason(context.Background(), client, driver, reasonProject())
+	if err == nil || !strings.Contains(err.Error(), "declare denied") {
+		t.Fatalf("RunReason err = %v, want the declare failure", err)
+	}
+	if len(client.declares) != 1 {
+		t.Fatalf("DeclareIntent calls = %d, want the attempted write", len(client.declares))
+	}
+	if len(client.completes) != 0 {
+		t.Fatalf("an intent must not complete the project: %+v", client.completes)
+	}
+	if client.releases.Load() != 1 {
+		t.Fatalf("ReleaseReason calls = %d, want 1", client.releases.Load())
+	}
+}
+
 func TestReasonRunnerPromptUsesGapRanking(t *testing.T) {
 	reasonWorkdir(t)
-	client := &fakeReasonClient{export: reasonExport, gaps: []graph.Gap{
+	client := newReasonClient()
+	client.gaps = []graph.Gap{
 		{IntentID: "i001", Description: "最近的缺口", OpenBlockers: 0, DepthFromOrigin: 1},
 		{IntentID: "i002", Description: "第二个缺口", OpenBlockers: 1, DepthFromOrigin: 2},
-	}}
+	}
 	driver := &fakeReasonDriver{name: "native-test", result: worker.Result{Accepted: true}}
 
 	if err := RunReason(context.Background(), client, driver, reasonProject()); err != nil {

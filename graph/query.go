@@ -98,6 +98,34 @@ func (s *Store) Provenance(ctx context.Context, projectID, nodeID string) ([]Nod
 	return nil, fmt.Errorf("%w: no provenance path from origin to %s", ErrNotFound, nodeID)
 }
 
+// isOpenIntent reports whether n is an intent that is ready to be worked on
+// (declared but not claimed or concluded).
+func isOpenIntent(n Node) bool {
+	return n.Kind == "intent" && n.State == "open"
+}
+
+// unmetBlockersByTarget returns the distinct block-edge blockers of each
+// target whose state is not "resolved". Block edges run blocker -> blocked, so
+// a dependency is met only once the blocker is resolved; open, claimed and
+// unknown states are all unmet.
+func unmetBlockersByTarget(nodes []Node, edges []Edge) map[string]map[string]struct{} {
+	state := make(map[string]string, len(nodes))
+	for _, n := range nodes {
+		state[n.ID] = n.State
+	}
+	blockers := make(map[string]map[string]struct{})
+	for _, e := range edges {
+		if e.Kind != "block" || state[e.From] == "resolved" {
+			continue
+		}
+		if blockers[e.To] == nil {
+			blockers[e.To] = make(map[string]struct{})
+		}
+		blockers[e.To][e.From] = struct{}{}
+	}
+	return blockers
+}
+
 // Gap is one open intent ranked by GapScore.
 //
 // OpenBlockers is the number of distinct block-edge blockers of the intent
@@ -134,23 +162,9 @@ func (s *Store) GapScore(ctx context.Context, projectID string) ([]Gap, error) {
 		return nil, err
 	}
 
-	state := make(map[string]string, len(nodes))
-	for _, n := range nodes {
-		state[n.ID] = n.State
-	}
-
-	// openBlockers[id] is the set of distinct unmet blockers pointing at id. A
-	// block edge runs blocker -> blocked and is met only once the blocker is
-	// resolved; open, claimed and unknown states are all unmet.
-	openBlockers := make(map[string]map[string]struct{})
-	adjacency := make(map[string][]string)
+	openBlockers := unmetBlockersByTarget(nodes, edges)
+	adjacency := make(map[string][]string, len(nodes))
 	for _, e := range edges {
-		if e.Kind == "block" && state[e.From] != "resolved" {
-			if openBlockers[e.To] == nil {
-				openBlockers[e.To] = make(map[string]struct{})
-			}
-			openBlockers[e.To][e.From] = struct{}{}
-		}
 		adjacency[e.From] = append(adjacency[e.From], e.To)
 	}
 
@@ -172,7 +186,7 @@ func (s *Store) GapScore(ctx context.Context, projectID string) ([]Gap, error) {
 
 	gaps := make([]Gap, 0)
 	for _, n := range nodes {
-		if n.Kind != "intent" || n.State != "open" {
+		if !isOpenIntent(n) {
 			continue
 		}
 		depth := unreachableDepth
@@ -221,35 +235,23 @@ func (s *Store) Gaps(ctx context.Context, projectID string) ([]Node, error) {
 		return nil, err
 	}
 
-	state := make(map[string]string, len(nodes))
-	for _, n := range nodes {
-		state[n.ID] = n.State
-	}
-
-	// unmetBlockers[id] counts block edges pointing at id whose source is not
-	// settled yet. A block dependency is met only once the blocker is resolved
-	// (open, claimed and unknown states are all unmet). A block edge runs from
-	// the blocker to the blocked node.
-	unmetBlockers := make(map[string]int)
-	for _, e := range edges {
-		if e.Kind == "block" && state[e.From] != "resolved" {
-			unmetBlockers[e.To]++
-		}
-	}
+	// A block dependency is met only once the blocker is resolved (open,
+	// claimed and unknown states are all unmet).
+	unmetBlockers := unmetBlockersByTarget(nodes, edges)
 
 	gaps := make([]Node, 0)
 	for _, n := range nodes {
-		if n.Kind != "intent" || n.State != "open" {
+		if !isOpenIntent(n) {
 			continue
 		}
-		if unmetBlockers[n.ID] > 0 {
+		if len(unmetBlockers[n.ID]) > 0 {
 			continue
 		}
 		gaps = append(gaps, n)
 	}
 
 	sort.SliceStable(gaps, func(i, j int) bool {
-		ci, cj := unmetBlockers[gaps[i].ID], unmetBlockers[gaps[j].ID]
+		ci, cj := len(unmetBlockers[gaps[i].ID]), len(unmetBlockers[gaps[j].ID])
 		if ci != cj {
 			return ci < cj
 		}
