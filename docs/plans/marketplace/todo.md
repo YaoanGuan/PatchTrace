@@ -88,7 +88,7 @@
 - [x] 4 模块组件树与 task.md §3 对照无缺项
   - 证据：`src` 下 72 个 `.tsx`；marker grep 命中各模块核心组件文案
 - [x] 提交到 `feat/ai-marketplace-frontend`
-  - 证据：见下方「提交」
+  - 证据：`b086f92 feat(marketplace): add AI task marketplace frontend`；已推送 `origin/feat/ai-marketplace-frontend`（104 文件）
 
 ---
 
