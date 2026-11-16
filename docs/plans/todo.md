@@ -8,8 +8,9 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> **执行 Task 1 · Step 1**：`git init` 并提交当前可编译基线。
-> 命令在下方「Step 1」；完成后回来打勾。
+> **Task 1 实现已完成，等待验收**：§3.1.2–3.1.4、3.1.6 已附真实输出；3.1.5 已做等价静态检查，
+> 新会话实读留给验收轮（实现会话不允许再开新会话）。
+> 下一动作：验收轮先跑 `grep -c '^---' .claude/skills/*/SKILL.md`，再用新会话执行 3.1.5 并回写结果。
 
 ---
 
@@ -59,7 +60,7 @@
 
 | # | Task | 需求 | 状态 | 闸门 | 证据 |
 |---|---|---|---|---|---|
-| 1 | 迭代地基与两个 Skill | R1, R2 | 未开始 | G0 | — |
+| 1 | 迭代地基与两个 Skill | R1, R2 | 进行中 | G0 | 基线 `7d0e635`；技能已提交，待新会话验收 |
 | 2 | 溯源图模型与存储 | R3 | 未开始 | G1 | — |
 | 3 | 溯源图查询与导出 | R8 | 未开始 | G1 | — |
 | 4 | 图协议 API | R4 | 未开始 | G1 | — |
@@ -91,31 +92,36 @@
 
 ### 3.1 动作清单
 
-- [ ] **3.1.1** 初始化 Git 基线
-  - 命令：`git init && printf 'data/\ndist/\n__MACOSX/\n*.log\nCairn/datas/\n' > .gitignore && git add -A && git commit -m "chore: baseline"`
-  - 证据：`git status` → `nothing to commit, working tree clean`
+- [x] **3.1.1** 初始化 Git 基线并连接 GitHub
+  - 命令：`git init` → `.gitignore` → 拍平两个内嵌仓库 → `git commit` → `git push -u origin main`
+  - 证据：本地 `7d0e635`；`git ls-remote origin main` → `7d0e635 refs/heads/main`；GitHub `default_branch=main`
+  - 备注：SSH key `patchtrace-root@local` 认证成功（`Hi YaoanGuan!`）
 
-- [ ] **3.1.2** 创建 `cairn-architecture` Skill
+- [x] **3.1.2** 创建 `cairn-architecture` Skill
   - 文件：`.claude/skills/cairn-architecture/SKILL.md`
   - 必须包含：四层组件、Fact/Intent/Hint、三类任务、lease 生命周期、唯一协议写入者
   - 证据：`grep -c '^---' .claude/skills/cairn-architecture/SKILL.md` → `2`
+  - 证据：正文 `88` 行（`wc -l` 92 − frontmatter 4），≤120；`grep -nE '^## (四层组件|三个原语|三类任务|Intent 生命周期|Dispatcher 是唯一|导出与读取)'` → 6 个小节全部命中
 
-- [ ] **3.1.3** 补三份 references
+- [x] **3.1.3** 补三份 references
   - 文件：`references/server-protocol.md`、`references/dispatcher-design.md`、`references/data-model.md`
   - 来源：`Cairn/docs/specs/server-protocol.md`、`Cairn/docs/specs/dispatcher-design.md`
-  - 证据：`wc -l .claude/skills/cairn-architecture/references/*.md`
+  - 证据：`wc -l .claude/skills/cairn-architecture/references/*.md` → `193 / 184 / 118`
 
-- [ ] **3.1.4** 创建 `patchtrace-iteration` Skill
+- [x] **3.1.4** 创建 `patchtrace-iteration` Skill
   - 文件：`.claude/skills/patchtrace-iteration/SKILL.md` + `references/workflow.md`
   - 必须包含：三文档读取顺序、TDD 步骤、todo 回写格式、证据要求
-  - 证据：frontmatter 计数为 `2`
+  - 证据：`grep -c '^---' ...` → `2`；正文 `52` 行；`grep -nE 'requirement\.md|task\.md|todo\.md|TDD|没有命令输出|阻塞'` → 路由与纪律全部命中
 
 - [ ] **3.1.5** 用新会话验证可读性
   - 方法：开一个新会话，只给一句“按 patchtrace-iteration 继续”，看它能否说出当前 Task 与下一步
-  - 证据：贴出它的回答要点（不超过 5 行）
+  - 已完成等价静态检查：`grep -nE '^## (四层组件|三个原语|三类任务|Intent 生命周期|Dispatcher 是唯一|导出与读取)' .claude/skills/cairn-architecture/SKILL.md` → 17/28/38/51/67/75 六节命中；
+    `grep -nE 'requirement\.md|task\.md|todo\.md|TDD|没有命令输出|阻塞' .claude/skills/patchtrace-iteration/SKILL.md` → 三文档顺序与纪律命中
+  - 待办：实现会话按约束不得再开新会话，新会话实读由验收轮执行并回写回答要点（≤5 行）。
 
-- [ ] **3.1.6** 提交
-  - 命令：`git add .claude .gitignore && git commit -m "feat: add cairn-architecture and patchtrace-iteration skills"`
+- [x] **3.1.6** 提交
+  - 命令：`git add .claude .gitignore docs/plans/todo.md && git commit -m "feat: add cairn-architecture and patchtrace-iteration skills"`
+  - 证据：提交成功；`git status --porcelain` → 空（提交哈希见本轮报告）
 
 ### 3.2 完成标准（Definition of Done）
 
