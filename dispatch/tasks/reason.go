@@ -133,7 +133,9 @@ func runReason(ctx context.Context, c graphserver.Client, d worker.Driver, p gra
 		return fmt.Errorf("reason: claim reason lease for project %s: %w", p.ID, claimErr)
 	}
 	defer func() {
-		if _, releaseErr := c.ReleaseReason(ctx, p.ID, workerName); releaseErr != nil {
+		releaseCtx, cancelRelease := detachedGraphWriteContext(ctx)
+		defer cancelRelease()
+		if _, releaseErr := c.ReleaseReason(releaseCtx, p.ID, workerName); releaseErr != nil {
 			misc.Warn("dispatch.tasks", fmt.Sprintf("reason: release reason lease for project %s: %v", p.ID, releaseErr), nil)
 			err = errors.Join(err, fmt.Errorf("reason: release reason lease for project %s: %w", p.ID, releaseErr))
 		}

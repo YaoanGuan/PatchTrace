@@ -46,6 +46,9 @@ type fakeGraphClient struct {
 	concludeFail func(concludeCall) error
 	// releaseErr makes the error path of ReleaseIntent observable.
 	releaseErr error
+	// releaseCtxCheck makes ReleaseIntent reject a cancelled caller context so
+	// the detached-release path is observable.
+	releaseCtxCheck bool
 	// concludeEmptyID simulates a conclude that resolves the intent but returns
 	// no fact id.
 	concludeEmptyID bool
@@ -103,8 +106,13 @@ func (c *fakeGraphClient) HeartbeatIntent(_ context.Context, _, intentID, _ stri
 	return graph.Node{ID: intentID, Kind: "intent", State: "claimed"}, nil
 }
 
-func (c *fakeGraphClient) ReleaseIntent(_ context.Context, _, intentID, _ string) (graph.Node, error) {
+func (c *fakeGraphClient) ReleaseIntent(ctx context.Context, _, intentID, _ string) (graph.Node, error) {
 	c.released = append(c.released, intentID)
+	if c.releaseCtxCheck {
+		if err := ctx.Err(); err != nil {
+			return graph.Node{}, err
+		}
+	}
 	if c.releaseErr != nil {
 		return graph.Node{}, c.releaseErr
 	}
@@ -560,6 +568,33 @@ func TestBootstrapReturnsReleaseErrorAlongsideFailure(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error must include %q, got %v", want, err)
 		}
+	}
+}
+
+// TestBootstrapReleaseUsesDetachedContext proves a failed bootstrap still
+// releases its reserved intent when the caller context expired during Execute.
+func TestBootstrapReleaseUsesDetachedContext(t *testing.T) {
+	dir := bootstrapWorkdir(t)
+	deps := stubBootstrapDeps(t)
+	patchPath := bootstrapPatchFile(t, dir)
+
+	client := &fakeGraphClient{export: bootstrapInitialExport, releaseCtxCheck: true}
+	ctx, cancel := context.WithCancel(context.Background())
+	driver := &fakeDriver{name: "native-test"}
+	driver.execute = func(context.Context, worker.Task) (worker.Result, error) {
+		cancel()
+		return worker.Result{}, errors.New("worker exploded")
+	}
+
+	err := runBootstrap(ctx, client, driver, bootstrapProject(patchPath), deps)
+	if err == nil || !strings.Contains(err.Error(), "worker exploded") {
+		t.Fatalf("runBootstrap err = %v, want the driver failure", err)
+	}
+	if strings.Contains(err.Error(), "context canceled") {
+		t.Fatalf("release inherited the cancelled caller context: %v", err)
+	}
+	if len(client.released) != 1 {
+		t.Fatalf("release calls = %d, want 1", len(client.released))
 	}
 }
 

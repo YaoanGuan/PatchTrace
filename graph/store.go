@@ -597,6 +597,9 @@ func (s *Store) DeclareIntent(ctx context.Context, projectID string, n Node) (No
 // at least one from fact is required, and every from id must name an existing
 // fact of an active project ("goal" is rejected). Invalid input leaves the
 // graph untouched.
+//
+// Verdict facts are rejected: they must go through AddVerdict so they cannot
+// exist without their support/refute edge and sandbox evidence source (R10).
 func (s *Store) AddFact(ctx context.Context, projectID string, n Node) (Node, error) {
 	projectID = strings.TrimSpace(projectID)
 	content := strings.TrimSpace(n.Content)
@@ -604,6 +607,9 @@ func (s *Store) AddFact(ctx context.Context, projectID string, n Node) (Node, er
 	typ := strings.TrimSpace(n.Type)
 	if typ == "" {
 		typ = "observation"
+	}
+	if typ == "verdict" {
+		return Node{}, fmt.Errorf("%w: verdict facts must be written through AddVerdict", ErrInvalid)
 	}
 	if projectID == "" || content == "" || creator == "" {
 		return Node{}, fmt.Errorf("%w: project, fact content and creator are required", ErrInvalid)

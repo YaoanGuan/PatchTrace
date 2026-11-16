@@ -27,9 +27,12 @@ var invertPatch = patchintel.Invert
 // calling the LLM.
 type bootstrapDeps struct {
 	searchRules func(string) []patchintel.Rule
-	loadScene   func(string) (string, string)
-	loadPrompt  func(string, worker.TaskType, bool) (string, error)
-	invert      func(context.Context, *patchintel.PatchProfile, []patchintel.Rule, string) (*patchintel.InversionOutput, error)
+	// recordHits increments the injection hit count for the rules the prompt
+	// carried. It is best-effort: a rule-base error never fails the task.
+	recordHits func([]int64) error
+	loadScene  func(string) (string, string)
+	loadPrompt func(string, worker.TaskType, bool) (string, error)
+	invert     func(context.Context, *patchintel.PatchProfile, []patchintel.Rule, string) (*patchintel.InversionOutput, error)
 	// heartbeatInterval is how often the reserved intent lease is refreshed
 	// while the worker runs. Zero means bootstrapIntentLease/2.
 	heartbeatInterval time.Duration
@@ -37,12 +40,51 @@ type bootstrapDeps struct {
 
 var defaultBootstrapDeps = bootstrapDeps{
 	searchRules: searchDefaultRules,
+	recordHits:  recordDefaultRuleHits,
 	loadScene:   patchintel.LoadSceneTemplate,
 	loadPrompt:  worker.LoadPrompt,
 	invert: func(ctx context.Context, profile *patchintel.PatchProfile, rules []patchintel.Rule, scene string) (*patchintel.InversionOutput, error) {
 		return invertPatch(ctx, nil, profile, rules, scene)
 	},
 	heartbeatInterval: bootstrapIntentLease / 2,
+}
+
+// BootstrapOptions threads an embedder's rule base into the bootstrap runner.
+// The graph lane passes closures over its own *patchintel.RuleBase so the rules
+// injected into the prompt and the hit counts recorded for them live in the
+// same SQLite file CE4 writes its verdict outcomes into (R11).
+type BootstrapOptions struct {
+	// SearchRules returns the top-k rules for a query, or nil. When set
+	// without RecordHits, hit recording is disabled rather than silently
+	// writing hits into the process-wide default rule base.
+	SearchRules func(query string) []patchintel.Rule
+	// RecordHits records that the given rule ids were injected. Errors are
+	// logged and do not fail the task.
+	RecordHits func(ids []int64) error
+	// Invert overrides semantic inversion. It exists for offline embedders and
+	// tests; nil keeps patchintel.Invert.
+	Invert func(ctx context.Context, profile *patchintel.PatchProfile, rules []patchintel.Rule, scene string) (*patchintel.InversionOutput, error)
+}
+
+// RunBootstrapWithOptions is RunBootstrap with an embedder-supplied rule base.
+// A zero value keeps the process-wide default behaviour.
+func RunBootstrapWithOptions(ctx context.Context, c graphserver.Client, d worker.Driver, p graph.Project, opts BootstrapOptions) error {
+	deps := defaultBootstrapDeps
+	if opts.SearchRules != nil {
+		deps.searchRules = opts.SearchRules
+		if opts.RecordHits == nil {
+			// The custom search has no matching hit sink; never attribute its
+			// hits to the default rule base.
+			deps.recordHits = nil
+		}
+	}
+	if opts.RecordHits != nil {
+		deps.recordHits = opts.RecordHits
+	}
+	if opts.Invert != nil {
+		deps.invert = opts.Invert
+	}
+	return runBootstrap(ctx, c, d, p, deps)
 }
 
 // RunBootstrap ingests the project patch, inverts it through the worker and
@@ -141,6 +183,16 @@ func runBootstrap(ctx context.Context, c graphserver.Client, d worker.Driver, p 
 	scene, _ := deps.loadScene(profile.Scene)
 	template := strings.TrimRight(contract, "\n") + "\n\n## 场景模板\n\n" + scene + "\n"
 	rules := deps.searchRules(bootstrapRuleQuery(profile))
+	// Best-effort hit accounting: the prompt is about to inject these rules, so
+	// record their ids in the same base (R11). A rule-base failure must not
+	// block a bootstrap.
+	if deps.recordHits != nil {
+		if ids := ruleIDs(rules); len(ids) > 0 {
+			if err := deps.recordHits(ids); err != nil {
+				misc.Warn("dispatch.tasks", fmt.Sprintf("bootstrap: record rule hits: %v", err), nil)
+			}
+		}
+	}
 	prompt := bootstrapPrompt(p, profile, rules, template)
 
 	// The worker may run for minutes; keep the claim alive while it does. On a
@@ -338,7 +390,9 @@ func startBootstrapHeartbeat(ctx context.Context, c graphserver.Client, projectI
 // bootstrapFailure joins the original failure with a release attempt so a
 // failed release is never silently swallowed.
 func bootstrapFailure(ctx context.Context, c graphserver.Client, projectID, intentID, workerName string, cause error) error {
-	return errors.Join(cause, releaseBootstrapIntent(ctx, c, projectID, intentID, workerName))
+	releaseCtx, cancel := detachedGraphWriteContext(ctx)
+	defer cancel()
+	return errors.Join(cause, releaseBootstrapIntent(releaseCtx, c, projectID, intentID, workerName))
 }
 
 // releaseBootstrapIntent returns the claimed intent to the open pool.

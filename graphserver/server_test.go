@@ -396,14 +396,21 @@ func TestLocalClientSupportsGapScoreAndVerdict(t *testing.T) {
 		t.Fatalf("gap description = %q, want the intent content", gaps[0].Description)
 	}
 
+	observation, err := store.AddFact(ctx, project.ID, graph.Node{
+		Type: "observation", Content: "sandbox: exit=0", Creator: "worker-1", From: []string{"origin"},
+	})
+	if err != nil {
+		t.Fatalf("AddFact(observation): %v", err)
+	}
+
 	writer, ok := client.(interface {
-		AddVerdict(context.Context, string, string, string, string, string) (graph.Node, error)
+		AddVerdict(context.Context, string, string, string, string, string, string) (graph.Node, error)
 	})
 	if !ok {
 		t.Fatal("the local client must implement AddVerdict for explore evidence")
 	}
 	fact, err := writer.AddVerdict(ctx, project.ID, intent.ID, "support",
-		"sandbox confirmed the endpoint", "file:///tmp/run.log")
+		"sandbox confirmed the endpoint", observation.ID, "file:///tmp/run.log")
 	if err != nil {
 		t.Fatalf("AddVerdict: %v", err)
 	}

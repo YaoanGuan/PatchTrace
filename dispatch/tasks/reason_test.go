@@ -51,6 +51,9 @@ type fakeReasonClient struct {
 
 	releases   atomic.Int64
 	releaseErr error
+	// releaseCtxCheck makes ReleaseReason reject a cancelled caller context so
+	// the detached-release path is observable.
+	releaseCtxCheck bool
 
 	completes   []reasonComplete
 	completeErr error
@@ -76,8 +79,13 @@ func (c *fakeReasonClient) HeartbeatReason(_ context.Context, projectID, _ strin
 	return graph.Project{ID: projectID, Status: "active"}, c.hbErr
 }
 
-func (c *fakeReasonClient) ReleaseReason(_ context.Context, projectID, _ string) (graph.Project, error) {
+func (c *fakeReasonClient) ReleaseReason(ctx context.Context, projectID, _ string) (graph.Project, error) {
 	c.releases.Add(1)
+	if c.releaseCtxCheck {
+		if err := ctx.Err(); err != nil {
+			return graph.Project{}, err
+		}
+	}
 	return graph.Project{ID: projectID}, c.releaseErr
 }
 
@@ -497,6 +505,31 @@ func TestReasonReleasesOnDriverFailure(t *testing.T) {
 	}
 	if len(client.completes)+len(client.declares) != 0 {
 		t.Fatalf("a failed execution must write nothing")
+	}
+}
+
+// TestReasonReleaseUsesDetachedContext proves the deferred lease release does
+// not inherit a caller context that expired while the worker ran.
+func TestReasonReleaseUsesDetachedContext(t *testing.T) {
+	reasonWorkdir(t)
+	client := newReasonClient()
+	client.releaseCtxCheck = true
+	ctx, cancel := context.WithCancel(context.Background())
+	driver := &fakeReasonDriver{name: "native-test"}
+	driver.execute = func(context.Context, worker.Task) (worker.Result, error) {
+		cancel()
+		return worker.Result{}, errors.New("worker exploded")
+	}
+
+	err := runReason(ctx, client, driver, reasonProject(), defaultReasonDeps)
+	if err == nil || !strings.Contains(err.Error(), "worker exploded") {
+		t.Fatalf("runReason err = %v, want the driver failure", err)
+	}
+	if strings.Contains(err.Error(), "context canceled") {
+		t.Fatalf("release inherited the cancelled caller context: %v", err)
+	}
+	if client.releases.Load() != 1 {
+		t.Fatalf("ReleaseReason calls = %d, want 1", client.releases.Load())
 	}
 }
 

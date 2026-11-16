@@ -33,11 +33,22 @@ const (
 	bootstrapPromptDir   = "prompts/graph/default"
 	bootstrapWorkerName  = "bootstrap"
 	bootstrapIntentLease = 5 * time.Minute
-	bootstrapRuleTopK    = 5
+	// BootstrapRuleTopK is the number of rules injected into the bootstrap
+	// prompt. It is exported so the lane can search its own rule base with the
+	// same limit.
+	BootstrapRuleTopK    = 5
 	maxPromptDiffRunes   = 20000
 	patchProfileFactType = "patch_profile"
 	exploitIdeaFactType  = "exploit_idea"
 )
+
+// detachedGraphWriteContext detaches a post-execute graph write (conclusion,
+// release) from the caller's cancellation while keeping its values, bounded by
+// a short fresh timeout. A dispatcher timeout must not leave a lease claimed
+// until it expires.
+func detachedGraphWriteContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), exploreGraphWriteTimeout)
+}
 
 // searchDefaultRules reads the process-wide rule base. Callers treat it as
 // best-effort: a cold or unavailable rule base must not block a bootstrap.
@@ -46,11 +57,35 @@ func searchDefaultRules(query string) []patchintel.Rule {
 	if err != nil {
 		return nil
 	}
-	rules, err := base.Search(query, bootstrapRuleTopK)
+	rules, err := base.Search(query, BootstrapRuleTopK)
 	if err != nil {
 		return nil
 	}
 	return rules
+}
+
+// recordDefaultRuleHits increments the process-wide rule base's injection hit
+// counts. Like searchDefaultRules it is best-effort.
+func recordDefaultRuleHits(ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	base, err := patchintel.DefaultRuleBase()
+	if err != nil {
+		return err
+	}
+	return base.RecordHits(ids)
+}
+
+// ruleIDs projects the positive rule ids, skipping unsaved rule structs.
+func ruleIDs(rules []patchintel.Rule) []int64 {
+	ids := make([]int64, 0, len(rules))
+	for _, rule := range rules {
+		if rule.ID > 0 {
+			ids = append(ids, rule.ID)
+		}
+	}
+	return ids
 }
 
 // promptGraphSnapshot is the minimal project snapshot rendered into the

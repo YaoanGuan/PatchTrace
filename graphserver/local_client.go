@@ -85,6 +85,6 @@ func (c *localClient) GapScore(ctx context.Context, projectID string) ([]graph.G
 
 // AddVerdict exposes store-backed evidence verdicts (R10) to explore tasks
 // through the optional type assertion they already use.
-func (c *localClient) AddVerdict(ctx context.Context, projectID, targetID, verdict, description, evidenceRef string) (graph.Node, error) {
-	return c.store.AddVerdict(ctx, projectID, targetID, verdict, description, evidenceRef)
+func (c *localClient) AddVerdict(ctx context.Context, projectID, targetID, verdict, description, evidenceSourceID, evidenceRef string) (graph.Node, error) {
+	return c.store.AddVerdict(ctx, projectID, targetID, verdict, description, evidenceSourceID, evidenceRef)
 }

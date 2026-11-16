@@ -43,6 +43,19 @@ func newOutcomeProject(t *testing.T, s *graph.Store) graph.Project {
 	return p
 }
 
+// mustOutcomeObservation seeds the sandbox observation fact every verdict must
+// cite as its evidence source (R10).
+func mustOutcomeObservation(t *testing.T, s *graph.Store, projectID string) graph.Node {
+	t.Helper()
+	fact, err := s.AddFact(context.Background(), projectID, graph.Node{
+		Type: "observation", Content: "sandbox: command=id exit=0", Creator: "tester", From: []string{"origin"},
+	})
+	if err != nil {
+		t.Fatalf("AddFact(observation): %v", err)
+	}
+	return fact
+}
+
 func ruleHitFacts(t *testing.T, s *graph.Store, projectID string) []graph.Node {
 	t.Helper()
 	nodes, err := s.Nodes(context.Background(), projectID)
@@ -104,8 +117,9 @@ func TestConfirmedVerdictIncrementsConfirmCount(t *testing.T) {
 		t.Fatalf("Promote: %v", err)
 	}
 
+	source := mustOutcomeObservation(t, s, p.ID)
 	verdict, err := s.AddVerdict(context.Background(), p.ID, "origin", "support",
-		"sandbox confirmed code execution", "sandbox: command=id exit=0")
+		"sandbox confirmed code execution", source.ID, "sandbox: command=id exit=0")
 	if err != nil {
 		t.Fatalf("AddVerdict: %v", err)
 	}
@@ -177,8 +191,9 @@ func TestFailedVerdictLowersConfidence(t *testing.T) {
 		t.Fatalf("Promote: %v", err)
 	}
 
+	source := mustOutcomeObservation(t, s, p.ID)
 	verdict, err := s.AddVerdict(context.Background(), p.ID, "origin", "refute",
-		"sandbox did not reproduce traversal", "sandbox: command=curl exit=1")
+		"sandbox did not reproduce traversal", source.ID, "sandbox: command=curl exit=1")
 	if err != nil {
 		t.Fatalf("AddVerdict: %v", err)
 	}
@@ -236,8 +251,9 @@ func TestNewPatternPromotedAsNewVersion(t *testing.T) {
 
 	pattern := "server-side template injection in preview endpoint"
 
+	source := mustOutcomeObservation(t, s, p.ID)
 	first, err := s.AddVerdict(context.Background(), p.ID, "origin", "support",
-		"sandbox confirmed template evaluation", "")
+		"sandbox confirmed template evaluation", source.ID, "")
 	if err != nil {
 		t.Fatalf("AddVerdict first: %v", err)
 	}
@@ -256,7 +272,7 @@ func TestNewPatternPromotedAsNewVersion(t *testing.T) {
 	}
 
 	second, err := s.AddVerdict(context.Background(), p.ID, "origin", "support",
-		"sandbox re-confirmed template evaluation", "")
+		"sandbox re-confirmed template evaluation", source.ID, "")
 	if err != nil {
 		t.Fatalf("AddVerdict second: %v", err)
 	}
@@ -316,8 +332,9 @@ func TestNewPatternPromotedFromFailedVerdictKeepsConfirmCountZero(t *testing.T) 
 	p := newOutcomeProject(t, s)
 
 	pattern := "weak comparison in token validator"
+	source := mustOutcomeObservation(t, s, p.ID)
 	verdict, err := s.AddVerdict(context.Background(), p.ID, "origin", "refute",
-		"sandbox could not exploit the comparison", "")
+		"sandbox could not exploit the comparison", source.ID, "")
 	if err != nil {
 		t.Fatalf("AddVerdict: %v", err)
 	}
@@ -367,7 +384,7 @@ func TestApplyOutcomeRejectsInvalidInputWithoutWrites(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddFact: %v", err)
 	}
-	verdict, err := s.AddVerdict(context.Background(), p.ID, "origin", "support", "valid verdict", "")
+	verdict, err := s.AddVerdict(context.Background(), p.ID, "origin", "support", "valid verdict", observation.ID, "")
 	if err != nil {
 		t.Fatalf("AddVerdict: %v", err)
 	}
@@ -441,8 +458,9 @@ func TestApplyOutcomeUsesLinkedIdeaBeforePattern(t *testing.T) {
 		t.Fatalf("LinkIdea: %v", err)
 	}
 
+	source := mustOutcomeObservation(t, s, p.ID)
 	verdict, err := s.AddVerdict(context.Background(), p.ID, idea.ID, "support",
-		"sandbox confirmed linked idea", "")
+		"sandbox confirmed linked idea", source.ID, "")
 	if err != nil {
 		t.Fatalf("AddVerdict: %v", err)
 	}
@@ -472,8 +490,9 @@ func TestApplyOutcomeDerivesPatternFromVerdictContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Promote: %v", err)
 	}
+	source := mustOutcomeObservation(t, s, p.ID)
 	verdict, err := s.AddVerdict(context.Background(), p.ID, "origin", "support",
-		pattern, "sandbox: command=curl exit=0")
+		pattern, source.ID, "sandbox: command=curl exit=0")
 	if err != nil {
 		t.Fatalf("AddVerdict: %v", err)
 	}

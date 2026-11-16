@@ -19,7 +19,7 @@ func TestExploreOnVerdictHookRunsAfterVerdict(t *testing.T) {
 		supportsConclude: true,
 		execute: func(context.Context, worker.Task) (worker.Result, error) {
 			return acceptedResult("证据成立",
-				`{"accepted":true,"data":{"description":"证据成立","verdict":"support"}}`), nil
+				`{"accepted":true,"data":{"description":"证据成立","command":"true","verdict":"support"}}`), nil
 		},
 	}
 
@@ -84,7 +84,7 @@ func TestExploreOnVerdictHookSkippedOnVerdictFailure(t *testing.T) {
 		supportsConclude: true,
 		execute: func(context.Context, worker.Task) (worker.Result, error) {
 			return acceptedResult("证据成立",
-				`{"accepted":true,"data":{"description":"证据成立","verdict":"support"}}`), nil
+				`{"accepted":true,"data":{"description":"证据成立","command":"true","verdict":"support"}}`), nil
 		},
 	}
 
@@ -114,7 +114,7 @@ func TestExploreOnVerdictHookErrorIsReturned(t *testing.T) {
 		supportsConclude: true,
 		execute: func(context.Context, worker.Task) (worker.Result, error) {
 			return acceptedResult("证据成立",
-				`{"accepted":true,"data":{"description":"证据成立","verdict":"support"}}`), nil
+				`{"accepted":true,"data":{"description":"证据成立","command":"true","verdict":"support"}}`), nil
 		},
 	}
 

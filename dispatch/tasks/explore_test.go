@@ -38,11 +38,12 @@ type exploreReleaseCall struct {
 }
 
 type exploreVerdictCall struct {
-	ProjectID   string
-	TargetID    string
-	Verdict     string
-	Description string
-	EvidenceRef string
+	ProjectID        string
+	TargetID         string
+	Verdict          string
+	Description      string
+	EvidenceSourceID string
+	EvidenceRef      string
 }
 
 // fakeExploreClient embeds graphserver.Client so an unexpected protocol call
@@ -131,10 +132,10 @@ type fakeVerdictExploreClient struct {
 	verdicts   []exploreVerdictCall
 }
 
-func (c *fakeVerdictExploreClient) AddVerdict(ctx context.Context, projectID, targetID, verdict, description, evidenceRef string) (graph.Node, error) {
+func (c *fakeVerdictExploreClient) AddVerdict(ctx context.Context, projectID, targetID, verdict, description, evidenceSourceID, evidenceRef string) (graph.Node, error) {
 	c.verdicts = append(c.verdicts, exploreVerdictCall{
 		ProjectID: projectID, TargetID: targetID, Verdict: verdict,
-		Description: description, EvidenceRef: evidenceRef,
+		Description: description, EvidenceSourceID: evidenceSourceID, EvidenceRef: evidenceRef,
 	})
 	if err := ctx.Err(); err != nil {
 		return graph.Node{}, err
@@ -415,6 +416,11 @@ func TestExploreRunsSandboxVerification(t *testing.T) {
 	if verdict.Verdict != "support" || verdict.TargetID != "i001" {
 		t.Fatalf("verdict = %+v, want support/i001", verdict)
 	}
+	// The verdict must cite the observation fact ConcludeIntent wrote (f100 in
+	// the fake) so it has a provenance chain back to origin (R10/I1).
+	if verdict.EvidenceSourceID != "f100" {
+		t.Fatalf("verdict evidence source = %q, want the observation fact f100", verdict.EvidenceSourceID)
+	}
 	for _, want := range []string{"sandbox: command=", "exit=0", "/workspace/src"} {
 		if !strings.Contains(verdict.EvidenceRef, want) {
 			t.Fatalf("evidence ref = %q, want it to cite the sandbox execution (%q)", verdict.EvidenceRef, want)
@@ -535,6 +541,47 @@ func TestExploreSkipsSandboxWithoutCommandOrRuntime(t *testing.T) {
 			t.Fatalf("conclusion = %+v, want the unchanged worker description", client.concludes)
 		}
 	})
+
+	t.Run("verdict without sandbox execution", func(t *testing.T) {
+		for _, tc := range []struct {
+			name    string
+			command string
+			rt      runtime.SandboxRuntime
+		}{
+			{name: "no command", rt: &fakeSandboxRuntime{}},
+			{name: "nil runtime", command: `,"command":"true"`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				exploreWorkdir(t)
+				client := newExploreClient()
+				driver := &fakeExploreDriver{
+					name: "native-test",
+					execute: func(context.Context, worker.Task) (worker.Result, error) {
+						return acceptedResult("沙箱未执行的结论",
+							`{"accepted":true,"data":{"description":"沙箱未执行的结论","verdict":"support"`+tc.command+`}}`), nil
+					},
+				}
+				onVerdictCalled := false
+				err := RunExploreWithOptions(context.Background(), client, driver, tc.rt, exploreProject(), "i001",
+					ExploreOptions{OnVerdict: func(context.Context, string, string) error {
+						onVerdictCalled = true
+						return nil
+					}})
+				if err != nil {
+					t.Fatalf("RunExplore: %v", err)
+				}
+				if len(client.verdicts) != 0 {
+					t.Fatalf("a verdict without sandbox execution must be dropped: %+v", client.verdicts)
+				}
+				if onVerdictCalled {
+					t.Fatal("the OnVerdict rule-feedback hook must not run for a dropped verdict")
+				}
+				if len(client.concludes) != 1 || client.concludes[0].Description != "沙箱未执行的结论" {
+					t.Fatalf("conclusion = %+v, want the observation fact without a verification block", client.concludes)
+				}
+			})
+		}
+	})
 }
 
 func TestExploreTimeoutFallsBackToConclude(t *testing.T) {
@@ -634,7 +681,7 @@ func TestExploreVerdictWriteUsesDetachedContext(t *testing.T) {
 		supportsConclude: true,
 		execute: func(ctx context.Context, _ worker.Task) (worker.Result, error) {
 			return acceptedResult("结论成立",
-				`{"accepted":true,"data":{"description":"结论成立","verdict":"support"}}`), nil
+				`{"accepted":true,"data":{"description":"结论成立","command":"true","verdict":"support"}}`), nil
 		},
 	}
 	parent, cancel := context.WithCancel(context.Background())
@@ -913,7 +960,7 @@ func TestExploreVerdictUsesExplicitTarget(t *testing.T) {
 		supportsConclude: true,
 		execute: func(context.Context, worker.Task) (worker.Result, error) {
 			return acceptedResult(description,
-				`{"accepted":true,"data":{"description":"沙箱命令复现了漏洞","verdict":"support","evidence_ref":"file:///tmp/run.log","target":"f001"}}`), nil
+				`{"accepted":true,"data":{"description":"沙箱命令复现了漏洞","command":"cat run.log","verdict":"support","evidence_ref":"file:///tmp/run.log","target":"f001"}}`), nil
 		},
 	}
 
@@ -927,11 +974,11 @@ func TestExploreVerdictUsesExplicitTarget(t *testing.T) {
 	if v.ProjectID != "p1" || v.TargetID != "f001" || v.Verdict != "support" {
 		t.Fatalf("verdict call = %+v, want p1/f001/support", v)
 	}
-	if v.Description != description {
+	if !strings.HasPrefix(v.Description, description) {
 		t.Fatalf("verdict description = %q, want the concluded description", v.Description)
 	}
-	if v.EvidenceRef != "file:///tmp/run.log" {
-		t.Fatalf("evidence ref = %q, want file:///tmp/run.log", v.EvidenceRef)
+	if !strings.HasPrefix(v.EvidenceRef, "file:///tmp/run.log") || !strings.Contains(v.EvidenceRef, "sandbox: command=") {
+		t.Fatalf("evidence ref = %q, want the model reference plus the sandbox execution", v.EvidenceRef)
 	}
 	if len(client.concludes) != 1 || len(client.releases) != 0 {
 		t.Fatalf("want one conclusion and no release, got concludes=%d releases=%d",
@@ -947,7 +994,7 @@ func TestExploreVerdictDefaultsToExploredIntent(t *testing.T) {
 		supportsConclude: true,
 		execute: func(context.Context, worker.Task) (worker.Result, error) {
 			return acceptedResult("证据反驳了该方向",
-				`{"accepted":true,"data":{"description":"证据反驳了该方向","verdict":"refute"}}`), nil
+				`{"accepted":true,"data":{"description":"证据反驳了该方向","command":"curl -s http://target/nope","verdict":"refute"}}`), nil
 		},
 	}
 
@@ -970,7 +1017,7 @@ func TestExploreVerdictUnknownTargetFallsBackToIntent(t *testing.T) {
 		supportsConclude: true,
 		execute: func(context.Context, worker.Task) (worker.Result, error) {
 			return acceptedResult("证据支持该方向",
-				`{"accepted":true,"data":{"description":"证据支持该方向","verdict":"support","target":"f999"}}`), nil
+				`{"accepted":true,"data":{"description":"证据支持该方向","command":"true","verdict":"support","target":"f999"}}`), nil
 		},
 	}
 
@@ -993,7 +1040,7 @@ func TestExploreInvalidVerdictReturnsErrorAfterFact(t *testing.T) {
 		supportsConclude: true,
 		execute: func(context.Context, worker.Task) (worker.Result, error) {
 			return acceptedResult("结论",
-				`{"accepted":true,"data":{"description":"结论","verdict":"maybe"}}`), nil
+				`{"accepted":true,"data":{"description":"结论","command":"true","verdict":"maybe"}}`), nil
 		},
 	}
 
@@ -1021,7 +1068,7 @@ func TestExploreVerdictWithoutWriterReturnsErrorAfterFact(t *testing.T) {
 		supportsConclude: true,
 		execute: func(context.Context, worker.Task) (worker.Result, error) {
 			return acceptedResult("结论",
-				`{"accepted":true,"data":{"description":"结论","verdict":"support"}}`), nil
+				`{"accepted":true,"data":{"description":"结论","command":"true","verdict":"support"}}`), nil
 		},
 	}
 
