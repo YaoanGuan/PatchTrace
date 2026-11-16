@@ -332,3 +332,124 @@ func TestReopenCreatesCorrectionFact(t *testing.T) {
 		t.Fatalf("feedback.From = %v, want [origin]", feedback.From)
 	}
 }
+
+func TestAddFactCreatesResolvedFactAndProduceEdges(t *testing.T) {
+	s := newTestStore(t)
+	p := mustProject(t, s)
+
+	fact, err := s.AddFact(ctx, p.ID, Node{
+		Type:    "observation",
+		Content: "the sink is reachable",
+		Creator: "tester",
+		From:    []string{"origin"},
+	})
+	if err != nil {
+		t.Fatalf("AddFact: %v", err)
+	}
+	if fact.Kind != "fact" {
+		t.Fatalf("kind = %q, want fact", fact.Kind)
+	}
+	if fact.Type != "observation" {
+		t.Fatalf("type = %q, want observation", fact.Type)
+	}
+	if fact.State != "resolved" {
+		t.Fatalf("state = %q, want resolved", fact.State)
+	}
+	if fact.Creator != "tester" {
+		t.Fatalf("creator = %q, want tester", fact.Creator)
+	}
+	if len(fact.ID) < 2 || fact.ID[0] != 'f' {
+		t.Fatalf("id = %q, want an f-prefixed id", fact.ID)
+	}
+	if fact.CreatedAt == nil {
+		t.Fatal("created_at is nil")
+	}
+	if len(fact.From) != 1 || fact.From[0] != "origin" {
+		t.Fatalf("from = %v, want [origin]", fact.From)
+	}
+
+	// A fact without an explicit type defaults to observation, like
+	// ConcludeIntent does.
+	child, err := s.AddFact(ctx, p.ID, Node{
+		Content: "derived observation",
+		Creator: "tester",
+		From:    []string{fact.ID},
+	})
+	if err != nil {
+		t.Fatalf("AddFact child: %v", err)
+	}
+	if child.Type != "observation" {
+		t.Fatalf("default type = %q, want observation", child.Type)
+	}
+	if child.ID == fact.ID {
+		t.Fatalf("ids must be unique, both %q", child.ID)
+	}
+
+	stored, err := s.GetNode(ctx, p.ID, child.ID)
+	if err != nil {
+		t.Fatalf("GetNode: %v", err)
+	}
+	if len(stored.From) != 1 || stored.From[0] != fact.ID {
+		t.Fatalf("stored from = %v, want [%s]", stored.From, fact.ID)
+	}
+
+	edges, err := s.Edges(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Edges: %v", err)
+	}
+	var originEdge, childEdge bool
+	for _, e := range edges {
+		if e.Kind == "produce" && e.From == "origin" && e.To == fact.ID {
+			originEdge = true
+		}
+		if e.Kind == "produce" && e.From == fact.ID && e.To == child.ID {
+			childEdge = true
+		}
+	}
+	if !originEdge {
+		t.Fatalf("missing produce edge origin->%s in %+v", fact.ID, edges)
+	}
+	if !childEdge {
+		t.Fatalf("missing produce edge %s->%s in %+v", fact.ID, child.ID, edges)
+	}
+}
+
+func TestAddFactRejectsInvalidInputWithNoWrites(t *testing.T) {
+	s := newTestStore(t)
+	p := mustProject(t, s)
+	intent := mustIntent(t, s, p.ID)
+
+	before, err := s.Nodes(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Nodes before: %v", err)
+	}
+
+	cases := []struct {
+		name      string
+		projectID string
+		node      Node
+	}{
+		{"missing project", "", Node{Content: "x", Creator: "tester", From: []string{"origin"}}},
+		{"missing content", p.ID, Node{Creator: "tester", From: []string{"origin"}}},
+		{"missing creator", p.ID, Node{Content: "x", From: []string{"origin"}}},
+		{"missing from", p.ID, Node{Content: "x", Creator: "tester"}},
+		{"goal from", p.ID, Node{Content: "x", Creator: "tester", From: []string{"goal"}}},
+		{"unknown from", p.ID, Node{Content: "x", Creator: "tester", From: []string{"f999"}}},
+		{"intent from", p.ID, Node{Content: "x", Creator: "tester", From: []string{intent.ID}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := s.AddFact(ctx, tc.projectID, tc.node); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("error = %v, want ErrInvalid", err)
+			}
+		})
+	}
+
+	after, err := s.Nodes(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Nodes after: %v", err)
+	}
+	if len(after) != len(before) {
+		t.Fatalf("invalid input wrote nodes: %d -> %d", len(before), len(after))
+	}
+}

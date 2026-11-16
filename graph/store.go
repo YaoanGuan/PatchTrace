@@ -577,6 +577,88 @@ func (s *Store) DeclareIntent(ctx context.Context, projectID string, n Node) (No
 	return intent, nil
 }
 
+// AddFact persists an already-established fact. It is the narrow public fact
+// writer for facts that do not come from concluding an intent (for example the
+// CE4 rule_hit feedback): the node gets an `f` id, is resolved on creation and
+// records a produce edge from every from fact.
+//
+// Validation mirrors DeclareIntent: project, content and creator are required,
+// at least one from fact is required, and every from id must name an existing
+// fact of an active project ("goal" is rejected). Invalid input leaves the
+// graph untouched.
+func (s *Store) AddFact(ctx context.Context, projectID string, n Node) (Node, error) {
+	projectID = strings.TrimSpace(projectID)
+	content := strings.TrimSpace(n.Content)
+	creator := strings.TrimSpace(n.Creator)
+	typ := strings.TrimSpace(n.Type)
+	if typ == "" {
+		typ = "observation"
+	}
+	if projectID == "" || content == "" || creator == "" {
+		return Node{}, fmt.Errorf("%w: project, fact content and creator are required", ErrInvalid)
+	}
+	if len(n.From) == 0 {
+		return Node{}, fmt.Errorf("%w: fact requires at least one from fact", ErrInvalid)
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Node{}, fmt.Errorf("graph: begin add fact: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := ensureActive(ctx, tx, projectID); err != nil {
+		return Node{}, err
+	}
+	from := make([]string, 0, len(n.From))
+	for _, raw := range n.From {
+		fromID := strings.TrimSpace(raw)
+		if fromID == "" || fromID == "goal" {
+			return Node{}, fmt.Errorf("%w: invalid from fact %q", ErrInvalid, raw)
+		}
+		fact, err := getNodeRaw(ctx, tx, projectID, fromID)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return Node{}, fmt.Errorf("%w: unknown from fact %s", ErrInvalid, fromID)
+			}
+			return Node{}, err
+		}
+		if fact.Kind != "fact" {
+			return Node{}, fmt.Errorf("%w: from node %s is not a fact", ErrInvalid, fromID)
+		}
+		from = append(from, fromID)
+	}
+
+	id, err := nextSeq(ctx, tx, projectID, "f")
+	if err != nil {
+		return Node{}, err
+	}
+	now := time.Now()
+	fact := Node{
+		ID:        id,
+		ProjectID: projectID,
+		Kind:      "fact",
+		Type:      typ,
+		Content:   content,
+		State:     "resolved",
+		From:      from,
+		Creator:   creator,
+		CreatedAt: &now,
+	}
+	if err := insertNode(ctx, tx, fact); err != nil {
+		return Node{}, err
+	}
+	for _, fromID := range from {
+		if err := insertEdge(ctx, tx, projectID, fromID, fact.ID, "produce"); err != nil {
+			return Node{}, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return Node{}, fmt.Errorf("graph: commit add fact: %w", err)
+	}
+	return fact, nil
+}
+
 // ClaimIntent atomically claims an open intent using a single conditional
 // UPDATE. Exactly one concurrent caller can succeed.
 func (s *Store) ClaimIntent(ctx context.Context, projectID, intentID, worker string, lease time.Duration) (Node, error) {

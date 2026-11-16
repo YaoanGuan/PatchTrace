@@ -137,35 +137,37 @@ func (r *RuleBase) Promote(input Rule) (*Rule, error) {
 	return r.Get(id)
 }
 
-// UpdateOutcome records a verification outcome. The rule is re-inserted as a
-// new version with an adjusted confidence, preserving the old version for
-// auditability.
+// UpdateOutcome records a verification outcome.
+//
+// A confirmed outcome inserts a new rule version with a raised confidence and
+// confirm_count+1, preserving the previous version for auditability. A failed
+// outcome lowers the confidence of the existing row in place and does not open
+// a new version: a negative signal revises the current rule rather than
+// establishing a new revision (CE4).
 func (r *RuleBase) UpdateOutcome(ruleID int64, confirmed bool, note string) (*Rule, error) {
 	current, err := r.Get(ruleID)
 	if err != nil {
 		return nil, err
 	}
-	confidence := current.Confidence
-	confirmCount := current.ConfirmCount
-	if confirmed {
-		confidence = clampConfidence(confidence + 0.1)
-		confirmCount++
-	} else {
-		confidence = clampConfidence(confidence - 0.15)
+	notes := appendRuleNote(current.VerificationNotes, note)
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	if !confirmed {
+		confidence := clampConfidence(current.Confidence - 0.15)
+		if _, err := r.db.Exec(`
+            UPDATE rules SET confidence=?, verification_notes=?, updated_at=? WHERE id=?`,
+			confidence, notes, now, current.ID); err != nil {
+			return nil, err
+		}
+		return r.Get(current.ID)
 	}
+
+	confidence := clampConfidence(current.Confidence + 0.1)
+	confirmCount := current.ConfirmCount + 1
 	version, err := r.nextVersion(current.Pattern)
 	if err != nil {
 		return nil, err
 	}
-	notes := current.VerificationNotes
-	note = strings.TrimSpace(note)
-	if note != "" {
-		if notes != "" {
-			notes += "\n"
-		}
-		notes += note
-	}
-	now := time.Now().UTC().Format(time.RFC3339)
 	result, err := r.db.Exec(`
         INSERT INTO rules (cve_id, pattern, trigger_features, verification_notes, confidence, version, hit_count, confirm_count, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -179,6 +181,18 @@ func (r *RuleBase) UpdateOutcome(ruleID int64, confirmed bool, note string) (*Ru
 		return nil, err
 	}
 	return r.Get(id)
+}
+
+// appendRuleNote appends a verification note to the existing notes.
+func appendRuleNote(notes, note string) string {
+	note = strings.TrimSpace(note)
+	if note == "" {
+		return notes
+	}
+	if notes != "" {
+		notes += "\n"
+	}
+	return notes + note
 }
 
 // Get returns one rule row by id.
