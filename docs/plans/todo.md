@@ -14,6 +14,7 @@
 > 证据：`CGO_ENABLED=0 go build ./...` → BUILD_OK；`go test ./graph/ ./graphserver/ ./dispatch/... ./eval/ -race -count=1` 全 `ok`；`go test ./...` 仅遗留 ProjectManager 既有失败（base `7d0e635` 可复现，包未被本分支改动）。
 > 遗留（已裁定并记录）：R13 Web 面板已于 `199d0ca`+`2ef42ab`+`21b6626` 补齐（只读面板 + GraphOnly 车道 + snapshot 端点），评审无 Critical/Important，Minor 修复 `78febdb`，最终 `origin/main` = `20ec53c`；Finding 报告仍后置（requirement §12）；R6 一次性 driver；真实 CVE 实弹未跑；explore prompt 仍把 `command` 标为可选（无命令的 verdict 会被证据闸门丢弃，需后续收紧 prompt）。
 > 面板启用：`misc.graph_lane_enabled=true`（`data/AIxVuln.db`）后重启，模型未配置时自动退化为 GraphOnly 挂载 `/api/graph`；已验证 `/api/graph/projects`（401 未授权 / Bearer 后返回项目）与 snapshot 渲染。
+> 前端全协议对齐：`webui/src/GraphPanel.tsx` 覆盖新建项目、状态/完成/重开、Hint、Intent 声明/领取/心跳/释放/总结、总脑租约、YAML/时间线导出、provenance 追溯与车道状态；UI 实操验证 Hint 写入、Intent 领取+总结（新增 f003）、总脑领取+释放，`npx tsc --noEmit` 与构建通过。
 > 下一动作：有 Docker + LLM 配置时，按 `docs/runbooks/cve-2025-3248.md` §2–§5 跑实弹验收（diff 导入 → 沙箱验证 → Finding → 规则库 +1）。
 
 ---
