@@ -11,6 +11,9 @@ import (
 // for an existing rule.
 type PromoteRuleTool struct {
 	task *taskManager.Task
+	// ruleBase overrides the process-wide default rule base. It is unexported
+	// and only set by tests so they can use an isolated t.TempDir database.
+	ruleBase *patchintel.RuleBase
 }
 
 func NewPromoteRuleTool(task *taskManager.Task) *PromoteRuleTool {
@@ -22,7 +25,7 @@ func (h *PromoteRuleTool) Name() string {
 }
 
 func (h *PromoteRuleTool) Description() string {
-	return "Promote a reusable vulnerability pattern into the versioned rule base, or record a verification outcome for an existing rule. Rule changes never overwrite history: every change creates a new version and adjusts confidence."
+	return "Promote a reusable vulnerability pattern into the versioned rule base, or record a verification outcome for an existing rule. A confirmed outcome raises confidence and creates a new rule version while retaining the old one; a refuted outcome lowers confidence on the existing row in place without creating a new version."
 }
 
 func (h *PromoteRuleTool) Parameters() map[string]interface{} {
@@ -72,9 +75,13 @@ func (h *PromoteRuleTool) Execute(parameters map[string]interface{}) string {
 		ruleID = value
 	}
 	outcome := strings.ToLower(strings.TrimSpace(stringParam(parameters["outcome"])))
-	ruleBase, err := patchintel.DefaultRuleBase()
-	if err != nil {
-		return Fail("open rule base failed: " + err.Error())
+	ruleBase := h.ruleBase
+	if ruleBase == nil {
+		var err error
+		ruleBase, err = patchintel.DefaultRuleBase()
+		if err != nil {
+			return Fail("open rule base failed: " + err.Error())
+		}
 	}
 	if ruleID > 0 && outcome != "" {
 		confirmed, ok := normalizeOutcome(outcome)
@@ -85,10 +92,14 @@ func (h *PromoteRuleTool) Execute(parameters map[string]interface{}) string {
 		if err != nil {
 			return Fail("update rule outcome failed: " + err.Error())
 		}
+		result := "verification outcome recorded as an in-place confidence adjustment (no new version)"
+		if confirmed {
+			result = "verification outcome recorded as a new rule version"
+		}
 		return Success(map[string]interface{}{
 			"mode":   "outcome",
 			"rule":   updated,
-			"result": "verification outcome recorded as a new rule version",
+			"result": result,
 		})
 	}
 	pattern := strings.TrimSpace(stringParam(parameters["pattern"]))

@@ -101,7 +101,9 @@ func (h *InvertPatchTool) Execute(parameters map[string]interface{}) string {
 		_ = err
 	}
 	// When the inferred pattern already exists in the rule base, link the idea
-	// to it so the sandbox verification outcome flows back as a new rule version.
+	// to it so the sandbox verification outcome flows back into the rule base:
+	// a confirmation opens a new rule version, a refutation lowers confidence
+	// on the existing row in place.
 	var linkedRuleID int64
 	linkError := ""
 	if existing, err := ruleBase.FindLatestByPattern(output.CandidateRule.Pattern); err != nil {

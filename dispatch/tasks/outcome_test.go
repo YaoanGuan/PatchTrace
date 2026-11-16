@@ -251,8 +251,8 @@ func TestNewPatternPromotedAsNewVersion(t *testing.T) {
 	if v1 == nil || v1.Version != 1 {
 		t.Fatalf("first outcome must promote version 1, got %+v", v1)
 	}
-	if v1.ConfirmCount != 0 {
-		t.Fatalf("promoted rule confirm_count = %d, want 0 (Promote has no confirm field)", v1.ConfirmCount)
+	if v1.ConfirmCount != 1 {
+		t.Fatalf("promoted rule confirm_count = %d, want 1 (the confirmed verdict is counted on promotion)", v1.ConfirmCount)
 	}
 
 	second, err := s.AddVerdict(context.Background(), p.ID, "origin", "support",
@@ -270,8 +270,8 @@ func TestNewPatternPromotedAsNewVersion(t *testing.T) {
 	if v2.Version != 2 {
 		t.Fatalf("second outcome version = %d, want 2", v2.Version)
 	}
-	if v2.ConfirmCount != 1 {
-		t.Fatalf("second outcome confirm_count = %d, want 1", v2.ConfirmCount)
+	if v2.ConfirmCount != 2 {
+		t.Fatalf("second outcome confirm_count = %d, want 2", v2.ConfirmCount)
 	}
 	if v2.Confidence <= v1.Confidence {
 		t.Fatalf("confidence = %v, want > %v", v2.Confidence, v1.Confidence)
@@ -282,12 +282,67 @@ func TestNewPatternPromotedAsNewVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get v1: %v", err)
 	}
-	if retained.Version != 1 || retained.ConfirmCount != 0 || retained.Confidence != v1.Confidence {
+	if retained.Version != 1 || retained.ConfirmCount != 1 || retained.Confidence != v1.Confidence {
 		t.Fatalf("version 1 must be retained unchanged, got %+v", retained)
 	}
 
-	if hits := ruleHitFacts(t, s, p.ID); len(hits) != 2 {
+	hits := ruleHitFacts(t, s, p.ID)
+	if len(hits) != 2 {
 		t.Fatalf("rule_hit facts = %d, want 2", len(hits))
+	}
+	byVersion := make(map[int]ruleHitPayload, len(hits))
+	for _, hit := range hits {
+		payload := decodeRuleHit(t, hit)
+		byVersion[payload.Version] = payload
+	}
+	firstHit, ok := byVersion[1]
+	if !ok {
+		t.Fatal("missing rule_hit for version 1")
+	}
+	if firstHit.RuleID != v1.ID || firstHit.ConfirmCount != 1 || !firstHit.Confirmed || firstHit.Pattern != pattern {
+		t.Fatalf("version 1 rule_hit = %+v, want rule=%d confirm=1 confirmed=true pattern=%q", firstHit, v1.ID, pattern)
+	}
+	secondHit, ok := byVersion[2]
+	if !ok {
+		t.Fatal("missing rule_hit for version 2")
+	}
+	if secondHit.RuleID != v2.ID || secondHit.ConfirmCount != 2 || !secondHit.Confirmed || secondHit.Confidence != v2.Confidence {
+		t.Fatalf("version 2 rule_hit = %+v, want rule=%d confirm=2 confidence=%v", secondHit, v2.ID, v2.Confidence)
+	}
+}
+
+func TestNewPatternPromotedFromFailedVerdictKeepsConfirmCountZero(t *testing.T) {
+	s, rb := newOutcomeStores(t)
+	p := newOutcomeProject(t, s)
+
+	pattern := "weak comparison in token validator"
+	verdict, err := s.AddVerdict(context.Background(), p.ID, "origin", "refute",
+		"sandbox could not exploit the comparison", "")
+	if err != nil {
+		t.Fatalf("AddVerdict: %v", err)
+	}
+	if err := ApplyOutcome(context.Background(), rb, s, p.ID, verdict.ID, false, "pattern: "+pattern); err != nil {
+		t.Fatalf("ApplyOutcome: %v", err)
+	}
+
+	rule, err := rb.FindLatestByPattern(pattern)
+	if err != nil {
+		t.Fatalf("FindLatestByPattern: %v", err)
+	}
+	if rule == nil || rule.Version != 1 {
+		t.Fatalf("failed outcome must promote version 1, got %+v", rule)
+	}
+	if rule.ConfirmCount != 0 {
+		t.Fatalf("confirm_count = %d, want 0 (a refutation does not confirm)", rule.ConfirmCount)
+	}
+
+	hits := ruleHitFacts(t, s, p.ID)
+	if len(hits) != 1 {
+		t.Fatalf("rule_hit facts = %d, want 1", len(hits))
+	}
+	payload := decodeRuleHit(t, hits[0])
+	if payload.ConfirmCount != 0 || payload.Confirmed || payload.Version != 1 {
+		t.Fatalf("rule_hit payload = %+v, want version=1 confirm=0 confirmed=false", payload)
 	}
 }
 

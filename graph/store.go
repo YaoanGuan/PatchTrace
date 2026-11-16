@@ -499,6 +499,31 @@ func (s *Store) AddHint(ctx context.Context, projectID, content, creator string)
 	return hint, nil
 }
 
+// resolveFromFacts validates every from id as an existing fact of the project
+// and returns the trimmed ids. Empty ids and the reserved "goal" id are
+// rejected, as are unknown nodes and nodes that are not facts.
+func resolveFromFacts(ctx context.Context, q querier, projectID string, from []string) ([]string, error) {
+	resolved := make([]string, 0, len(from))
+	for _, raw := range from {
+		fromID := strings.TrimSpace(raw)
+		if fromID == "" || fromID == "goal" {
+			return nil, fmt.Errorf("%w: invalid from fact %q", ErrInvalid, raw)
+		}
+		fact, err := getNodeRaw(ctx, q, projectID, fromID)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return nil, fmt.Errorf("%w: unknown from fact %s", ErrInvalid, fromID)
+			}
+			return nil, err
+		}
+		if fact.Kind != "fact" {
+			return nil, fmt.Errorf("%w: from node %s is not a fact", ErrInvalid, fromID)
+		}
+		resolved = append(resolved, fromID)
+	}
+	return resolved, nil
+}
+
 // DeclareIntent creates an open intent, optionally claimed by its creator.
 func (s *Store) DeclareIntent(ctx context.Context, projectID string, n Node) (Node, error) {
 	content := strings.TrimSpace(n.Content)
@@ -527,23 +552,9 @@ func (s *Store) DeclareIntent(ctx context.Context, projectID string, n Node) (No
 	if _, err := ensureActive(ctx, tx, projectID); err != nil {
 		return Node{}, err
 	}
-	from := make([]string, 0, len(n.From))
-	for _, raw := range n.From {
-		fromID := strings.TrimSpace(raw)
-		if fromID == "" || fromID == "goal" {
-			return Node{}, fmt.Errorf("%w: invalid from fact %q", ErrInvalid, raw)
-		}
-		fact, err := getNodeRaw(ctx, tx, projectID, fromID)
-		if err != nil {
-			if errors.Is(err, ErrNotFound) {
-				return Node{}, fmt.Errorf("%w: unknown from fact %s", ErrInvalid, fromID)
-			}
-			return Node{}, err
-		}
-		if fact.Kind != "fact" {
-			return Node{}, fmt.Errorf("%w: from node %s is not a fact", ErrInvalid, fromID)
-		}
-		from = append(from, fromID)
+	from, err := resolveFromFacts(ctx, tx, projectID, n.From)
+	if err != nil {
+		return Node{}, err
 	}
 
 	id, err := nextSeq(ctx, tx, projectID, "i")
@@ -610,23 +621,9 @@ func (s *Store) AddFact(ctx context.Context, projectID string, n Node) (Node, er
 	if _, err := ensureActive(ctx, tx, projectID); err != nil {
 		return Node{}, err
 	}
-	from := make([]string, 0, len(n.From))
-	for _, raw := range n.From {
-		fromID := strings.TrimSpace(raw)
-		if fromID == "" || fromID == "goal" {
-			return Node{}, fmt.Errorf("%w: invalid from fact %q", ErrInvalid, raw)
-		}
-		fact, err := getNodeRaw(ctx, tx, projectID, fromID)
-		if err != nil {
-			if errors.Is(err, ErrNotFound) {
-				return Node{}, fmt.Errorf("%w: unknown from fact %s", ErrInvalid, fromID)
-			}
-			return Node{}, err
-		}
-		if fact.Kind != "fact" {
-			return Node{}, fmt.Errorf("%w: from node %s is not a fact", ErrInvalid, fromID)
-		}
-		from = append(from, fromID)
+	from, err := resolveFromFacts(ctx, tx, projectID, n.From)
+	if err != nil {
+		return Node{}, err
 	}
 
 	id, err := nextSeq(ctx, tx, projectID, "f")

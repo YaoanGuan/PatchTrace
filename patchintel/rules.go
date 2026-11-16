@@ -108,6 +108,11 @@ func (r *RuleBase) Close() error {
 
 // Promote stores a new rule version. Existing rules with the same pattern are
 // never overwritten: the new row gets version = previous max + 1.
+//
+// ConfirmCount is persisted as given (negative values are clamped to 0), which
+// lets a caller that promotes a rule from an already-confirmed outcome seed the
+// confirmation count; CE4 passes 1 for a confirmed verdict and 0 otherwise.
+// HitCount always starts at 0 because a promotion is not a prompt hit.
 func (r *RuleBase) Promote(input Rule) (*Rule, error) {
 	pattern := strings.TrimSpace(input.Pattern)
 	if pattern == "" {
@@ -117,16 +122,20 @@ func (r *RuleBase) Promote(input Rule) (*Rule, error) {
 	if confidence <= 0 {
 		confidence = 0.5
 	}
+	confirmCount := input.ConfirmCount
+	if confirmCount < 0 {
+		confirmCount = 0
+	}
 	version, err := r.nextVersion(pattern)
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	result, err := r.db.Exec(`
-        INSERT INTO rules (cve_id, pattern, trigger_features, verification_notes, confidence, version, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        INSERT INTO rules (cve_id, pattern, trigger_features, verification_notes, confidence, version, confirm_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		strings.TrimSpace(input.CVEID), pattern, strings.TrimSpace(input.TriggerFeatures),
-		strings.TrimSpace(input.VerificationNotes), confidence, version, now, now)
+		strings.TrimSpace(input.VerificationNotes), confidence, version, confirmCount, now, now)
 	if err != nil {
 		return nil, err
 	}

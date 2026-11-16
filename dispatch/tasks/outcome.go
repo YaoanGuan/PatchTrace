@@ -21,8 +21,9 @@ const (
 
 	// New patterns are promoted with a confidence derived from the rule base's
 	// default 0.5, adjusted by the same deltas UpdateOutcome applies (+0.1 for a
-	// confirmation, -0.15 for a refutation). Promote has no confirm field, so a
-	// freshly promoted rule always starts at hit_count/confirm_count 0.
+	// confirmation, -0.15 for a refutation). A confirmation is also carried into
+	// the new row's confirm_count (1), while a refutation starts at 0; hit_count
+	// always starts at 0 because promotion is not a prompt hit.
 	outcomeInitialConfidence   = 0.5
 	outcomeConfirmedConfidence = outcomeInitialConfidence + 0.1
 	outcomeFailedConfidence    = outcomeInitialConfidence - 0.15
@@ -52,8 +53,8 @@ var outcomePatternMarkerRE = regexp.MustCompile(`(?i)(?:^|[\s,;])(?:pattern|rule
 //     spaces. FindLatestByPattern resolves an exact match, which is updated with
 //     UpdateOutcome.
 //  3. New pattern. When no rule matches, Promote creates a version-1 rule with
-//     that pattern (confidence 0.6 for a confirmation, 0.35 for a refutation,
-//     mirroring UpdateOutcome's deltas).
+//     that pattern (confidence 0.6 and confirm_count 1 for a confirmation; 0.35
+//     and confirm_count 0 for a refutation, mirroring UpdateOutcome's deltas).
 //
 // A confirmed outcome raises confidence, increments confirm_count and opens a
 // new version while the old row stays. A failed outcome lowers the confidence
@@ -135,13 +136,16 @@ func resolveOutcomeRule(ctx context.Context, rb *patchintel.RuleBase, s *graph.S
 	}
 
 	confidence := outcomeConfirmedConfidence
+	confirmCount := 1
 	if !confirmed {
 		confidence = outcomeFailedConfidence
+		confirmCount = 0
 	}
 	promoted, err := rb.Promote(patchintel.Rule{
 		Pattern:           pattern,
 		VerificationNotes: note,
 		Confidence:        confidence,
+		ConfirmCount:      confirmCount,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("outcome: promote rule: %w", err)

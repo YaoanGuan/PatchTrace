@@ -52,7 +52,22 @@ func TestPromoteCreatesNewVersionsWithoutOverwriting(t *testing.T) {
 	}
 }
 
-func TestUpdateOutcomeCreatesNewVersionAndAdjustsConfidence(t *testing.T) {
+func TestPromotePersistsConfirmCount(t *testing.T) {
+	base := openTestRuleBase(t)
+	rule, err := base.Promote(Rule{
+		Pattern:      "confirmed at promotion time",
+		Confidence:   0.6,
+		ConfirmCount: 1,
+	})
+	if err != nil {
+		t.Fatalf("Promote: %v", err)
+	}
+	if rule.ConfirmCount != 1 {
+		t.Fatalf("confirm_count = %d, want 1", rule.ConfirmCount)
+	}
+}
+
+func TestUpdateOutcomeConfirmedCreatesNewVersion(t *testing.T) {
 	base := openTestRuleBase(t)
 	rule, err := base.Promote(Rule{
 		Pattern:    "path traversal in static file handler",
@@ -77,12 +92,50 @@ func TestUpdateOutcomeCreatesNewVersionAndAdjustsConfidence(t *testing.T) {
 	if confirmed.VerificationNotes != "sandbox confirmed traversal" {
 		t.Fatalf("expected appended note, got %q", confirmed.VerificationNotes)
 	}
-	refuted, err := base.UpdateOutcome(confirmed.ID, false, "false positive")
+	// The confirmed version is a new row and the original stays unchanged.
+	original, err := base.Get(rule.ID)
+	if err != nil {
+		t.Fatalf("Get original: %v", err)
+	}
+	if original.Version != 1 || original.ConfirmCount != 0 || original.Confidence != 0.5 {
+		t.Fatalf("original version must be retained, got %+v", original)
+	}
+}
+
+func TestUpdateOutcomeRefutedAdjustsConfidenceInPlace(t *testing.T) {
+	base := openTestRuleBase(t)
+	rule, err := base.Promote(Rule{
+		Pattern:    "path traversal in static file handler",
+		Confidence: 0.6,
+	})
+	if err != nil {
+		t.Fatalf("Promote: %v", err)
+	}
+	refuted, err := base.UpdateOutcome(rule.ID, false, "false positive")
 	if err != nil {
 		t.Fatalf("UpdateOutcome refuted: %v", err)
 	}
-	if refuted.Confidence >= confirmed.Confidence {
+	if refuted.ID != rule.ID {
+		t.Fatalf("refuted outcome must revise rule %d in place, got id %d", rule.ID, refuted.ID)
+	}
+	if refuted.Version != rule.Version {
+		t.Fatalf("refuted outcome must not bump the version: got %d, want %d", refuted.Version, rule.Version)
+	}
+	if refuted.ConfirmCount != rule.ConfirmCount {
+		t.Fatalf("refuted outcome must not change confirm_count: got %d, want %d", refuted.ConfirmCount, rule.ConfirmCount)
+	}
+	if refuted.Confidence >= rule.Confidence {
 		t.Fatalf("expected lowered confidence, got %v", refuted.Confidence)
+	}
+	if refuted.VerificationNotes != "false positive" {
+		t.Fatalf("expected appended note, got %q", refuted.VerificationNotes)
+	}
+	latest, err := base.FindLatestByPattern(rule.Pattern)
+	if err != nil {
+		t.Fatalf("FindLatestByPattern: %v", err)
+	}
+	if latest.ID != rule.ID || latest.Version != 1 {
+		t.Fatalf("expected the single in-place row, got %+v", latest)
 	}
 }
 
