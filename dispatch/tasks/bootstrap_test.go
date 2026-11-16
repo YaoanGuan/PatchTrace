@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -34,12 +35,15 @@ type fakeGraphClient struct {
 	claimed         []string
 	released        []string
 	concluded       []concludeCall
-	heartbeats      int
+	heartbeats      atomic.Int64
 	heartbeatIntent []string
 
 	// declareFail lets a test make specific declarations fail after they have
 	// been recorded as attempted.
 	declareFail func(graph.Node) error
+	// concludeFail lets a test fail a specific conclusion after it has been
+	// recorded as attempted.
+	concludeFail func(concludeCall) error
 	// releaseErr makes the error path of ReleaseIntent observable.
 	releaseErr error
 	// concludeEmptyID simulates a conclude that resolves the intent but returns
@@ -91,7 +95,7 @@ func (c *fakeGraphClient) ClaimIntent(_ context.Context, _, intentID, workerName
 }
 
 func (c *fakeGraphClient) HeartbeatIntent(_ context.Context, _, intentID, _ string, _ time.Duration) (graph.Node, error) {
-	c.heartbeats++
+	c.heartbeats.Add(1)
 	c.heartbeatIntent = append(c.heartbeatIntent, intentID)
 	if c.heartbeatCh != nil {
 		c.heartbeatOnce.Do(func() { close(c.heartbeatCh) })
@@ -108,12 +112,18 @@ func (c *fakeGraphClient) ReleaseIntent(_ context.Context, _, intentID, _ string
 }
 
 func (c *fakeGraphClient) ConcludeIntent(_ context.Context, _, intentID, workerName, description, factType string) (graph.Node, graph.Node, error) {
-	c.concluded = append(c.concluded, concludeCall{
+	call := concludeCall{
 		IntentID:    intentID,
 		Worker:      workerName,
 		Description: description,
 		FactType:    factType,
-	})
+	}
+	c.concluded = append(c.concluded, call)
+	if c.concludeFail != nil {
+		if err := c.concludeFail(call); err != nil {
+			return graph.Node{}, graph.Node{}, err
+		}
+	}
 	c.factSeq++
 	factID := fmt.Sprintf("f%03d", c.factSeq)
 	if c.concludeEmptyID {
@@ -122,6 +132,16 @@ func (c *fakeGraphClient) ConcludeIntent(_ context.Context, _, intentID, workerN
 	fact := graph.Node{ID: factID, Kind: "fact", Type: factType, Content: description, State: "resolved"}
 	intent := graph.Node{ID: intentID, Kind: "intent", State: "resolved"}
 	return fact, intent, nil
+}
+
+func (c *fakeGraphClient) resetRecording() {
+	c.declareAttempts = nil
+	c.declared = nil
+	c.claimed = nil
+	c.released = nil
+	c.concluded = nil
+	c.heartbeats.Store(0)
+	c.heartbeatIntent = nil
 }
 
 type fakeDriver struct {
@@ -178,33 +198,51 @@ facts:
 intents: []
 `
 
-func bootstrapReservedExport(state, to string) string {
-	toLine := "  to: null\n"
-	if to != "" {
-		toLine = "  to: " + to + "\n"
-	}
-	return "facts:\n- id: origin\n- id: goal\nintents:\n" +
-		"- id: b900\n" +
-		"  type: inversion\n" +
-		"  content: bootstrap\n" +
-		"  from:\n  - origin\n" +
-		"  state: " + state + "\n" +
-		toLine +
-		"  creator: dispatcher.bootstrap\n"
+type bootstrapIntentFixture struct {
+	id      string
+	state   string
+	content string
+	creator string
+	from    []string
+	to      string
 }
 
-const bootstrapIdeaReservedExport = `facts:
-- id: origin
-- id: goal
-intents:
-- id: i900
-  type: inversion
-  content: exploit_idea
-  from:
-  - origin
-  state: open
-  creator: dispatcher.bootstrap
-`
+// bootstrapExport builds the real export shape. `to` is emitted as a scalar
+// when set (concluded intent) and null otherwise.
+func bootstrapExport(intents ...bootstrapIntentFixture) string {
+	var b strings.Builder
+	b.WriteString("facts:\n- id: origin\n- id: goal\n")
+	if len(intents) == 0 {
+		b.WriteString("intents: []\n")
+		return b.String()
+	}
+	b.WriteString("intents:\n")
+	for _, in := range intents {
+		fmt.Fprintf(&b, "- id: %s\n  type: inversion\n  content: %s\n  from:\n", in.id, in.content)
+		for _, from := range in.from {
+			fmt.Fprintf(&b, "  - %s\n", from)
+		}
+		to := "null"
+		if in.to != "" {
+			to = in.to
+		}
+		fmt.Fprintf(&b, "  to: %s\n  state: %s\n  worker: \"\"\n  creator: %s\n  created_at: \"2026-01-01 00:00:00\"\n  concluded_at: null\n",
+			to, in.state, in.creator)
+	}
+	return b.String()
+}
+
+func bootstrapReservedExport(state, to string) string {
+	return bootstrapExport(bootstrapIntentFixture{
+		id: "b900", state: state, content: "bootstrap",
+		creator: "dispatcher.bootstrap", from: []string{"origin"}, to: to,
+	})
+}
+
+var bootstrapIdeaReservedExport = bootstrapExport(bootstrapIntentFixture{
+	id: "i900", state: "open", content: "exploit_idea",
+	creator: "dispatcher.bootstrap", from: []string{"origin"},
+})
 
 // bootstrapWorkdir creates a temporary cwd that contains the shipped prompt
 // directory layout and changes into it for the duration of the test.
@@ -390,21 +428,25 @@ func TestBootstrapDeclaresInversionIntents(t *testing.T) {
 		t.Fatalf("RunBootstrap: %v", err)
 	}
 
-	// reserved bootstrap + exploit_idea + 2 inversion intents.
+	// reserved bootstrap + 2 inversion intents + exploit_idea: inversion
+	// intents are declared before the idea fact.
 	if len(client.declared) != 4 {
 		t.Fatalf("expected 4 declarations, got %d: %+v", len(client.declared), client.declared)
 	}
 	want := []string{"f001"}
-	for i, intent := range client.declared[2:] {
+	for i, intent := range client.declared[1:3] {
 		if !reflect.DeepEqual(intent.From, want) {
 			t.Fatalf("intent %d from = %v, want patch_profile fact %v", i, intent.From, want)
 		}
 	}
-	if client.declared[2].Content != "验证未授权请求能否到达 eval 入口" {
-		t.Fatalf("intent 0 description = %q", client.declared[2].Content)
+	if client.declared[1].Content != "验证未授权请求能否到达 eval 入口" {
+		t.Fatalf("intent 0 description = %q", client.declared[1].Content)
 	}
-	if client.declared[3].Content != "验证修复分支之外的回退路径" {
-		t.Fatalf("intent 1 description = %q", client.declared[3].Content)
+	if client.declared[2].Content != "验证修复分支之外的回退路径" {
+		t.Fatalf("intent 1 description = %q", client.declared[2].Content)
+	}
+	if client.declared[3].Content != "exploit_idea" {
+		t.Fatalf("idea intent must come after the inversion intents, got %+v", client.declared)
 	}
 }
 
@@ -541,23 +583,38 @@ func TestBootstrapSuppressesWhenReservedIntentIsClaimed(t *testing.T) {
 	}
 }
 
-func TestBootstrapSuppressesWhenReservedIntentIsConcluded(t *testing.T) {
+func TestBootstrapNoOpResumeWhenEverythingPresent(t *testing.T) {
 	dir := bootstrapWorkdir(t)
 	deps := stubBootstrapDeps(t)
 	patchPath := bootstrapPatchFile(t, dir)
+	var invertCalls int
+	deps.invert = func(context.Context, *patchintel.PatchProfile, []patchintel.Rule, string) (*patchintel.InversionOutput, error) {
+		invertCalls++
+		return stubInversionOutput(t), nil
+	}
 
-	client := &fakeGraphClient{export: bootstrapReservedExport("resolved", "f777")}
-	driver := &fakeDriver{name: "native-test", result: worker.Result{Accepted: true}}
+	client := &fakeGraphClient{export: bootstrapExport(
+		bootstrapIntentFixture{id: "b900", state: "resolved", content: "bootstrap", creator: "dispatcher.bootstrap", from: []string{"origin"}, to: "f777"},
+		bootstrapIntentFixture{id: "n1", state: "open", content: "意图甲", creator: "worker-x", from: []string{"f777"}},
+		bootstrapIntentFixture{id: "n2", state: "resolved", content: "exploit_idea", creator: "dispatcher.bootstrap", from: []string{"f777"}, to: "f778"},
+	)}
+	driver := &fakeDriver{name: "native-test", result: worker.Result{
+		Accepted: true,
+		Intents:  []worker.IntentSpec{{Description: "意图甲"}},
+	}}
 
 	if err := runBootstrap(context.Background(), client, driver, bootstrapProject(patchPath), deps); err != nil {
-		t.Fatalf("a concluded bootstrap must be a silent no-op, got %v", err)
+		t.Fatalf("a complete resume must be a no-op, got %v", err)
+	}
+	if invertCalls != 0 {
+		t.Fatalf("a concluded exploit_idea fact must skip inversion, got %d calls", invertCalls)
 	}
 	if len(client.declared)+len(client.claimed)+len(client.concluded)+len(client.released) != 0 {
-		t.Fatalf("a concluded bootstrap must not write, got declared=%d claimed=%d concluded=%d released=%d",
+		t.Fatalf("a complete resume must not write, got declared=%d claimed=%d concluded=%d released=%d",
 			len(client.declared), len(client.claimed), len(client.concluded), len(client.released))
 	}
-	if len(driver.tasks) != 0 {
-		t.Fatal("a concluded bootstrap must not run the worker")
+	if len(driver.tasks) != 1 {
+		t.Fatalf("resume re-runs the driver to reconstruct intents, got %d tasks", len(driver.tasks))
 	}
 }
 
@@ -584,7 +641,7 @@ func TestBootstrapReusesOpenReservedIntent(t *testing.T) {
 	}
 }
 
-func TestBootstrapIgnoresReservedNonBootstrapIntent(t *testing.T) {
+func TestBootstrapReusesLeftoverIdeaIntent(t *testing.T) {
 	dir := bootstrapWorkdir(t)
 	deps := stubBootstrapDeps(t)
 	patchPath := bootstrapPatchFile(t, dir)
@@ -596,16 +653,14 @@ func TestBootstrapIgnoresReservedNonBootstrapIntent(t *testing.T) {
 	if err := runBootstrap(context.Background(), client, driver, bootstrapProject(patchPath), deps); err != nil {
 		t.Fatalf("RunBootstrap: %v", err)
 	}
-	if len(client.declared) < 1 || client.declared[0].Content != "bootstrap" {
-		t.Fatalf("a leftover exploit_idea intent must not suppress bootstrap: %+v", client.declared)
+	if len(client.declared) != 1 || client.declared[0].Content != "bootstrap" {
+		t.Fatalf("a leftover idea intent must cause reuse, not a second declaration: %+v", client.declared)
 	}
-	if !reflect.DeepEqual(client.claimed, []string{"i1", "i2"}) {
-		t.Fatalf("claimed = %v, want a fresh bootstrap then the exploit_idea intent", client.claimed)
+	if !reflect.DeepEqual(client.claimed, []string{"i1", "i900"}) {
+		t.Fatalf("claimed = %v, want a fresh bootstrap then the reused idea intent", client.claimed)
 	}
-	for _, id := range client.claimed {
-		if id == "i900" {
-			t.Fatalf("bootstrap must not claim the leftover exploit_idea intent")
-		}
+	if len(client.concluded) != 2 || client.concluded[1].IntentID != "i900" || client.concluded[1].FactType != "exploit_idea" {
+		t.Fatalf("unexpected conclusions: %+v", client.concluded)
 	}
 }
 
@@ -712,11 +767,275 @@ func TestBootstrapHeartbeatsWhileExecuting(t *testing.T) {
 	if err := runBootstrap(context.Background(), client, driver, bootstrapProject(patchPath), deps); err != nil {
 		t.Fatalf("RunBootstrap: %v", err)
 	}
-	if client.heartbeats == 0 {
+	if client.heartbeats.Load() == 0 {
 		t.Fatal("expected at least one heartbeat")
 	}
 	if len(client.heartbeatIntent) == 0 || client.heartbeatIntent[0] != "i1" {
 		t.Fatalf("heartbeat intent = %v, want the reserved bootstrap i1", client.heartbeatIntent)
+	}
+}
+
+func TestBootstrapResumesConcludedBootstrap(t *testing.T) {
+	dir := bootstrapWorkdir(t)
+	deps := stubBootstrapDeps(t)
+	patchPath := bootstrapPatchFile(t, dir)
+	var invertCalls int
+	deps.invert = func(context.Context, *patchintel.PatchProfile, []patchintel.Rule, string) (*patchintel.InversionOutput, error) {
+		invertCalls++
+		return stubInversionOutput(t), nil
+	}
+
+	fact := "补丁修复了代码执行入口"
+	client := &fakeGraphClient{export: bootstrapReservedExport("resolved", "f777")}
+	driver := &fakeDriver{name: "native-test", result: worker.Result{
+		Accepted: true,
+		Fact:     &fact,
+		Intents: []worker.IntentSpec{
+			{Description: "意图甲"},
+			{Description: "意图乙"},
+		},
+	}}
+
+	if err := runBootstrap(context.Background(), client, driver, bootstrapProject(patchPath), deps); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if invertCalls != 1 {
+		t.Fatalf("resume must run inversion once for the missing idea, got %d", invertCalls)
+	}
+	for _, call := range client.concluded {
+		if call.FactType == "patch_profile" {
+			t.Fatalf("a concluded bootstrap must not conclude another patch_profile: %+v", call)
+		}
+	}
+	if len(client.concluded) != 1 || client.concluded[0].FactType != "exploit_idea" {
+		t.Fatalf("resume conclusions = %+v, want exactly the exploit_idea fact", client.concluded)
+	}
+	wantContents := []string{"意图甲", "意图乙", "exploit_idea"}
+	if len(client.declared) != len(wantContents) {
+		t.Fatalf("declared = %+v, want %v", client.declared, wantContents)
+	}
+	for i, want := range wantContents {
+		if client.declared[i].Content != want {
+			t.Fatalf("declared[%d] content = %q, want %q", i, client.declared[i].Content, want)
+		}
+		if !reflect.DeepEqual(client.declared[i].From, []string{"f777"}) {
+			t.Fatalf("declared[%d] from = %v, want the stored patch_profile fact f777", i, client.declared[i].From)
+		}
+	}
+	if !reflect.DeepEqual(client.claimed, []string{"i3"}) {
+		t.Fatalf("claimed = %v, want only the exploit_idea intent", client.claimed)
+	}
+	if len(client.released) != 0 {
+		t.Fatalf("resume must not release anything, got %v", client.released)
+	}
+
+	// A second resume with every artifact present is a nil, zero-write no-op.
+	client.export = bootstrapExport(
+		bootstrapIntentFixture{id: "b900", state: "resolved", content: "bootstrap", creator: "dispatcher.bootstrap", from: []string{"origin"}, to: "f777"},
+		bootstrapIntentFixture{id: "n1", state: "open", content: "意图甲", creator: "worker-x", from: []string{"f777"}},
+		bootstrapIntentFixture{id: "n2", state: "open", content: "意图乙", creator: "worker-x", from: []string{"f777"}},
+		bootstrapIntentFixture{id: "n3", state: "resolved", content: "exploit_idea", creator: "dispatcher.bootstrap", from: []string{"f777"}, to: "f002"},
+	)
+	client.resetRecording()
+	client.factSeq = 1
+	invertCalls = 0
+
+	if err := runBootstrap(context.Background(), client, driver, bootstrapProject(patchPath), deps); err != nil {
+		t.Fatalf("second resume: %v", err)
+	}
+	if invertCalls != 0 {
+		t.Fatalf("a concluded idea must skip inversion, got %d calls", invertCalls)
+	}
+	if len(client.declared)+len(client.claimed)+len(client.concluded)+len(client.released) != 0 {
+		t.Fatalf("second resume wrote the graph: declared=%d claimed=%d concluded=%d released=%d",
+			len(client.declared), len(client.claimed), len(client.concluded), len(client.released))
+	}
+}
+
+func TestBootstrapReusesOpenIdeaIntentAfterConcludeFailure(t *testing.T) {
+	dir := bootstrapWorkdir(t)
+	deps := stubBootstrapDeps(t)
+	patchPath := bootstrapPatchFile(t, dir)
+
+	fact := "补丁修复了代码执行入口"
+	client := &fakeGraphClient{export: bootstrapInitialExport}
+	client.concludeFail = func(call concludeCall) error {
+		if call.FactType == "exploit_idea" {
+			return errors.New("conclude failed")
+		}
+		return nil
+	}
+	driver := &fakeDriver{name: "native-test", result: worker.Result{Accepted: true, Fact: &fact}}
+
+	err := runBootstrap(context.Background(), client, driver, bootstrapProject(patchPath), deps)
+	if err == nil || !strings.Contains(err.Error(), "conclude failed") {
+		t.Fatalf("expected the idea conclude failure, got %v", err)
+	}
+	if len(client.declared) != 2 || client.declared[1].Content != "exploit_idea" {
+		t.Fatalf("first run declarations = %+v, want bootstrap + exploit_idea", client.declared)
+	}
+	if !reflect.DeepEqual(client.released, []string{"i2"}) {
+		t.Fatalf("the failed idea conclude must release i2, got %v", client.released)
+	}
+
+	// The released intent is open, so the next call must reuse it.
+	client.export = bootstrapExport(
+		bootstrapIntentFixture{id: "b900", state: "resolved", content: "bootstrap", creator: "dispatcher.bootstrap", from: []string{"origin"}, to: "f001"},
+		bootstrapIntentFixture{id: "i2", state: "open", content: "exploit_idea", creator: "dispatcher.bootstrap", from: []string{"f001"}},
+	)
+	client.resetRecording()
+	client.concludeFail = nil
+	client.factSeq = 1
+
+	if err := runBootstrap(context.Background(), client, driver, bootstrapProject(patchPath), deps); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if len(client.declared) != 0 {
+		t.Fatalf("retry must reuse the open idea intent, declared %+v", client.declared)
+	}
+	if !reflect.DeepEqual(client.claimed, []string{"i2"}) {
+		t.Fatalf("retry claimed = %v, want [i2]", client.claimed)
+	}
+	if len(client.concluded) != 1 || client.concluded[0].FactType != "exploit_idea" || client.concluded[0].IntentID != "i2" {
+		t.Fatalf("retry conclusions = %+v, want exploit_idea from i2", client.concluded)
+	}
+	if !strings.Contains(client.concluded[0].Description, "eval 未授权代码执行") {
+		t.Fatalf("retry idea description is not the inversion idea: %q", client.concluded[0].Description)
+	}
+}
+
+func TestBootstrapSkipsClaimedIdeaIntent(t *testing.T) {
+	dir := bootstrapWorkdir(t)
+	deps := stubBootstrapDeps(t)
+	patchPath := bootstrapPatchFile(t, dir)
+	var invertCalls int
+	deps.invert = func(context.Context, *patchintel.PatchProfile, []patchintel.Rule, string) (*patchintel.InversionOutput, error) {
+		invertCalls++
+		return stubInversionOutput(t), nil
+	}
+
+	client := &fakeGraphClient{export: bootstrapExport(
+		bootstrapIntentFixture{id: "b900", state: "resolved", content: "bootstrap", creator: "dispatcher.bootstrap", from: []string{"origin"}, to: "f777"},
+		bootstrapIntentFixture{id: "i900", state: "claimed", content: "exploit_idea", creator: "dispatcher.bootstrap", from: []string{"f777"}},
+	)}
+	driver := &fakeDriver{name: "native-test", result: worker.Result{
+		Accepted: true,
+		Intents:  []worker.IntentSpec{{Description: "意图甲"}},
+	}}
+
+	if err := runBootstrap(context.Background(), client, driver, bootstrapProject(patchPath), deps); err != nil {
+		t.Fatalf("RunBootstrap: %v", err)
+	}
+	if invertCalls != 0 {
+		t.Fatalf("a claimed idea intent is owned elsewhere; inversion must be skipped, got %d calls", invertCalls)
+	}
+	if len(client.declared) != 1 || client.declared[0].Content != "意图甲" {
+		t.Fatalf("other work must proceed: %+v", client.declared)
+	}
+	if !reflect.DeepEqual(client.declared[0].From, []string{"f777"}) {
+		t.Fatalf("declared from = %v, want f777", client.declared[0].From)
+	}
+	if len(client.claimed)+len(client.concluded)+len(client.released) != 0 {
+		t.Fatalf("a claimed idea must not be claimed/concluded/released, got claimed=%v concluded=%d released=%v",
+			client.claimed, len(client.concluded), client.released)
+	}
+}
+
+func TestBootstrapDeclaresOnlyMissingInversionIntents(t *testing.T) {
+	dir := bootstrapWorkdir(t)
+	deps := stubBootstrapDeps(t)
+	patchPath := bootstrapPatchFile(t, dir)
+
+	client := &fakeGraphClient{export: bootstrapExport(
+		bootstrapIntentFixture{id: "b900", state: "resolved", content: "bootstrap", creator: "dispatcher.bootstrap", from: []string{"origin"}, to: "f777"},
+		bootstrapIntentFixture{id: "i100", state: "open", content: "已有意图", creator: "worker-x", from: []string{"f777"}},
+	)}
+	driver := &fakeDriver{name: "native-test", result: worker.Result{
+		Accepted: true,
+		Intents: []worker.IntentSpec{
+			{Description: "已有意图"},
+			{Description: "缺失意图"},
+		},
+	}}
+
+	if err := runBootstrap(context.Background(), client, driver, bootstrapProject(patchPath), deps); err != nil {
+		t.Fatalf("RunBootstrap: %v", err)
+	}
+	if len(client.declared) != 2 {
+		t.Fatalf("declared = %+v, want only the missing intent and the idea", client.declared)
+	}
+	if client.declared[0].Content != "缺失意图" {
+		t.Fatalf("declared[0] = %q, want 缺失意图", client.declared[0].Content)
+	}
+	if client.declared[1].Content != "exploit_idea" {
+		t.Fatalf("declared[1] = %q, want exploit_idea", client.declared[1].Content)
+	}
+}
+
+func TestBootstrapStopsHeartbeatOnPanic(t *testing.T) {
+	dir := bootstrapWorkdir(t)
+	deps := stubBootstrapDeps(t)
+	deps.heartbeatInterval = 5 * time.Millisecond
+	patchPath := bootstrapPatchFile(t, dir)
+
+	client := &fakeGraphClient{export: bootstrapInitialExport, heartbeatCh: make(chan struct{})}
+	driver := &fakeDriver{name: "native-test"}
+	driver.execute = func(context.Context, worker.Task) (worker.Result, error) {
+		select {
+		case <-client.heartbeatCh:
+		case <-time.After(2 * time.Second):
+			t.Errorf("no heartbeat before the panic")
+		}
+		panic("driver panic")
+	}
+
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("expected the driver panic to propagate")
+			}
+		}()
+		_ = runBootstrap(context.Background(), client, driver, bootstrapProject(patchPath), deps)
+	}()
+
+	before := client.heartbeats.Load()
+	time.Sleep(50 * time.Millisecond)
+	after := client.heartbeats.Load()
+	if after != before {
+		t.Fatalf("heartbeat goroutine leaked after panic: %d -> %d ticks", before, after)
+	}
+}
+
+func TestBootstrapErrorsWhenConcludedIntentHasNoFactID(t *testing.T) {
+	dir := bootstrapWorkdir(t)
+	deps := stubBootstrapDeps(t)
+	patchPath := bootstrapPatchFile(t, dir)
+
+	client := &fakeGraphClient{export: `facts:
+- id: origin
+- id: goal
+intents:
+- id: b900
+  type: inversion
+  content: bootstrap
+  from:
+  - origin
+  to: ""
+  state: resolved
+  creator: dispatcher.bootstrap
+`}
+	driver := &fakeDriver{name: "native-test", result: worker.Result{Accepted: true}}
+
+	err := runBootstrap(context.Background(), client, driver, bootstrapProject(patchPath), deps)
+	if err == nil || !strings.Contains(err.Error(), "patch_profile fact id") {
+		t.Fatalf("expected a hard error for a concluded intent without a fact id, got %v", err)
+	}
+	if len(client.declared)+len(client.claimed)+len(client.concluded)+len(client.released) != 0 {
+		t.Fatalf("no writes expected, got declared=%d claimed=%d concluded=%d released=%d",
+			len(client.declared), len(client.claimed), len(client.concluded), len(client.released))
+	}
+	if len(driver.tasks) != 0 {
+		t.Fatal("the driver must not run without a patch_profile fact id")
 	}
 }
 

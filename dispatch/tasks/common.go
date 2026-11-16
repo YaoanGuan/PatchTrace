@@ -90,36 +90,73 @@ type promptGraphIntent struct {
 	To      *string  `yaml:"to,omitempty"`
 }
 
-// reservedBootstrapState is the projection of the graph export that the runner
-// needs before claiming the reserved bootstrap intent.
-type reservedBootstrapState struct {
-	OpenID    string
-	Claimed   bool
-	Concluded bool
+// bootstrapGraphState is the projection of the graph export the resumable
+// runner needs: the reserved bootstrap intent, the reserved exploit_idea intent
+// and every intent content for declaration dedupe.
+type bootstrapGraphState struct {
+	BootstrapID        string
+	BootstrapOpenID    string
+	BootstrapClaimed   bool
+	BootstrapConcluded bool
+	PatchProfileFactID string
+
+	IdeaOpenID    string
+	IdeaClaimed   bool
+	IdeaConcluded bool
+
+	IntentContents map[string]struct{}
 }
 
-func findReservedBootstrapIntent(export string) (reservedBootstrapState, error) {
+func inspectBootstrapGraph(export string) (bootstrapGraphState, error) {
+	state := bootstrapGraphState{IntentContents: make(map[string]struct{})}
 	var snapshot promptGraphSnapshot
 	if strings.TrimSpace(export) != "" {
 		if err := yaml.Unmarshal([]byte(export), &snapshot); err != nil {
-			return reservedBootstrapState{}, fmt.Errorf("bootstrap: parse graph export: %w", err)
+			return bootstrapGraphState{}, fmt.Errorf("bootstrap: parse graph export: %w", err)
 		}
 	}
-	var state reservedBootstrapState
 	for _, intent := range snapshot.Intents {
-		if !isReservedIntent(intent) || !isBootstrapIntent(intent) {
+		content := strings.TrimSpace(intent.Content)
+		if content != "" {
+			state.IntentContents[content] = struct{}{}
+		}
+		if !isReservedIntent(intent) {
 			continue
 		}
-		switch strings.TrimSpace(intent.State) {
-		case "open":
-			if state.OpenID == "" {
-				state.OpenID = strings.TrimSpace(intent.ID)
+		id := strings.TrimSpace(intent.ID)
+		switch {
+		case isBootstrapIntent(intent):
+			if state.BootstrapID == "" {
+				state.BootstrapID = id
 			}
-		case "claimed":
-			state.Claimed = true
-		default:
-			if intent.To != nil {
-				state.Concluded = true
+			switch strings.TrimSpace(intent.State) {
+			case "open":
+				if state.BootstrapOpenID == "" {
+					state.BootstrapOpenID = id
+				}
+			case "claimed":
+				state.BootstrapClaimed = true
+			default:
+				// Concluded is detected by the presence of a `to` fact id;
+				// state strings are not authoritative here.
+				if intent.To != nil && !state.BootstrapConcluded {
+					state.BootstrapConcluded = true
+					state.BootstrapID = id
+					state.PatchProfileFactID = strings.TrimSpace(*intent.To)
+				}
+			}
+		case content == exploitIdeaContent:
+			switch strings.TrimSpace(intent.State) {
+			case "open":
+				if state.IdeaOpenID == "" {
+					state.IdeaOpenID = id
+				}
+			case "claimed":
+				state.IdeaClaimed = true
+			default:
+				if intent.To != nil {
+					state.IdeaConcluded = true
+				}
 			}
 		}
 	}

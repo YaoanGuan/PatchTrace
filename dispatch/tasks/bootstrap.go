@@ -48,13 +48,19 @@ var defaultBootstrapDeps = bootstrapDeps{
 // RunBootstrap ingests the project patch, inverts it through the worker and
 // writes the result into the provenance graph:
 //
-//	reserved intent -> claim -> patch profile -> prompt -> driver execute ->
-//	inversion -> patch_profile fact -> exploit_idea fact -> inversion intents
+//	reserved intent -> claim -> prompt -> driver execute -> inversion ->
+//	patch_profile fact -> inversion intents -> exploit_idea fact
+//
+// The runner is resumable. If the reserved bootstrap intent is already
+// concluded, it takes the patch_profile fact id from the intent and completes
+// only the missing work: it re-runs the driver (same prompt), declares only
+// intents whose content is absent from the export, and writes the exploit_idea
+// fact unless a concluded or claimed reserved idea intent already exists.
 //
 // A disabled project is a no-op. A project with no usable patch source fails
 // before any graph write. Any failure before the reserved intent concludes
-// releases it (joining release errors) so a later tick can retry; a claimed or
-// already concluded reserved intent is left untouched.
+// releases it (joining release errors) so a later tick can retry; a claimed
+// bootstrap intent is left untouched for its owner.
 func RunBootstrap(ctx context.Context, c graphserver.Client, d worker.Driver, p graph.Project) error {
 	return runBootstrap(ctx, c, d, p, defaultBootstrapDeps)
 }
@@ -78,13 +84,14 @@ func runBootstrap(ctx context.Context, c graphserver.Client, d worker.Driver, p 
 	if err != nil {
 		return fmt.Errorf("bootstrap: read graph for project %s: %w", p.ID, err)
 	}
-	reserved, err := findReservedBootstrapIntent(export)
+	state, err := inspectBootstrapGraph(export)
 	if err != nil {
 		return err
 	}
-	// The planner already suppresses these states; the runner must not
-	// double-bootstrap if it is invoked directly.
-	if reserved.Claimed || reserved.Concluded {
+	// A claimed bootstrap is owned by another worker; it owns the project
+	// until it concludes. A claimed idea intent is owned elsewhere but does
+	// not block the rest of the work.
+	if state.BootstrapClaimed {
 		return nil
 	}
 
@@ -93,121 +100,176 @@ func runBootstrap(ctx context.Context, c graphserver.Client, d worker.Driver, p 
 		workerName = bootstrapWorkerName
 	}
 
-	intentID := reserved.OpenID
-	if intentID == "" {
-		intent, err := c.DeclareIntent(ctx, p.ID, graph.Node{
-			Content: reservedBootstrapContent,
-			From:    []string{reservedOriginFact},
-			Creator: reservedBootstrapCreator,
-		})
-		if err != nil {
-			return fmt.Errorf("bootstrap: create reserved intent: %w", err)
+	bootstrapIntentID := state.BootstrapID
+	patchFactID := state.PatchProfileFactID
+	if state.BootstrapConcluded {
+		// Resume: the patch profile already exists. Its fact id is the parent
+		// of every other artifact, so a missing id is a hard error.
+		if strings.TrimSpace(patchFactID) == "" {
+			return errors.New("bootstrap: concluded reserved intent has no patch_profile fact id")
 		}
-		intentID = intent.ID
+	} else {
+		if bootstrapIntentID == "" {
+			intent, err := c.DeclareIntent(ctx, p.ID, graph.Node{
+				Content: reservedBootstrapContent,
+				From:    []string{reservedOriginFact},
+				Creator: reservedBootstrapCreator,
+			})
+			if err != nil {
+				return fmt.Errorf("bootstrap: create reserved intent: %w", err)
+			}
+			bootstrapIntentID = intent.ID
+		}
+		if _, err := c.ClaimIntent(ctx, p.ID, bootstrapIntentID, workerName, bootstrapIntentLease); err != nil {
+			return fmt.Errorf("bootstrap: claim reserved intent %s: %w", bootstrapIntentID, err)
+		}
 	}
 
-	if _, err := c.ClaimIntent(ctx, p.ID, intentID, workerName, bootstrapIntentLease); err != nil {
-		return fmt.Errorf("bootstrap: claim reserved intent %s: %w", intentID, err)
+	// fail releases the claim only while this call owns it. A resume must not
+	// touch the already resolved bootstrap intent.
+	fail := func(cause error) error {
+		if state.BootstrapConcluded {
+			return cause
+		}
+		return bootstrapFailure(ctx, c, p.ID, bootstrapIntentID, workerName, cause)
 	}
 
 	contract, err := deps.loadPrompt(bootstrapPromptDir, worker.TaskBootstrap, false)
 	if err != nil {
-		return bootstrapFailure(ctx, c, p.ID, intentID, workerName, fmt.Errorf("bootstrap: load prompt: %w", err))
+		return fail(fmt.Errorf("bootstrap: load prompt: %w", err))
 	}
 	scene, _ := deps.loadScene(profile.Scene)
 	template := strings.TrimRight(contract, "\n") + "\n\n## 场景模板\n\n" + scene + "\n"
 	rules := deps.searchRules(bootstrapRuleQuery(profile))
 	prompt := bootstrapPrompt(p, profile, rules, template)
 
-	// The worker may run for minutes; keep the claim alive while it does.
-	stopHeartbeat := startBootstrapHeartbeat(ctx, c, p.ID, intentID, workerName, deps.heartbeatInterval)
+	// The worker may run for minutes; keep the claim alive while it does. On a
+	// resume there is no claim to refresh. The deferred stop makes a panic in
+	// Execute unable to leak the heartbeat goroutine.
+	stopHeartbeat := func() {}
+	if !state.BootstrapConcluded {
+		stopHeartbeat = startBootstrapHeartbeat(ctx, c, p.ID, bootstrapIntentID, workerName, deps.heartbeatInterval)
+	}
+	defer stopHeartbeat()
+
 	result, execErr := d.Execute(ctx, worker.Task{
 		ProjectID: p.ID,
-		IntentID:  intentID,
+		IntentID:  bootstrapIntentID,
 		Type:      string(worker.TaskBootstrap),
 		Prompt:    prompt,
 	})
 	stopHeartbeat()
 	if execErr != nil {
-		return bootstrapFailure(ctx, c, p.ID, intentID, workerName, fmt.Errorf("bootstrap: execute task: %w", execErr))
+		return fail(fmt.Errorf("bootstrap: execute task: %w", execErr))
 	}
 	if !result.Accepted {
-		return bootstrapFailure(ctx, c, p.ID, intentID, workerName, errors.New("bootstrap: worker refused the task"))
+		return fail(errors.New("bootstrap: worker refused the task"))
 	}
-	if result.Fact == nil || strings.TrimSpace(*result.Fact) == "" {
-		return bootstrapFailure(ctx, c, p.ID, intentID, workerName, errors.New("bootstrap: worker returned no fact"))
-	}
-
-	// Semantic inversion produces the exploit hypothesis R7 requires. It runs
-	// before any conclusion so a failed inversion releases the claimed intent
-	// and leaves no half-written facts behind.
-	inversion, err := deps.invert(ctx, profile, rules, profile.Scene)
-	if err != nil {
-		return bootstrapFailure(ctx, c, p.ID, intentID, workerName, fmt.Errorf("bootstrap: inversion failed: %w", err))
-	}
-	if inversion == nil || inversion.Idea == nil {
-		return bootstrapFailure(ctx, c, p.ID, intentID, workerName, errors.New("bootstrap: inversion returned no exploit idea"))
-	}
-	ideaDescription, err := formatExploitIdea(inversion.Idea)
-	if err != nil {
-		return bootstrapFailure(ctx, c, p.ID, intentID, workerName, err)
+	if !state.BootstrapConcluded && (result.Fact == nil || strings.TrimSpace(*result.Fact) == "") {
+		return fail(errors.New("bootstrap: worker returned no fact"))
 	}
 
-	fact, _, err := c.ConcludeIntent(ctx, p.ID, intentID, workerName,
-		strings.TrimSpace(*result.Fact), patchProfileFactType)
-	if err != nil {
-		return bootstrapFailure(ctx, c, p.ID, intentID, workerName,
-			fmt.Errorf("bootstrap: conclude reserved intent %s: %w", intentID, err))
-	}
-	if strings.TrimSpace(fact.ID) == "" {
-		// The intent is already resolved; without a fact id every dependent
-		// write would dangle, so surface the inconsistency instead.
-		return errors.New("bootstrap: conclude returned no fact id")
+	needIdea := !state.IdeaConcluded && !state.IdeaClaimed
+
+	// Semantic inversion produces the exploit hypothesis R7 requires. On a
+	// first run it runs before any conclusion so a failed inversion releases
+	// the claim and writes no facts; on a resume the patch_profile fact already
+	// exists, so a failed inversion simply returns and retries later.
+	var ideaDescription string
+	if needIdea {
+		inversion, err := deps.invert(ctx, profile, rules, profile.Scene)
+		switch {
+		case err != nil:
+			return fail(fmt.Errorf("bootstrap: inversion failed: %w", err))
+		case inversion == nil || inversion.Idea == nil:
+			return fail(errors.New("bootstrap: inversion returned no exploit idea"))
+		}
+		ideaDescription, err = formatExploitIdea(inversion.Idea)
+		if err != nil {
+			return fail(err)
+		}
 	}
 
-	// R7 requires both facts. The exploit idea is written through the same
-	// intent protocol as everything else in the graph.
-	if err := concludeExploitIdea(ctx, c, p.ID, fact.ID, workerName, ideaDescription); err != nil {
-		return err
+	if !state.BootstrapConcluded {
+		fact, _, err := c.ConcludeIntent(ctx, p.ID, bootstrapIntentID, workerName,
+			strings.TrimSpace(*result.Fact), patchProfileFactType)
+		if err != nil {
+			return fail(fmt.Errorf("bootstrap: conclude reserved intent %s: %w", bootstrapIntentID, err))
+		}
+		if strings.TrimSpace(fact.ID) == "" {
+			// The intent is already resolved; without a fact id every dependent
+			// write would dangle, so surface the inconsistency instead.
+			return errors.New("bootstrap: conclude returned no fact id")
+		}
+		patchFactID = fact.ID
 	}
 
-	// Declare every inversion intent; one failure must not abandon the rest.
+	// Inversion intents go first: an idea failure must not skip them, and each
+	// declaration failure must not abandon the rest. The export content is the
+	// dedupe key, so a resumed bootstrap never re-declares an existing intent.
 	var errs []error
+	seen := state.IntentContents
 	for i, spec := range result.Intents {
 		description := strings.TrimSpace(spec.Description)
 		if description == "" {
 			continue
 		}
+		if _, exists := seen[description]; exists {
+			continue
+		}
 		if _, err := c.DeclareIntent(ctx, p.ID, graph.Node{
 			Content: description,
-			From:    []string{fact.ID},
+			From:    []string{patchFactID},
 			Creator: workerName,
 		}); err != nil {
 			errs = append(errs, fmt.Errorf("bootstrap: declare inversion intent %d: %w", i, err))
+			continue
+		}
+		seen[description] = struct{}{}
+	}
+
+	// R7 requires both facts. The exploit idea is written through the same
+	// intent protocol as everything else in the graph.
+	if needIdea {
+		if err := ensureExploitIdea(ctx, c, p.ID, patchFactID, workerName, ideaDescription, state); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
 }
 
-// concludeExploitIdea declares, claims and concludes the reserved exploit_idea
-// intent, with the patch_profile fact as its parent. The intent is released on
-// failure; a successful conclusion is never released.
-func concludeExploitIdea(ctx context.Context, c graphserver.Client, projectID, patchFactID, workerName, description string) error {
-	intent, err := c.DeclareIntent(ctx, projectID, graph.Node{
-		Content: exploitIdeaContent,
-		From:    []string{patchFactID},
-		Creator: reservedBootstrapCreator,
-	})
+// ensureExploitIdea writes the exploit_idea fact through a reserved intent. It
+// reuses an existing reserved intent by state: open → claim → conclude;
+// claimed → owned elsewhere; concluded → already done. It never declares a
+// second reserved idea intent. The intent is released on failure and a
+// successful conclusion is never released.
+func ensureExploitIdea(ctx context.Context, c graphserver.Client, projectID, patchFactID, workerName, description string, state bootstrapGraphState) error {
+	if state.IdeaConcluded || state.IdeaClaimed {
+		return nil
+	}
+	intentID := state.IdeaOpenID
+	if intentID == "" {
+		intent, err := c.DeclareIntent(ctx, projectID, graph.Node{
+			Content: exploitIdeaContent,
+			From:    []string{patchFactID},
+			Creator: reservedBootstrapCreator,
+		})
+		if err != nil {
+			return fmt.Errorf("bootstrap: declare exploit_idea intent: %w", err)
+		}
+		intentID = intent.ID
+	}
+	if _, err := c.ClaimIntent(ctx, projectID, intentID, workerName, bootstrapIntentLease); err != nil {
+		return fmt.Errorf("bootstrap: claim exploit_idea intent %s: %w", intentID, err)
+	}
+	fact, _, err := c.ConcludeIntent(ctx, projectID, intentID, workerName,
+		description, exploitIdeaFactType)
 	if err != nil {
-		return fmt.Errorf("bootstrap: declare exploit_idea intent: %w", err)
+		return bootstrapFailure(ctx, c, projectID, intentID, workerName,
+			fmt.Errorf("bootstrap: conclude exploit_idea intent %s: %w", intentID, err))
 	}
-	if _, err := c.ClaimIntent(ctx, projectID, intent.ID, workerName, bootstrapIntentLease); err != nil {
-		return fmt.Errorf("bootstrap: claim exploit_idea intent %s: %w", intent.ID, err)
-	}
-	if _, _, err := c.ConcludeIntent(ctx, projectID, intent.ID, workerName,
-		description, exploitIdeaFactType); err != nil {
-		return bootstrapFailure(ctx, c, projectID, intent.ID, workerName,
-			fmt.Errorf("bootstrap: conclude exploit_idea intent %s: %w", intent.ID, err))
+	if strings.TrimSpace(fact.ID) == "" {
+		return errors.New("bootstrap: exploit_idea conclude returned no fact id")
 	}
 	return nil
 }
