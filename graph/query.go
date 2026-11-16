@@ -98,8 +98,9 @@ func (s *Store) Provenance(ctx context.Context, projectID, nodeID string) ([]Nod
 	return nil, fmt.Errorf("%w: no provenance path from origin to %s", ErrNotFound, nodeID)
 }
 
-// Gaps returns open intents that no open intent blocks. Results are ordered by
-// the number of unmet block dependencies ascending, then created_at ascending.
+// Gaps returns open intents that no unsettled intent blocks. Results are
+// ordered by the number of unmet block dependencies ascending, then created_at
+// ascending.
 func (s *Store) Gaps(ctx context.Context, projectID string) ([]Node, error) {
 	projectID = strings.TrimSpace(projectID)
 	if projectID == "" {
@@ -122,11 +123,13 @@ func (s *Store) Gaps(ctx context.Context, projectID string) ([]Node, error) {
 		state[n.ID] = n.State
 	}
 
-	// unmetBlockers[id] counts block edges pointing at id whose source is
-	// still open. A block edge runs from the blocker to the blocked node.
+	// unmetBlockers[id] counts block edges pointing at id whose source is not
+	// settled yet. A block dependency is met only once the blocker is resolved
+	// (open, claimed and unknown states are all unmet). A block edge runs from
+	// the blocker to the blocked node.
 	unmetBlockers := make(map[string]int)
 	for _, e := range edges {
-		if e.Kind == "block" && state[e.From] == "open" {
+		if e.Kind == "block" && state[e.From] != "resolved" {
 			unmetBlockers[e.To]++
 		}
 	}

@@ -149,6 +149,49 @@ func TestGapsExcludesBlockedIntents(t *testing.T) {
 	}
 }
 
+func TestGapsExcludesClaimedBlocker(t *testing.T) {
+	s := newTestStore(t)
+	p := mustProject(t, s)
+
+	// Declare A already claimed (state=claimed), then B blocked by A.
+	blocker, err := s.DeclareIntent(ctx, p.ID, Node{
+		Type:    "gap",
+		Content: "blocker in flight",
+		Creator: "tester",
+		Worker:  "tester",
+		From:    []string{"origin"},
+	})
+	if err != nil {
+		t.Fatalf("DeclareIntent(blocker): %v", err)
+	}
+	if blocker.State != "claimed" {
+		t.Fatalf("blocker state = %q, want claimed", blocker.State)
+	}
+	dependent := declareOpenIntent(t, s, p.ID, []string{"origin"}, "gap", "dependent gap")
+	if err := s.AddEdge(ctx, p.ID, blocker.ID, dependent.ID, "block"); err != nil {
+		t.Fatalf("AddEdge block: %v", err)
+	}
+
+	gaps, err := s.Gaps(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Gaps: %v", err)
+	}
+	if len(ids(gaps)) != 0 {
+		t.Fatalf("Gaps ids = %v, want empty (claimed blocker is not settled)", ids(gaps))
+	}
+
+	if _, _, err := s.ConcludeIntent(ctx, p.ID, blocker.ID, "tester", "blocker resolved", "observation"); err != nil {
+		t.Fatalf("ConcludeIntent(blocker): %v", err)
+	}
+	gaps, err = s.Gaps(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Gaps after resolve: %v", err)
+	}
+	if want := []string{dependent.ID}; !reflect.DeepEqual(ids(gaps), want) {
+		t.Fatalf("Gaps after resolve ids = %v, want %v", ids(gaps), want)
+	}
+}
+
 func TestGapsSortsByCreatedAt(t *testing.T) {
 	s := newTestStore(t)
 	p := mustProject(t, s)
