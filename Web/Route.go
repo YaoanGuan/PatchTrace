@@ -464,6 +464,19 @@ func (s *Server) getContextBreakdown(c *gin.Context) {
 	c.JSON(200, Success(pm.GetContextBreakdown()))
 }
 
+// sandboxContainerID reports the container id registered for a lab, or "" when
+// no sandbox exists. The graph lane's explore task resolves sandbox evidence
+// through taskManager.GetSandbox(graphProjectID), so operators use this field
+// to confirm the graph project id matches a started lab before expecting a
+// sandbox-backed verdict.
+func sandboxContainerID(projectID string) string {
+	sandbox, err := taskManager.GetSandbox(projectID)
+	if err != nil || sandbox == nil {
+		return ""
+	}
+	return strings.TrimSpace(sandbox.ContainerId)
+}
+
 func (s *Server) getProject(c *gin.Context) {
 	s.waitForProjectRestore(c.Request.Context())
 	res := make(map[string]any)
@@ -503,6 +516,11 @@ func (s *Server) getProject(c *gin.Context) {
 	res["brainFinished"] = pm.GetBrainFinished()
 	res["startTime"] = pm.GetStartTime()
 	res["endTime"] = pm.GetEndTime()
+	// sandboxContainerID lets graph-lane operators verify the preflight mapping
+	// explore depends on: taskManager.GetSandbox(labID) must resolve to a live
+	// container before graph projects can claim sandbox evidence. Empty means
+	// no sandbox is registered for this lab (not started, or already stopped).
+	res["sandboxContainerID"] = sandboxContainerID(projectID)
 	res["sharedResources"] = pm.GetSharedResourcesSnapshot()
 	res["hostCommandApprovals"] = pm.GetHostCommandApprovalSnapshot()
 	res["backgroundProcesses"] = pm.GetBackgroundProcessSnapshot()
