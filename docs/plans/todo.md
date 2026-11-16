@@ -8,9 +8,9 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> **Task 8 已完成（R8 reason 通过）**：提交 `9cd94bf` + `93bff65`，独立评审 1 轮修复后全部 ADDRESSED、无新增 Critical/Important。
-> `go test ./dispatch/tasks/ ./graph/ -race` → 40+ 测试 PASS；`go build ./...` exit 0；vet/gofmt 干净。
-> 下一动作：Task 9 · Step 1，写 `dispatch/tasks/explore_test.go` 失败测试（observation Fact / 超时 conclude fallback / 失败仍落结论 / 无溯源不能 complete）。
+> **Task 9 已完成**：`59b12d5` + `ffb5a4e`；评审 1 轮 Critical+Important 修复后 scoped re-review 全部 ADDRESSED。
+> `go test ./dispatch/tasks/ ./dispatch/runtime/ ./graph/ ./dockerManager/ -race` → 全 `ok`；`go build ./...` exit 0。
+> 下一动作：Task 9b（调度接线）· Step 1，按 brief 写 `dispatch/executor_test.go` 失败测试。
 
 ---
 
@@ -68,7 +68,8 @@
 | 6 | Worker driver 与 native 实现 | R6 | 完成 | G2 | `e63b212`；37/37；评审修复轮通过 |
 | 7 | bootstrap 补丁反演任务 | R7 | 完成 | G2 | `96d1da1`；22+planner PASS；评审 2 轮后通过 |
 | 8 | reason 溯源图推理任务 | R8, R12 | 完成 | G3 | `93bff65`；40+ PASS；评审 1 轮后通过 |
-| 9 | explore 沙箱实证与判决 | R9, R10 | 未开始 | G3 | — |
+| 9 | explore 沙箱实证与判决 | R9, R10 | 完成 | G3 | `59b12d5`+`ffb5a4e`；评审 1 轮修复后 ADDRESSED |
+| 9b | 调度接线（执行/并发/超时） | R5, R9 | 未开始 | G3 | 拆分任务；brief 已就绪 |
 | 10 | CE4 规则回流 | R11 | 未开始 | G3 | — |
 | 11 | 评测、端到端与灰度 | R13–R16 | 未开始 | G4 | — |
 
@@ -212,11 +213,19 @@
 
 ### Task 9 · explore + 判决（R9, R10，G3）
 
-- [ ] 正常结论写 observation Fact
-- [ ] 超时走 conclude fallback
-- [ ] 失败仍写客观结论
-- [ ] 无溯源路径的 finding 不能 complete
-- [ ] `go test ./dispatch/tasks/ ./graph/ -race` → `ok`
+- [x] 正常结论写 observation Fact
+  - 证据：`TestExploreConcludesObservationFact` PASS（`ConcludeIntent(...,"observation")`）
+- [x] 超时走 conclude fallback
+  - 证据：`TestExploreTimeoutFallsBackToConclude` / `TestExploreTimeoutReleaseUsesDetachedContext` PASS（detached ctx 仍能落结论/释放）
+- [x] 失败仍写客观结论
+  - 证据：`TestExploreFailureStillWritesObjectiveFact` / `TestExploreSandboxVerificationFailureStillWritesFact` PASS
+- [x] 无溯源路径的 finding 不能 complete
+  - 证据：`TestCompleteRejectsFindingWithoutProvenance` PASS（`ErrInvalid`，零写入）；`origin` 例外
+- [x] 经 dockerManager 实证（R9 核心）
+  - 证据：`dockerManager/exec_capture.go` `ExecCapture`；`DockerSandboxRuntime` 注入 resolver；`TestExploreRunsSandboxVerification` PASS
+- [x] `go test ./dispatch/tasks/ ./graph/ -race` → `ok`
+  - 证据：`ok AIxVuln/dispatch/tasks`、`ok AIxVuln/graph`、`ok AIxVuln/dispatch/runtime`、`ok AIxVuln/dockerManager`；`go build ./...` exit 0；vet/gofmt 干净
+- 完成标准：评审 1 轮（Critical+Important）修复后 scoped re-review 全部 ADDRESSED；提交 `59b12d5`+`ffb5a4e`；6 Minor 延后至整支评审。
 
 ### Task 10 · CE4 回流（R11，G3）
 
