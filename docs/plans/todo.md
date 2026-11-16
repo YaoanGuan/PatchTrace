@@ -12,7 +12,8 @@
 > **Task 11 已完成**：`b794e85` + `2c40df2` + `6cc683c`；评审 2 轮修复后 scoped re-review 全部 ADDRESSED。
 > **整支最终评审已完成**：`7d0e635..e83793f`；初评 1 Critical + 6 Important + 8 Minor；单轮修复 `f118081`、`5d56134`、`4c6b10a`、`c15edbd`、`9b2c2fa`、`e83793f`；scoped re-review 全部 findings ADDRESSED，无新增 Critical/Important；文档收口 `9a9eac8`。
 > 证据：`CGO_ENABLED=0 go build ./...` → BUILD_OK；`go test ./graph/ ./graphserver/ ./dispatch/... ./eval/ -race -count=1` 全 `ok`；`go test ./...` 仅遗留 ProjectManager 既有失败（base `7d0e635` 可复现，包未被本分支改动）。
-> 遗留（已裁定并记录）：R13 Web 面板/Finding 报告后置（requirement §12）；R6 一次性 driver；真实 CVE 实弹未跑；explore prompt 仍把 `command` 标为可选（无命令的 verdict 会被证据闸门丢弃，需后续收紧 prompt）。
+> 遗留（已裁定并记录）：R13 Web 面板已于 `199d0ca`+`2ef42ab`+`21b6626` 补齐（只读面板 + GraphOnly 车道 + snapshot 端点），评审无 Critical/Important，Minor 修复 `78febdb`，最终 `origin/main` = `20ec53c`；Finding 报告仍后置（requirement §12）；R6 一次性 driver；真实 CVE 实弹未跑；explore prompt 仍把 `command` 标为可选（无命令的 verdict 会被证据闸门丢弃，需后续收紧 prompt）。
+> 面板启用：`misc.graph_lane_enabled=true`（`data/AIxVuln.db`）后重启，模型未配置时自动退化为 GraphOnly 挂载 `/api/graph`；已验证 `/api/graph/projects`（401 未授权 / Bearer 后返回项目）与 snapshot 渲染。
 > 下一动作：有 Docker + LLM 配置时，按 `docs/runbooks/cve-2025-3248.md` §2–§5 跑实弹验收（diff 导入 → 沙箱验证 → Finding → 规则库 +1）。
 
 ---
