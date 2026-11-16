@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -256,11 +257,13 @@ func evalTestConfig() dispatch.Config {
 	}
 }
 
-// blockingReasonDriver blocks its reason execution past the lane deadline so
-// the harness can prove it waits for in-flight executor goroutines.
+// blockingReasonDriver blocks its reason execution until released so the
+// harness can prove it waits for in-flight executor goroutines. Release is
+// controlled by the test, which makes the ordering assertion deterministic
+// even when the race detector and parallel packages delay planning.
 type blockingReasonDriver struct {
-	delay   time.Duration
 	started chan<- time.Time
+	release <-chan struct{}
 }
 
 func (d *blockingReasonDriver) Name() string { return "blocking" }
@@ -268,11 +271,13 @@ func (d *blockingReasonDriver) Supports(tt worker.TaskType) bool {
 	return tt == worker.TaskReason || tt == worker.TaskExplore
 }
 func (d *blockingReasonDriver) HealthCheck(context.Context) error { return nil }
-func (d *blockingReasonDriver) Execute(context.Context, worker.Task) (worker.Result, error) {
+func (d *blockingReasonDriver) Execute(ctx context.Context, _ worker.Task) (worker.Result, error) {
 	if d.started != nil {
 		d.started <- time.Now()
 	}
-	time.Sleep(d.delay)
+	// Ignore ctx.Done on purpose: a real in-flight task (for example a blocking
+	// docker exec) is exactly what Executor.Wait must drain before Close.
+	<-d.release
 	return worker.Result{Accepted: true}, nil
 }
 func (d *blockingReasonDriver) Conclude(context.Context, worker.Task) (worker.Result, error) {
@@ -297,17 +302,22 @@ func TestPatchevalDefaultLaneWaitsAndLeavesCallerStoresOpen(t *testing.T) {
 	}
 	defer ruleBase.Close()
 
-	// The deadline only has to fire after the first reason task starts; it is
-	// generous so the race detector cannot make planning miss it.
-	const executeDelay = 900 * time.Millisecond
+	// The driver blocks until the test releases it. The lane deadline is short;
+	// after it fires the harness must stay blocked in Executor.Wait until the
+	// release, which is observed without relying on planning speed.
+	const laneDeadline = 500 * time.Millisecond
 	started := make(chan time.Time, 4)
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseDriver := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseDriver)
 	opts := Options{
 		N:           3,
 		Config:      evalTestConfig(),
 		Project:     graph.Project{ID: "p1", Title: "demo", Origin: "/tmp/patch.diff", Goal: "确认漏洞可利用"},
-		MaxDuration: 500 * time.Millisecond,
+		MaxDuration: laneDeadline,
 		NewDriver: func(context.Context, RunInput) (worker.Driver, error) {
-			return &blockingReasonDriver{delay: executeDelay, started: started}, nil
+			return &blockingReasonDriver{started: started, release: release}, nil
 		},
 	}
 	in := RunInput{
@@ -319,19 +329,37 @@ func TestPatchevalDefaultLaneWaitsAndLeavesCallerStoresOpen(t *testing.T) {
 		Config:    opts.Config,
 	}
 
-	start := time.Now()
-	if _, err := defaultRunOnce(opts)(context.Background(), in); err != nil {
-		t.Fatalf("defaultRunOnce: %v", err)
-	}
-	elapsed := time.Since(start)
+	runErr := make(chan error, 1)
+	go func() {
+		_, err := defaultRunOnce(opts)(context.Background(), in)
+		runErr <- err
+	}()
+
 	select {
-	case at := <-started:
-		if elapsed < executeDelay {
-			t.Fatalf("default lane returned after %v (execute started at %v, delay %v): Executor.Wait is missing",
-				elapsed, at.Sub(start), executeDelay)
-		}
+	case <-started:
+	case err := <-runErr:
+		t.Fatalf("default lane returned before executing a task: %v", err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("default lane never executed a task")
+	}
+	// The run (and its deadline) started before the driver was reached, so
+	// sleeping one full deadline guarantees the timer fired while Execute is
+	// still blocked. A missing Executor.Wait returns here, before release.
+	time.Sleep(laneDeadline)
+	select {
+	case err := <-runErr:
+		t.Fatalf("default lane returned while the executor task was still running: %v", err)
 	default:
-		t.Fatalf("default lane never executed a task, so the wait assertion is not meaningful (elapsed %v)", elapsed)
+	}
+
+	releaseDriver()
+	select {
+	case err := <-runErr:
+		if err != nil {
+			t.Fatalf("defaultRunOnce: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("default lane did not return after the executor task was released")
 	}
 	if _, err := store.ListProjects(context.Background()); err != nil {
 		t.Fatalf("lane closed the caller-supplied graph store: %v", err)

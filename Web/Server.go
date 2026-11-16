@@ -266,8 +266,9 @@ func (s *Server) loadProjectInfosFromLegacyJSON(pmPath string) ([]taskManager.Pr
 
 // RegisterAPIRoutes adds an optional route family to the server's gin engine.
 // It must be called before the server starts; the hook runs once while Handler
-// builds the engine, after the built-in routes are mounted. Existing routes are
-// untouched.
+// builds the engine, after the built-in routes are mounted, and receives the
+// authenticated router group (tokenAuthMiddleware) so optional APIs are not
+// exposed without a bearer token. Existing routes are untouched.
 func (s *Server) RegisterAPIRoutes(register func(gin.IRouter)) {
 	if register == nil {
 		return
@@ -465,12 +466,15 @@ func (s *Server) Handler(uiFS fs.FS) http.Handler {
 	})
 
 	// Optional route families (e.g. /api/graph when the graph lane is enabled)
-	// are applied last so they cannot shadow or alter the built-in routes.
+	// are applied last so they cannot shadow or alter the built-in routes. They
+	// are mounted on the authenticated group so they require the same bearer
+	// token (or BasicAuth fallback) as /projects and /config; an unauthenticated
+	// graph API on 0.0.0.0 would let anyone create projects or inject hints.
 	s.apiRoutesMu.Lock()
 	apiRoutes := append([]func(gin.IRouter){}, s.apiRoutes...)
 	s.apiRoutesMu.Unlock()
 	for _, register := range apiRoutes {
-		register(r)
+		register(authorized)
 	}
 
 	manager := &ClientManager{

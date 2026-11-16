@@ -79,19 +79,41 @@ func main() {
 	}
 	server := Web.NewServer()
 	laneCtx, cancelLane := context.WithCancel(context.Background())
-	dispatcher := startGraphLane(laneCtx, server)
-	// StartWebServerWithUIFS blocks until SIGINT/SIGTERM. Cancelling stops the
-	// scheduler loop; Close then releases the stores the lane opened (caller
-	// supplied stores are already excluded by ownership flags).
-	defer func() {
-		cancelLane()
-		if dispatcher != nil {
-			if err := dispatcher.Close(); err != nil {
-				misc.Warn("graph-lane", fmt.Sprintf("关闭图调度车道失败: %v", err), nil)
-			}
-		}
-	}()
+	lane := startGraphLane(laneCtx, server)
+	// StartWebServerWithUIFS blocks until SIGINT/SIGTERM. shutdown cancels the
+	// scheduler, waits for Run and the in-flight executor tasks to return, and
+	// only then releases the lane-owned stores (see graphLane.shutdown).
+	defer lane.shutdown(cancelLane)
 	server.StartWebServerWithUIFS(strings.TrimSpace(*port), uiFS)
+}
+
+// graphLane is the optional dispatcher lane owned by main. done is closed when
+// the Run goroutine exits.
+type graphLane struct {
+	dispatcher *dispatch.Dispatcher
+	done       <-chan struct{}
+}
+
+// shutdown stops the lane in the order the dispatcher contract requires:
+// cancel the lane context, wait for Run to return (it may be inside a tick that
+// started work), drain the executor's in-flight tasks, and only then close the
+// stores the lane opened. Closing earlier would let an in-flight explore or
+// tick touch a closed SQLite handle (data race, nil deref, "database is
+// closed"). A nil lane is a no-op: the flag is off or the lane failed to start.
+func (l *graphLane) shutdown(cancel context.CancelFunc) {
+	if cancel != nil {
+		cancel()
+	}
+	if l == nil || l.dispatcher == nil {
+		return
+	}
+	if l.done != nil {
+		<-l.done
+	}
+	l.dispatcher.Wait()
+	if err := l.dispatcher.Close(); err != nil {
+		misc.Warn("graph-lane", fmt.Sprintf("关闭图调度车道失败: %v", err), nil)
+	}
 }
 
 // startGraphLane starts the optional graph dispatcher lane when
@@ -101,9 +123,9 @@ func main() {
 //
 // The lane is strictly additive: every failure is logged and the existing
 // closed loop still starts. The graph lane must never block web-server startup,
-// so Run executes in its own goroutine. The returned dispatcher is owned by
-// main and closed on shutdown.
-func startGraphLane(ctx context.Context, server *Web.Server) *dispatch.Dispatcher {
+// so Run executes in its own goroutine. The returned graphLane is owned by main;
+// its shutdown method waits for Run and the executor before closing stores.
+func startGraphLane(ctx context.Context, server *Web.Server) *graphLane {
 	if !misc.GraphLaneEnabled() {
 		return nil
 	}
@@ -127,10 +149,12 @@ func startGraphLane(ctx context.Context, server *Web.Server) *dispatch.Dispatche
 		server.RegisterAPIRoutes(graphserver.New(dispatcher.Store()).Register)
 	}
 	misc.Info("graph-lane", fmt.Sprintf("图调度车道已启动，配置: %s", configPath), nil)
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		if err := dispatcher.Run(ctx); err != nil {
 			misc.Warn("graph-lane", fmt.Sprintf("图调度车道退出: %v", err), nil)
 		}
 	}()
-	return dispatcher
+	return &graphLane{dispatcher: dispatcher, done: done}
 }
