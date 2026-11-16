@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
 import { ScrollArea } from './components/ui/scroll-area';
+import GraphPanel from './GraphPanel';
 import { Input } from './components/ui/input';
 import { Textarea } from './components/ui/textarea';
 import ReactMarkdown from 'react-markdown';
@@ -421,7 +422,7 @@ function App() {
     const [projectStatus, setProjectStatus] = useState<string>('');
     const [projectIsRunning, setProjectIsRunning] = useState<boolean>(false);
     const [brainFinished, setBrainFinished] = useState<boolean>(false);
-    const [view, setView] = useState<'home' | 'detail' | 'settings' | 'mcp' | 'skills' | 'digital_humans' | 'report_templates'>('home');
+    const [view, setView] = useState<'home' | 'detail' | 'settings' | 'mcp' | 'skills' | 'digital_humans' | 'report_templates' | 'graph'>('home');
     const [detailProject, setDetailProject] = useState<string>('');
     const [detailProjectName, setDetailProjectName] = useState<string>('');
     const [detailOpen, setDetailOpen] = useState<boolean>(false);
@@ -799,6 +800,12 @@ function App() {
         if (p === '/report_templates') {
             cleanupDetailState();
             setView('report_templates');
+            return;
+        }
+
+        if (p === '/graph') {
+            cleanupDetailState();
+            setView('graph');
             return;
         }
 
@@ -3379,7 +3386,7 @@ function App() {
                                 返回列表
                             </button>
                         </>
-                    ) : view === 'settings' || view === 'mcp' || view === 'skills' || view === 'digital_humans' || view === 'report_templates' ? (
+                    ) : view === 'settings' || view === 'mcp' || view === 'skills' || view === 'digital_humans' || view === 'report_templates' || view === 'graph' ? (
                         <>
                             <button className="aix-nav-pill" onClick={() => { window.location.hash = '#/'; }}>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
@@ -3400,6 +3407,10 @@ function App() {
                             <button className="aix-nav-pill" onClick={() => { window.location.hash = '#/report_templates'; }}>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                                 报告模板
+                            </button>
+                            <button className="aix-nav-pill" onClick={() => { window.location.hash = '#/graph'; }}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8.2 7.2 10.3 16"/><path d="M15.8 7.2 13.7 16"/><path d="M8.5 6h7"/></svg>
+                                溯源图
                             </button>
                             <button className="aix-nav-pill" onClick={() => { window.location.hash = '#/mcp'; }}>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="8" rx="2"/><rect x="3" y="12" width="18" height="8" rx="2"/><path d="M7 8h.01"/><path d="M7 16h.01"/><path d="M11 8h6"/><path d="M11 16h6"/></svg>
@@ -4352,6 +4363,9 @@ function App() {
                 </Card>
                     );
                 })()
+                : view === 'graph' ? (
+                    <GraphPanel baseURL={baseURL} authHeader={authHeader} />
+                )
                 : view === 'home' ? (
                 <>
                 <Card>
