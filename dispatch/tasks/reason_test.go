@@ -407,7 +407,7 @@ func TestReasonNoopWritesNothing(t *testing.T) {
 	}
 }
 
-func TestReasonSkipsWhenLeaseHeldOrProjectInactive(t *testing.T) {
+func TestReasonRunnerReportsLeaseHeld(t *testing.T) {
 	cases := []struct {
 		name string
 		err  error
@@ -422,8 +422,12 @@ func TestReasonSkipsWhenLeaseHeldOrProjectInactive(t *testing.T) {
 			client := &fakeReasonClient{export: reasonExport, claimErr: tc.err}
 			driver := &fakeReasonDriver{name: "native-test", result: worker.Result{Accepted: true}}
 
-			if err := RunReason(context.Background(), client, driver, reasonProject()); err != nil {
-				t.Fatalf("a skip must return nil, got %v", err)
+			err := RunReason(context.Background(), client, driver, reasonProject())
+			if !errors.Is(err, ErrReasonLeaseHeld) {
+				t.Fatalf("RunReason err = %v, want ErrReasonLeaseHeld", err)
+			}
+			if !errors.Is(err, tc.err) {
+				t.Fatalf("RunReason err = %v, want the underlying claim error %v", err, tc.err)
 			}
 			if len(driver.tasks) != 0 {
 				t.Fatalf("a skip must not run the worker, got %d tasks", len(driver.tasks))

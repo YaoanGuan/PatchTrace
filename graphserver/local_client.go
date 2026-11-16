@@ -75,3 +75,16 @@ func (c *localClient) AddHint(ctx context.Context, projectID, content, creator s
 func (c *localClient) ExportYAML(ctx context.Context, projectID string) (string, error) {
 	return c.store.ExportYAML(ctx, projectID)
 }
+
+// GapScore exposes the store's authoritative gap ranking to dispatcher tasks
+// through the optional type assertion they already use. It is deliberately not
+// part of Client: the HTTP protocol has no edge endpoint.
+func (c *localClient) GapScore(ctx context.Context, projectID string) ([]graph.Gap, error) {
+	return c.store.GapScore(ctx, projectID)
+}
+
+// AddVerdict exposes store-backed evidence verdicts (R10) to explore tasks
+// through the optional type assertion they already use.
+func (c *localClient) AddVerdict(ctx context.Context, projectID, targetID, verdict, description, evidenceRef string) (graph.Node, error) {
+	return c.store.AddVerdict(ctx, projectID, targetID, verdict, description, evidenceRef)
+}

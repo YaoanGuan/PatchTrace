@@ -63,6 +63,12 @@ type verdictWriter interface {
 	AddVerdict(ctx context.Context, projectID, targetID, verdict, description, evidenceRef string) (graph.Node, error)
 }
 
+// ExploreOptions tunes one explore run. The zero value keeps the runner
+// defaults; a non-positive ConcludeTimeout falls back to the 2m default.
+type ExploreOptions struct {
+	ConcludeTimeout time.Duration
+}
+
 // RunExplore validates one claimed intent inside the sandbox and writes an
 // objective conclusion back to the graph (R9), plus an optional evidence
 // verdict (R10):
@@ -89,7 +95,18 @@ type verdictWriter interface {
 // context bounded by exploreGraphWriteTimeout so an expired caller context
 // cannot lose the conclusion or the release.
 func RunExplore(ctx context.Context, c graphserver.Client, d worker.Driver, rt runtime.SandboxRuntime, p graph.Project, intentID string) error {
-	return runExplore(ctx, c, d, rt, p, intentID, defaultExploreDeps)
+	return RunExploreWithOptions(ctx, c, d, rt, p, intentID, ExploreOptions{})
+}
+
+// RunExploreWithOptions is RunExplore with dispatcher-supplied tuning. The
+// dispatcher passes Config.ExploreConcludeTimeout so the conclude fallback uses
+// the same budget as the scheduler configuration.
+func RunExploreWithOptions(ctx context.Context, c graphserver.Client, d worker.Driver, rt runtime.SandboxRuntime, p graph.Project, intentID string, opts ExploreOptions) error {
+	deps := defaultExploreDeps
+	if opts.ConcludeTimeout > 0 {
+		deps.concludeTimeout = opts.ConcludeTimeout
+	}
+	return runExplore(ctx, c, d, rt, p, intentID, deps)
 }
 
 func runExplore(ctx context.Context, c graphserver.Client, d worker.Driver, rt runtime.SandboxRuntime, p graph.Project, intentID string, deps exploreDeps) error {

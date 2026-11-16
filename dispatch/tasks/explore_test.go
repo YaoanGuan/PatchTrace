@@ -838,6 +838,44 @@ func TestExploreRejectsUnresolvedPlaceholder(t *testing.T) {
 	}
 }
 
+func TestExploreRunnerUsesConfiguredConcludeTimeout(t *testing.T) {
+	run := func(t *testing.T, opts ExploreOptions, want time.Duration) {
+		t.Helper()
+		exploreWorkdir(t)
+		client := newExploreClient()
+		var observed time.Duration
+		driver := &fakeExploreDriver{
+			name:             "native-test",
+			supportsConclude: true,
+			execute: func(context.Context, worker.Task) (worker.Result, error) {
+				return worker.Result{}, errors.New("execute timed out")
+			},
+			conclude: func(_ context.Context, task worker.Task) (worker.Result, error) {
+				observed = task.ConcludeTimeout
+				return acceptedResult("收尾结论",
+					`{"accepted":true,"data":{"description":"收尾结论"}}`), nil
+			},
+		}
+
+		if err := RunExploreWithOptions(context.Background(), client, driver, &fakeSandboxRuntime{}, exploreProject(), "i001", opts); err != nil {
+			t.Fatalf("RunExploreWithOptions: %v", err)
+		}
+		if observed != want {
+			t.Fatalf("conclude timeout = %v, want %v", observed, want)
+		}
+		if len(client.concludes) != 1 {
+			t.Fatalf("ConcludeIntent calls = %d, want 1", len(client.concludes))
+		}
+	}
+
+	t.Run("configured", func(t *testing.T) {
+		run(t, ExploreOptions{ConcludeTimeout: 7 * time.Minute}, 7*time.Minute)
+	})
+	t.Run("default", func(t *testing.T) {
+		run(t, ExploreOptions{}, exploreConcludeTimeout)
+	})
+}
+
 func TestExploreHeartbeatsWhileExecuting(t *testing.T) {
 	exploreWorkdir(t)
 	client := newExploreClient()

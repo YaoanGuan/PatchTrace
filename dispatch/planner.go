@@ -39,6 +39,11 @@ type Decision struct {
 	IntentID   string
 	WorkerName string
 	Trigger    string
+
+	// stats is the graph projection captured when this decision was planned.
+	// The executor hands it back through the reason success hook so the
+	// baseline records what the successful run observed.
+	stats graphStats
 }
 
 // PlanProject decides what the project needs next. It is a pure read of the
@@ -84,7 +89,9 @@ func (d *Dispatcher) planProject(ctx context.Context, p graph.Project) (Decision
 	// 2. New situation: reason runs only when no intent is claimable and the
 	// project-level reason lease is free.
 	if stats.OpenIntents == 0 && !reasonLeaseHeld(p) {
+		d.stateMu.Lock()
 		prev, seen := d.lastReason[p.ID]
+		d.stateMu.Unlock()
 		if trigger, ok := newSituationTrigger(prev, stats, seen); ok {
 			return Decision{
 				ProjectID: p.ID,

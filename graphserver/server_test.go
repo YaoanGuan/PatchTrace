@@ -361,6 +361,76 @@ func TestHTTPClientLifecycle(t *testing.T) {
 	}
 }
 
+func TestLocalClientSupportsGapScoreAndVerdict(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	client := NewLocalClient(store)
+
+	project, err := client.CreateProject(ctx, graph.Project{
+		Title: "local seams", Origin: "diff.patch", Goal: "prove", BootstrapEnabled: false,
+	})
+	if err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+	intent, err := client.DeclareIntent(ctx, project.ID, graph.Node{
+		Type: "gap", Content: "verify endpoint", From: []string{"origin"}, Creator: "worker-1",
+	})
+	if err != nil {
+		t.Fatalf("DeclareIntent: %v", err)
+	}
+
+	scorer, ok := client.(interface {
+		GapScore(context.Context, string) ([]graph.Gap, error)
+	})
+	if !ok {
+		t.Fatal("the local client must implement GapScore for dispatcher reasoning")
+	}
+	gaps, err := scorer.GapScore(ctx, project.ID)
+	if err != nil {
+		t.Fatalf("GapScore: %v", err)
+	}
+	if len(gaps) != 1 || gaps[0].IntentID != intent.ID {
+		t.Fatalf("GapScore = %+v, want the open intent %s", gaps, intent.ID)
+	}
+	if gaps[0].Description != "verify endpoint" {
+		t.Fatalf("gap description = %q, want the intent content", gaps[0].Description)
+	}
+
+	writer, ok := client.(interface {
+		AddVerdict(context.Context, string, string, string, string, string) (graph.Node, error)
+	})
+	if !ok {
+		t.Fatal("the local client must implement AddVerdict for explore evidence")
+	}
+	fact, err := writer.AddVerdict(ctx, project.ID, intent.ID, "support",
+		"sandbox confirmed the endpoint", "file:///tmp/run.log")
+	if err != nil {
+		t.Fatalf("AddVerdict: %v", err)
+	}
+	if fact.Type != "verdict" {
+		t.Fatalf("verdict fact type = %q, want verdict", fact.Type)
+	}
+	if !strings.Contains(fact.Content, "sandbox confirmed the endpoint") ||
+		!strings.Contains(fact.Content, "file:///tmp/run.log") {
+		t.Fatalf("verdict fact content = %q, want the description and evidence", fact.Content)
+	}
+
+	edges, err := store.Edges(ctx, project.ID)
+	if err != nil {
+		t.Fatalf("Edges: %v", err)
+	}
+	found := false
+	for _, edge := range edges {
+		if edge.From == fact.ID && edge.To == intent.ID && edge.Kind == "support" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("edges = %+v, want a support edge %s -> %s", edges, fact.ID, intent.ID)
+	}
+}
+
 func TestLocalClientLifecycle(t *testing.T) {
 	ctx := context.Background()
 	client := NewLocalClient(newTestStore(t))

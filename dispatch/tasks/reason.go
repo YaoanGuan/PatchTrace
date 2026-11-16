@@ -26,6 +26,12 @@ const (
 	reasonGapTopK    = 5
 )
 
+// ErrReasonLeaseHeld reports that the project reason lease could not be
+// claimed: another worker owns it, the project is gone, or it is not active.
+// The reason runner writes nothing in that case; the dispatcher treats it as a
+// skip (neither a failure nor a successful run that advances the baseline).
+var ErrReasonLeaseHeld = errors.New("dispatch.tasks: reason lease held by another worker")
+
 // fallbackReasonBody is used when the shipped template cannot be read. It must
 // carry the same placeholders as reason.md so a missing file never silently
 // drops the graph snapshot, fact ids or open intents from the model context.
@@ -95,8 +101,9 @@ func reasonGaps(ctx context.Context, c graphserver.Client, projectID string) ([]
 //	empty    -> no write
 //
 // The project-level reason lease is claimed with trigger "reason" and a 5m
-// lease. A lease held elsewhere, or a missing/inactive project, makes the run a
-// silent no-op so another worker (or a later tick) can take it. While the
+// lease. A lease held elsewhere, or a missing/inactive project, returns an
+// error wrapping ErrReasonLeaseHeld and writes nothing so another worker (or a
+// later tick) can take it; the dispatcher treats that sentinel as a skip. While the
 // worker runs the lease is heartbeated at lease/2, and it is always released
 // before returning, including on failure; release errors are joined.
 //
@@ -121,7 +128,7 @@ func runReason(ctx context.Context, c graphserver.Client, d worker.Driver, p gra
 		if errors.Is(claimErr, graph.ErrConflict) ||
 			errors.Is(claimErr, graph.ErrNotFound) ||
 			errors.Is(claimErr, graph.ErrForbidden) {
-			return nil
+			return fmt.Errorf("%w: claim project %s: %w", ErrReasonLeaseHeld, p.ID, claimErr)
 		}
 		return fmt.Errorf("reason: claim reason lease for project %s: %w", p.ID, claimErr)
 	}
