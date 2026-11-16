@@ -8,9 +8,9 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> **Task 7 已完成（R7 bootstrap 通过）**：提交 `095658f` + `f9e917b` + `96d1da1`，独立评审 2 轮修复后全部 ADDRESSED、无新增 Critical/Important。
-> `go test ./dispatch/tasks/ ./dispatch/ -race` → 22 个 bootstrap 测试 + 全部 planner 测试 PASS；`go build ./...` exit 0。
-> 下一动作：Task 8 · Step 1，写 `dispatch/tasks/reason_test.go` 失败测试（complete / intent / noop 三分支 + 非法 from）。
+> **Task 8 已完成（R8 reason 通过）**：提交 `9cd94bf` + `93bff65`，独立评审 1 轮修复后全部 ADDRESSED、无新增 Critical/Important。
+> `go test ./dispatch/tasks/ ./graph/ -race` → 40+ 测试 PASS；`go build ./...` exit 0；vet/gofmt 干净。
+> 下一动作：Task 9 · Step 1，写 `dispatch/tasks/explore_test.go` 失败测试（observation Fact / 超时 conclude fallback / 失败仍落结论 / 无溯源不能 complete）。
 
 ---
 
@@ -67,7 +67,7 @@
 | 5 | 调度核心 | R5 | 完成 | G2 | `f6cfcf3`；31+4 PASS；评审 Approved |
 | 6 | Worker driver 与 native 实现 | R6 | 完成 | G2 | `e63b212`；37/37；评审修复轮通过 |
 | 7 | bootstrap 补丁反演任务 | R7 | 完成 | G2 | `96d1da1`；22+planner PASS；评审 2 轮后通过 |
-| 8 | reason 溯源图推理任务 | R8, R12 | 未开始 | G3 | — |
+| 8 | reason 溯源图推理任务 | R8, R12 | 完成 | G3 | `93bff65`；40+ PASS；评审 1 轮后通过 |
 | 9 | explore 沙箱实证与判决 | R9, R10 | 未开始 | G3 | — |
 | 10 | CE4 规则回流 | R11 | 未开始 | G3 | — |
 | 11 | 评测、端到端与灰度 | R13–R16 | 未开始 | G4 | — |
@@ -200,10 +200,15 @@
 
 ### Task 8 · reason（R8, R12，G3）
 
-- [ ] complete / intent / noop 三分支各一条测试
-- [ ] 非法 `from` 被拒绝
-- [ ] prompt 含 gap 与 hint
-- [ ] `go test ./dispatch/tasks/ -run TestReason -race` → `ok`
+- [x] complete / intent / noop 三分支各一条测试
+  - 证据：`TestReasonCompletesWhenGoalCovered` / `TestReasonDeclaresIntentWithValidFrom` / `TestReasonNoopWritesNothing` PASS；`accepted:false` 见 `TestReasonRejectsRefusedResult`
+- [x] 非法 `from` 被拒绝
+  - 证据：`TestReasonRejectsIntentWithUnknownFrom` PASS（`ErrInvalid`，零写入，释放租约）
+- [x] prompt 含 gap 与 hint
+  - 证据：`TestReasonPromptIncludesGapsAndHints` / `TestReasonPromptFallbackKeepsGraphContext` PASS（gap top-5、hint、graph YAML、fact ids、open intents）
+- [x] `go test ./dispatch/tasks/ -run TestReason -race` → `ok`
+  - 证据：40+ 测试 PASS（`ok AIxVuln/dispatch/tasks`、`ok AIxVuln/graph`）；`go vet`/`gofmt` 干净
+- 完成标准：评审 1 轮修复后通过；`GapScore` 排序 OpenBlockers↑ → DepthFromOrigin↑ → IntentID↑。
 
 ### Task 9 · explore + 判决（R9, R10，G3）
 
