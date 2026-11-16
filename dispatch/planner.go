@@ -24,8 +24,10 @@ const (
 // bootstrap intent the dispatcher may reserve on an initial project.
 const reservedBootstrapIntentContent = "bootstrap"
 
-// reservedBootstrapIntentCreator is the fixed creator of the reserved bootstrap
-// intent. The pair (content, creator, from=[origin]) identifies it.
+// reservedBootstrapIntentCreator is the fixed creator of every reserved
+// intent written by the bootstrap runner. The creator alone marks an intent as
+// reserved: the bootstrap fact and the inverted exploit idea share it, and
+// neither is ordinary claimable work.
 const reservedBootstrapIntentCreator = "dispatcher.bootstrap"
 
 // Decision is the planner's verdict for one project. WorkerName is filled by
@@ -173,14 +175,19 @@ func parseGraphStats(export string) (graphStats, error) {
 	}
 
 	for _, in := range snapshot.Intents {
-		if isReservedBootstrapIntent(in) {
-			switch in.State {
-			case "open":
-				if stats.ReservedOpenIntentID == "" {
-					stats.ReservedOpenIntentID = in.ID
+		if isReservedIntent(in) {
+			// Only the bootstrap intent itself gates the initial bootstrap;
+			// a leftover reserved exploit_idea intent must not be reused or
+			// counted as ordinary work.
+			if isBootstrapIntent(in) {
+				switch in.State {
+				case "open":
+					if stats.ReservedOpenIntentID == "" {
+						stats.ReservedOpenIntentID = in.ID
+					}
+				case "claimed":
+					stats.ReservedClaimed = true
 				}
-			case "claimed":
-				stats.ReservedClaimed = true
 			}
 			continue
 		}
@@ -201,16 +208,17 @@ func hasBoth(set map[string]struct{}, a, b string) bool {
 	return hasA && hasB
 }
 
-// isReservedBootstrapIntent reports whether the intent matches the fixed
-// dispatcher.bootstrap convention (content, creator, from=[origin]).
-func isReservedBootstrapIntent(in exportIntent) bool {
-	if strings.TrimSpace(in.Content) != reservedBootstrapIntentContent {
-		return false
-	}
-	if strings.TrimSpace(in.Creator) != reservedBootstrapIntentCreator {
-		return false
-	}
-	return len(in.From) == 1 && strings.TrimSpace(in.From[0]) == "origin"
+// isReservedIntent reports whether the intent was written by the bootstrap
+// runner. Reserved intents are excluded from ordinary counts and are never
+// dispatched as explore work.
+func isReservedIntent(in exportIntent) bool {
+	return strings.TrimSpace(in.Creator) == reservedBootstrapIntentCreator
+}
+
+// isBootstrapIntent narrows a reserved intent to the bootstrap task itself
+// (as opposed to the exploit_idea fact the same runner later writes).
+func isBootstrapIntent(in exportIntent) bool {
+	return strings.TrimSpace(in.Content) == reservedBootstrapIntentContent
 }
 
 // reasonLeaseHeld reports whether another worker currently owns the project

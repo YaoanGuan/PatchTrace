@@ -3,12 +3,12 @@ package tasks
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"AIxVuln/graph"
 	"AIxVuln/patchintel"
@@ -16,10 +16,12 @@ import (
 	yaml "github.com/goccy/go-yaml"
 )
 
-// Reserved bootstrap intent convention. It must match dispatch/planner.go so
-// the planner and the runner agree on which intent is the project bootstrap.
+// Reserved intent convention. It must match dispatch/planner.go so the
+// planner and the runner agree on which intents are reserved. The creator marks
+// both the bootstrap task and the exploit_idea fact it writes.
 const (
 	reservedBootstrapContent = "bootstrap"
+	exploitIdeaContent       = "exploit_idea"
 	reservedBootstrapCreator = "dispatcher.bootstrap"
 	reservedOriginFact       = "origin"
 	goalFactID               = "goal"
@@ -34,6 +36,7 @@ const (
 	bootstrapRuleTopK    = 5
 	maxPromptDiffRunes   = 20000
 	patchProfileFactType = "patch_profile"
+	exploitIdeaFactType  = "exploit_idea"
 )
 
 // searchDefaultRules reads the process-wide rule base. Callers treat it as
@@ -55,8 +58,11 @@ func searchDefaultRules(query string) []patchintel.Rule {
 // origin and goal facts exist) and is marshalled locally so the task package
 // never reaches into graph's internal export structs.
 type promptGraphSnapshot struct {
-	Project promptGraphProject  `yaml:"project"`
-	Hints   []string            `yaml:"hints"`
+	Project promptGraphProject `yaml:"project"`
+	// Hints is deliberately opaque: the real export emits mapping nodes
+	// (id/content/creator/...), not scalar strings. The runner only needs the
+	// intents, but unmarshalling must not fail on a project with hints.
+	Hints   []any               `yaml:"hints"`
 	Facts   []promptGraphFact   `yaml:"facts"`
 	Intents []promptGraphIntent `yaml:"intents"`
 }
@@ -101,7 +107,7 @@ func findReservedBootstrapIntent(export string) (reservedBootstrapState, error) 
 	}
 	var state reservedBootstrapState
 	for _, intent := range snapshot.Intents {
-		if !isReservedBootstrapIntent(intent) {
+		if !isReservedIntent(intent) || !isBootstrapIntent(intent) {
 			continue
 		}
 		switch strings.TrimSpace(intent.State) {
@@ -120,11 +126,16 @@ func findReservedBootstrapIntent(export string) (reservedBootstrapState, error) 
 	return state, nil
 }
 
-func isReservedBootstrapIntent(intent promptGraphIntent) bool {
-	return strings.TrimSpace(intent.Content) == reservedBootstrapContent &&
-		strings.TrimSpace(intent.Creator) == reservedBootstrapCreator &&
-		len(intent.From) == 1 &&
-		strings.TrimSpace(intent.From[0]) == reservedOriginFact
+// isReservedIntent reports whether the intent was written by the bootstrap
+// runner. It is intentionally creator-only so a leftover exploit_idea intent is
+// never mistaken for ordinary work.
+func isReservedIntent(intent promptGraphIntent) bool {
+	return strings.TrimSpace(intent.Creator) == reservedBootstrapCreator
+}
+
+// isBootstrapIntent narrows a reserved intent to the bootstrap task itself.
+func isBootstrapIntent(intent promptGraphIntent) bool {
+	return strings.TrimSpace(intent.Content) == reservedBootstrapContent
 }
 
 // loadPatchProfile resolves the project origin to a patch profile. A readable
@@ -133,7 +144,7 @@ func isReservedBootstrapIntent(intent promptGraphIntent) bool {
 func loadPatchProfile(ctx context.Context, origin string) (*patchintel.PatchProfile, error) {
 	origin = strings.TrimSpace(origin)
 	if origin == "" {
-		return nil, fmt.Errorf("bootstrap: project origin is empty; want a local patch diff path or http(s) URL")
+		return nil, errors.New("bootstrap: project origin is empty; want a local patch diff path or http(s) URL")
 	}
 	if info, err := os.Stat(origin); err == nil && info.Mode().IsRegular() {
 		return patchintel.IngestLocal(origin)
@@ -175,7 +186,7 @@ func minimalGraphYAML(p graph.Project) string {
 			Goal:             p.Goal,
 			BootstrapEnabled: p.BootstrapEnabled,
 		},
-		Hints: []string{},
+		Hints: []any{},
 		Facts: []promptGraphFact{
 			{ID: reservedOriginFact, Type: reservedOriginFact, Content: p.Origin},
 			{ID: goalFactID, Type: goalFactID, Content: p.Goal},
@@ -202,53 +213,15 @@ func formatPatchProfile(profile *patchintel.PatchProfile) string {
 		return "（无补丁档案）"
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "- CVE: %s\n", metadataOrUnknown(profile.CVE))
-	fmt.Fprintf(&b, "- GHSA: %s\n", metadataOrUnknown(profile.GHSA))
-	fmt.Fprintf(&b, "- 受影响版本: %s\n", metadataOrUnknown(profile.AffectedVersions))
-	fmt.Fprintf(&b, "- 修复 commit: %s\n", metadataOrUnknown(profile.FixCommit))
-	fmt.Fprintf(&b, "- 场景: %s\n", metadataOrUnknown(profile.Scene))
-	fmt.Fprintf(&b, "- 涉及文件: %s\n", metadataOrUnknown(strings.Join(profile.Files, ", ")))
-	fmt.Fprintf(&b, "- 来源: %s\n", metadataOrUnknown(profile.SourceURL))
+	fmt.Fprintf(&b, "- CVE: %s\n", patchintel.MetadataOrUnknown(profile.CVE))
+	fmt.Fprintf(&b, "- GHSA: %s\n", patchintel.MetadataOrUnknown(profile.GHSA))
+	fmt.Fprintf(&b, "- 受影响版本: %s\n", patchintel.MetadataOrUnknown(profile.AffectedVersions))
+	fmt.Fprintf(&b, "- 修复 commit: %s\n", patchintel.MetadataOrUnknown(profile.FixCommit))
+	fmt.Fprintf(&b, "- 场景: %s\n", patchintel.MetadataOrUnknown(profile.Scene))
+	fmt.Fprintf(&b, "- 涉及文件: %s\n", patchintel.MetadataOrUnknown(strings.Join(profile.Files, ", ")))
+	fmt.Fprintf(&b, "- 来源: %s\n", patchintel.MetadataOrUnknown(profile.SourceURL))
 	b.WriteString("\n### 补丁 diff\n\n```diff\n")
-	b.WriteString(truncateRunes(profile.RawDiff, maxPromptDiffRunes))
+	b.WriteString(patchintel.TruncateRunes(profile.RawDiff, maxPromptDiffRunes))
 	b.WriteString("\n```")
 	return strings.TrimRight(b.String(), "\n")
-}
-
-func formatRules(rules []patchintel.Rule) string {
-	if len(rules) == 0 {
-		return "（规则库无命中，按场景模板冷启动）"
-	}
-	var b strings.Builder
-	for i, rule := range rules {
-		fmt.Fprintf(&b, "[规则 %d] id=%d version=%d confidence=%.2f\n", i+1, rule.ID, rule.Version, rule.Confidence)
-		b.WriteString("模式: " + rule.Pattern + "\n")
-		if rule.TriggerFeatures != "" {
-			b.WriteString("触发特征: " + rule.TriggerFeatures + "\n")
-		}
-		if rule.VerificationNotes != "" {
-			b.WriteString("验证要点: " + rule.VerificationNotes + "\n")
-		}
-		if rule.CVEID != "" {
-			b.WriteString("来源: " + rule.CVEID + "\n")
-		}
-		b.WriteString("\n")
-	}
-	return strings.TrimSpace(b.String())
-}
-
-func truncateRunes(raw string, maxRunes int) string {
-	if maxRunes <= 0 || utf8.RuneCountInString(raw) <= maxRunes {
-		return raw
-	}
-	runes := []rune(raw)
-	return string(runes[:maxRunes]) + "\n[补丁 diff 已按 token 预算截断]"
-}
-
-func metadataOrUnknown(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return "未知"
-	}
-	return value
 }

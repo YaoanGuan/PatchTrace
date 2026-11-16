@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"AIxVuln/llm"
 	"AIxVuln/misc"
@@ -121,7 +120,7 @@ func BuildInversionPromptWithBudget(profile *PatchProfile, rules []Rule, templat
 	}
 	diff := ""
 	if profile != nil {
-		diff = truncateRunes(profile.RawDiff, maxDiffRunes)
+		diff = TruncateRunes(profile.RawDiff, maxDiffRunes)
 	}
 	system := `你是 PatchOracle 的补丁语义反演引擎。给定真实厂商补丁 diff，你要反推出补丁所修复的漏洞，并输出可被沙箱验证的利用约束。
 要求：
@@ -168,9 +167,9 @@ func BuildInversionPromptWithBudget(profile *PatchProfile, rules []Rule, templat
     "expected_impact": "预期影响",
     "confidence": "high/medium/low"
   }
-}`, template, metadataOrUnknown(profileCVE(profile)), metadataOrUnknown(profileGHSA(profile)),
-		metadataOrUnknown(profileVersions(profile)), metadataOrUnknown(profileCommit(profile)),
-		metadataOrUnknown(strings.Join(profileFiles(profile), ", ")), formatRules(rules), diff)
+}`, template, MetadataOrUnknown(profileCVE(profile)), MetadataOrUnknown(profileGHSA(profile)),
+		MetadataOrUnknown(profileVersions(profile)), MetadataOrUnknown(profileCommit(profile)),
+		MetadataOrUnknown(strings.Join(profileFiles(profile), ", ")), FormatRules(rules), diff)
 	return system, user
 }
 
@@ -331,44 +330,6 @@ func stripCodeFence(raw string) string {
 		lines = lines[:len(lines)-1]
 	}
 	return strings.TrimSpace(strings.Join(lines, "\n"))
-}
-
-func formatRules(rules []Rule) string {
-	if len(rules) == 0 {
-		return "（规则库无命中，使用场景模板冷启动兜底；本次验证成功的新模式请通过 PromoteRuleTool 沉淀）"
-	}
-	var b strings.Builder
-	for i, rule := range rules {
-		fmt.Fprintf(&b, "[规则 %d] id=%d version=%d confidence=%.2f\n", i+1, rule.ID, rule.Version, rule.Confidence)
-		b.WriteString("模式: " + rule.Pattern + "\n")
-		if rule.TriggerFeatures != "" {
-			b.WriteString("触发特征: " + rule.TriggerFeatures + "\n")
-		}
-		if rule.VerificationNotes != "" {
-			b.WriteString("验证要点: " + rule.VerificationNotes + "\n")
-		}
-		if rule.CVEID != "" {
-			b.WriteString("来源: " + rule.CVEID + "\n")
-		}
-		b.WriteString("\n")
-	}
-	return strings.TrimSpace(b.String())
-}
-
-func truncateRunes(raw string, maxRunes int) string {
-	if maxRunes <= 0 || utf8.RuneCountInString(raw) <= maxRunes {
-		return raw
-	}
-	runes := []rune(raw)
-	return string(runes[:maxRunes]) + "\n[补丁 diff 已按 token 预算截断]"
-}
-
-func metadataOrUnknown(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return "未知"
-	}
-	return value
 }
 
 func profileCVE(profile *PatchProfile) string {

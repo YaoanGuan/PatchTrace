@@ -255,6 +255,66 @@ func TestPlanSkipsWhileBootstrapIsClaimed(t *testing.T) {
 	}
 }
 
+func TestPlanTreatsReservedIdeaIntentAsReserved(t *testing.T) {
+	// Any dispatcher.bootstrap intent is reserved, not just the one whose
+	// content is "bootstrap". The leftover exploit_idea intent must neither
+	// count as an ordinary intent nor suppress the initial bootstrap.
+	intents := []intentFixture{{
+		id:      "i900",
+		state:   "open",
+		content: "exploit_idea",
+		creator: "dispatcher.bootstrap",
+		from:    []string{"origin"},
+	}}
+	client := &fakeClient{exports: map[string]string{
+		"p1": projectExport(originGoalFacts(), 0, intents),
+	}}
+	d := testDispatcher(t, client)
+
+	dec, ok := mustPlan(t, d, activeProject("p1", true))
+	if !ok || dec.TaskType != worker.TaskBootstrap {
+		t.Fatalf("expected bootstrap despite the reserved idea intent, got ok=%v decision=%+v", ok, dec)
+	}
+	if dec.IntentID != "" {
+		t.Fatalf("a reserved non-bootstrap intent must not be reused as the bootstrap intent, got %q", dec.IntentID)
+	}
+}
+
+func TestPlanSkipsBootstrapAfterReservedIntentConcluded(t *testing.T) {
+	facts := append(originGoalFacts(), factFixture{"f001", "patch_profile"})
+	intents := []intentFixture{{
+		id:      "b001",
+		state:   "resolved",
+		content: "bootstrap",
+		creator: "dispatcher.bootstrap",
+		from:    []string{"origin"},
+	}}
+	client := &fakeClient{exports: map[string]string{
+		"p1": projectExport(facts, 0, intents),
+	}}
+	d := testDispatcher(t, client)
+
+	dec, ok := mustPlan(t, d, activeProject("p1", true))
+	if ok && dec.TaskType == worker.TaskBootstrap {
+		t.Fatalf("a concluded reserved intent must suppress bootstrap, got %+v", dec)
+	}
+}
+
+func TestPlanToleratesHintsInExport(t *testing.T) {
+	client := &fakeClient{exports: map[string]string{
+		"p1": projectExport(originGoalFacts(), 1, nil),
+	}}
+	d := testDispatcher(t, client)
+
+	dec, ok, err := d.PlanProject(context.Background(), activeProject("p1", true))
+	if err != nil {
+		t.Fatalf("a mapping-style hint must not break parsing: %v", err)
+	}
+	if !ok || dec.TaskType != worker.TaskBootstrap {
+		t.Fatalf("expected bootstrap with one hint, got ok=%v decision=%+v", ok, dec)
+	}
+}
+
 func TestPlanReasonOnNewFacts(t *testing.T) {
 	facts := append(originGoalFacts(), factFixture{"f001", "patch_profile"})
 	client := &fakeClient{exports: map[string]string{
