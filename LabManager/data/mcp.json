@@ -1,0 +1,55 @@
+{
+  "configs": [
+    {
+      "id": "c2_mcp",
+      "name": "c2-mcp",
+      "enabled": false,
+      "transport": "stdio",
+      "tool_name_prefix": "MCP_C2",
+      "connect_timeout_sec": 20,
+      "call_timeout_sec": 120,
+      "agent_types": [
+        "Agent-Pentest-PostExploitationCommonAgent"
+      ],
+      "agent_bindings": [
+        {
+          "agent_type": "Agent-Pentest-PostExploitationCommonAgent"
+        }
+      ]
+    },
+    {
+      "id": "ida_pro_mcp",
+      "name": "ida-pro-mcp",
+      "enabled": false,
+      "transport": "stdio",
+      "tool_name_prefix": "MCP_IDAPro",
+      "connect_timeout_sec": 20,
+      "call_timeout_sec": 120,
+      "agent_types": [
+        "Agent-Binary-ReverseCommonAgent"
+      ],
+      "agent_bindings": [
+        {
+          "agent_type": "Agent-Binary-ReverseCommonAgent"
+        }
+      ]
+    },
+    {
+      "id": "jadx_ai_mcp",
+      "name": "jadx-ai-mcp",
+      "enabled": false,
+      "transport": "stdio",
+      "tool_name_prefix": "MCP_JADXAI",
+      "connect_timeout_sec": 20,
+      "call_timeout_sec": 120,
+      "agent_types": [
+        "Agent-Binary-AndroidCommonAgent"
+      ],
+      "agent_bindings": [
+        {
+          "agent_type": "Agent-Binary-AndroidCommonAgent"
+        }
+      ]
+    }
+  ]
+}

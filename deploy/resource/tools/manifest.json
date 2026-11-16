@@ -1,0 +1,16 @@
+[
+  {
+    "id": "gdb_arm64",
+    "name": "gdb arm64",
+    "file": "gdb_arm64",
+    "category": "android",
+    "description": "GDB program used under Android."
+  },
+  {
+    "id": "libgadget",
+    "name": "Frida libgadget.so",
+    "file": "libgadget.so",
+    "category": "android",
+    "description": "The gadget.so file used by Frida, which allows a connection with frida-server after being injected into a specified process.Suitable for frida-16.5.9"
+  }
+]

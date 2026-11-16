@@ -1,0 +1,45 @@
+#!/bin/python3
+import ddddocr
+import sys
+import os
+from contextlib import redirect_stdout, redirect_stderr
+def main():
+    if len(sys.argv) < 2:
+        print("用法: xxx  <验证码图片路径>")
+        sys.exit(1)
+    
+    image_path = sys.argv[1]
+    
+    if not os.path.exists(image_path):
+        print(f"错误: 文件 '{image_path}' 不存在")
+        sys.exit(1)
+    
+    try:
+        with open(image_path, "rb") as f:
+            image = f.read()
+        
+        results = []
+        
+        # 静默运行三次识别
+        with open(os.devnull, 'w') as devnull:
+            with redirect_stdout(devnull), redirect_stderr(devnull):
+                # 第一次
+                ocr1 = ddddocr.DdddOcr()
+                results.append(ocr1.classification(image))
+                
+                # 第二次
+                ocr2 = ddddocr.DdddOcr(beta=True)
+                results.append(ocr2.classification(image))
+                
+                # 第三次
+                ocr3 = ddddocr.DdddOcr()
+                results.append(ocr3.classification(image, png_fix=True))
+        
+        # 直接输出三个结果，用空格分隔
+        print(f"获得3个疑似结果：{results[0]} {results[1]} {results[2]}")
+        
+    except Exception as e:
+        print(f"错误: {e}")
+        sys.exit(1)
+if __name__ == "__main__":
+    main()

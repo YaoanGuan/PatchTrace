@@ -1,0 +1,23 @@
+# Build artifacts
+dist/
+AIxVuln-web
+*.log
+
+# Runtime data (keep templates as source)
+data/*
+!data/templates/
+!data/templates/**
+patchintel/data/
+
+# Frontend dependencies
+webui/node_modules/
+
+# OS junk
+__MACOSX/
+.DS_Store
+
+# Files over GitHub's 100 MB hard limit
+dockerfile/dockerfile.aisandbox/ai.tar.gz
+
+# Cairn runtime data
+Cairn/datas/
