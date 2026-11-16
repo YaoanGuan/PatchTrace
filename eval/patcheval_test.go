@@ -51,6 +51,7 @@ func TestPatchevalRunsDualConditionAndReportsMetrics(t *testing.T) {
 			ok := in.Condition == ConditionSeeded
 			return Observation{
 				InversionOK: ok,
+				Finding:     ok,
 				TrialRounds: in.Run,
 				// 400 bytes -> the default estimate would be 100 tokens; the
 				// injected estimator below returns 400 to prove it is used.
@@ -78,6 +79,9 @@ func TestPatchevalRunsDualConditionAndReportsMetrics(t *testing.T) {
 			if run.InversionOK {
 				t.Fatalf("cold run %d unexpectedly inverted", run.Run)
 			}
+			if run.Finding {
+				t.Fatalf("cold run %d unexpectedly reported a finding", run.Run)
+			}
 			if run.Run < 1 || run.Run > 3 {
 				t.Fatalf("cold run number = %d, want 1..3", run.Run)
 			}
@@ -85,6 +89,9 @@ func TestPatchevalRunsDualConditionAndReportsMetrics(t *testing.T) {
 		case ConditionSeeded:
 			if !run.InversionOK {
 				t.Fatalf("seeded run %d did not invert", run.Run)
+			}
+			if !run.Finding {
+				t.Fatalf("seeded run %d did not report a finding", run.Run)
 			}
 			seededSuccess++
 		default:
@@ -105,7 +112,7 @@ func TestPatchevalRunsDualConditionAndReportsMetrics(t *testing.T) {
 	if m.AvgTrialRounds != 2 {
 		t.Fatalf("AvgTrialRounds = %v, want 2", m.AvgTrialRounds)
 	}
-	// 6 runs x 400 tokens = 2400; 3 successful inversions -> 800.
+	// 6 runs x 400 tokens = 2400; 3 findings -> 800.
 	if m.TokensPerFinding != 800 {
 		t.Fatalf("TokensPerFinding = %v, want 800", m.TokensPerFinding)
 	}
@@ -118,11 +125,11 @@ func TestPatchevalRunsDualConditionAndReportsMetrics(t *testing.T) {
 	if len(lines) != 7 {
 		t.Fatalf("JSON lines = %d, want 6 runs + 1 summary; output:\n%s", len(lines), raw)
 	}
-	wantFirst := `{"condition":"cold","run":1,"inversion_ok":false,"trial_rounds":1,"tokens":400}`
+	wantFirst := `{"condition":"cold","run":1,"inversion_ok":false,"finding":false,"trial_rounds":1,"tokens":400}`
 	if lines[0] != wantFirst {
 		t.Fatalf("first JSON line = %s, want %s", lines[0], wantFirst)
 	}
-	wantSecond := `{"condition":"cold","run":2,"inversion_ok":false,"trial_rounds":2,"tokens":400}`
+	wantSecond := `{"condition":"cold","run":2,"inversion_ok":false,"finding":false,"trial_rounds":2,"tokens":400}`
 	if lines[1] != wantSecond {
 		t.Fatalf("second JSON line = %s, want %s", lines[1], wantSecond)
 	}
@@ -152,6 +159,124 @@ func TestPatchevalRequiresN(t *testing.T) {
 func TestDefaultTokenEstimate(t *testing.T) {
 	if got := defaultTokens(worker.Result{Raw: strings.Repeat("x", 400)}); got != 100 {
 		t.Fatalf("defaultTokens = %d, want len(Raw)/4 = 100", got)
+	}
+}
+
+func TestPatchevalInversionOKRequiresBothFacts(t *testing.T) {
+	cases := []struct {
+		name   string
+		export string
+		want   bool
+	}{
+		{"neither", "project:\n  title: demo\nfacts: []\n", false},
+		{"profile only", "facts:\n- id: f1\n  type: patch_profile\n", false},
+		{"idea only", "facts:\n- id: f1\n  type: exploit_idea\n", false},
+		{"both", "facts:\n- id: f1\n  type: patch_profile\n- id: f2\n  type: exploit_idea\n", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := inversionOK(tc.export); got != tc.want {
+				t.Fatalf("inversionOK = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestPatchevalFindingRequiresSupportVerdict pins the controller's runtime
+// finding proxy: completed project + exploit_idea fact + at least one verdict
+// fact carrying a support edge.
+func TestPatchevalFindingRequiresSupportVerdict(t *testing.T) {
+	cases := []struct {
+		name     string
+		verdict  string
+		complete bool
+		want     bool
+	}{
+		{name: "inversion facts but project active", want: false},
+		{name: "completed without a verdict", complete: true, want: false},
+		{name: "completed with a refute verdict", verdict: "refute", complete: true, want: false},
+		{name: "completed with a support verdict", verdict: "support", complete: true, want: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			store, err := graph.Open(filepath.Join(t.TempDir(), "graph.db"))
+			if err != nil {
+				t.Fatalf("graph.Open: %v", err)
+			}
+			defer store.Close()
+			project, err := store.CreateProject(ctx, graph.Project{
+				ID: "p1", Title: "finding", Origin: "/tmp/patch.diff", Goal: "prove exploit",
+			})
+			if err != nil {
+				t.Fatalf("CreateProject: %v", err)
+			}
+			for _, typ := range []string{"patch_profile", "exploit_idea", "observation"} {
+				if _, err := store.AddFact(ctx, project.ID, graph.Node{
+					Type: typ, Content: typ + " content", Creator: "tester", From: []string{"origin"},
+				}); err != nil {
+					t.Fatalf("AddFact(%s): %v", typ, err)
+				}
+			}
+			if tc.verdict != "" {
+				observation, err := store.AddFact(ctx, project.ID, graph.Node{
+					Type: "observation", Content: "sandbox observation", Creator: "tester", From: []string{"origin"},
+				})
+				if err != nil {
+					t.Fatalf("AddFact(second observation): %v", err)
+				}
+				if _, err := store.AddVerdict(ctx, project.ID, "origin", tc.verdict,
+					"sandbox verdict", observation.ID, "sandbox: exit=0"); err != nil {
+					t.Fatalf("AddVerdict: %v", err)
+				}
+			}
+			if tc.complete {
+				if _, err := store.Complete(ctx, project.ID, []string{"origin"}, "done", "tester"); err != nil {
+					t.Fatalf("Complete: %v", err)
+				}
+			}
+			export, err := store.ExportYAML(ctx, project.ID)
+			if err != nil {
+				t.Fatalf("ExportYAML: %v", err)
+			}
+			if !inversionOK(export) {
+				t.Fatalf("fixture must contain both inversion facts:\n%s", export)
+			}
+			got, err := detectFinding(ctx, store, project.ID, export)
+			if err != nil {
+				t.Fatalf("detectFinding: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("detectFinding = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPatchevalMetricsDivideByFindings(t *testing.T) {
+	runs := []RunResult{
+		{Condition: ConditionCold, InversionOK: true, Finding: true, TrialRounds: 2, Tokens: 100},
+		{Condition: ConditionCold, InversionOK: true, Finding: false, TrialRounds: 5, Tokens: 300},
+		{Condition: ConditionSeeded, InversionOK: false, Finding: true, TrialRounds: 4, Tokens: 600},
+	}
+	got := computeMetrics(runs)
+	want := Metrics{
+		InversionSuccessRate: 2.0 / 3.0,
+		AvgTrialRounds:       3,   // (2 + 4) / 2 findings
+		TokensPerFinding:     500, // 1000 / 2 findings
+	}
+	if got != want {
+		t.Fatalf("computeMetrics = %+v, want %+v", got, want)
+	}
+
+	// No finding: the two cost metrics must stay zero instead of claiming a
+	// cost per finding that does not exist.
+	noFinding := computeMetrics([]RunResult{
+		{Condition: ConditionCold, InversionOK: true, Finding: false, TrialRounds: 7, Tokens: 900},
+		{Condition: ConditionSeeded, InversionOK: false, Finding: false, TrialRounds: 3, Tokens: 100},
+	})
+	if noFinding.InversionSuccessRate != 0.5 || noFinding.AvgTrialRounds != 0 || noFinding.TokensPerFinding != 0 {
+		t.Fatalf("computeMetrics without findings = %+v, want rate 0.5 and zero cost metrics", noFinding)
 	}
 }
 

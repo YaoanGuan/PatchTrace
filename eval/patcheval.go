@@ -4,9 +4,16 @@
 // The same target is evaluated twice: with an empty rule base ("cold") and
 // with a pre-populated rule base ("seeded"). Each condition runs N>=3 times
 // and every repetition contributes one JSON line with its inversion outcome,
-// trial rounds and token cost. The summary reports the three comparison
-// metrics: inversion success rate, average trial rounds to a PoC, and tokens
-// per finding.
+// finding flag, trial rounds and token cost. The summary reports the three
+// comparison metrics: inversion success rate, average trial rounds to a PoC,
+// and tokens per finding.
+//
+// Inversion and finding are distinct: an inversion succeeds when the graph
+// holds BOTH a patch_profile fact and an exploit_idea fact (R7). A finding uses
+// the controller's runtime proxy: the project is completed, the export contains
+// an exploit_idea fact, and the graph holds at least one verdict fact with a
+// support edge. The two cost metrics only average over runs that reached a
+// finding; with no findings they stay zero rather than implying a measured PoC.
 //
 // Tests inject RunOnce so no Docker daemon, LLM or network is required. The
 // default RunOnce drives the real dispatcher lane through dispatch.StartLane.
@@ -48,23 +55,27 @@ const (
 type Metrics struct {
 	// InversionSuccessRate is successful inversions / total runs.
 	InversionSuccessRate float64 `json:"inversion_success_rate"`
-	// AvgTrialRounds is the mean explore trial count over successful
-	// inversions (runs that never reach a PoC do not dilute it).
+	// AvgTrialRounds is the mean explore trial count over runs that reached a
+	// finding (runs without a finding do not dilute it; zero findings -> 0).
 	AvgTrialRounds float64 `json:"avg_trial_rounds"`
-	// TokensPerFinding is total estimated tokens / successful inversions.
+	// TokensPerFinding is total estimated tokens / runs that reached a finding
+	// (zero findings -> 0).
 	TokensPerFinding float64 `json:"tokens_per_finding"`
 }
 
 // RunResult is one repetition in one condition. Its JSON shape is the
 // line-oriented contract:
 //
-//	{"condition":"cold","run":1,"inversion_ok":true,"trial_rounds":2,"tokens":12345}
+//	{"condition":"cold","run":1,"inversion_ok":true,"finding":false,"trial_rounds":2,"tokens":12345}
 type RunResult struct {
 	Condition   string `json:"condition"`
 	Run         int    `json:"run"`
 	InversionOK bool   `json:"inversion_ok"`
-	TrialRounds int    `json:"trial_rounds"`
-	Tokens      int64  `json:"tokens"`
+	// Finding is the controller's runtime PoC proxy: completed project plus an
+	// exploit_idea fact plus a verdict fact with a support edge.
+	Finding     bool  `json:"finding"`
+	TrialRounds int   `json:"trial_rounds"`
+	Tokens      int64 `json:"tokens"`
 }
 
 // Report is the full evaluation: every repetition plus the summary metrics.
@@ -96,6 +107,9 @@ type Observation struct {
 	// InversionOK reports whether the patch was inverted into the required
 	// patch_profile/exploit_idea facts.
 	InversionOK bool
+	// Finding reports whether the repetition reached the controller's runtime
+	// PoC proxy (completed project, exploit_idea fact, support verdict).
+	Finding bool
 	// TrialRounds is the number of explore attempts spent reaching the PoC.
 	TrialRounds int
 	// Results are the worker outputs produced by the repetition. Tokens are
@@ -260,6 +274,7 @@ func runOne(ctx context.Context, opts Options, condition string, run int, runOnc
 		Condition:   condition,
 		Run:         run,
 		InversionOK: observation.InversionOK,
+		Finding:     observation.Finding,
 		TrialRounds: observation.TrialRounds,
 		Tokens:      total,
 	}, nil
@@ -287,23 +302,73 @@ func computeMetrics(runs []RunResult) Metrics {
 	if len(runs) == 0 {
 		return Metrics{}
 	}
-	successes := 0
+	inversions := 0
+	findings := 0
 	rounds := 0
 	var tokens int64
 	for _, run := range runs {
 		tokens += run.Tokens
-		if !run.InversionOK {
+		if run.InversionOK {
+			inversions++
+		}
+		if !run.Finding {
 			continue
 		}
-		successes++
+		findings++
 		rounds += run.TrialRounds
 	}
-	metrics := Metrics{InversionSuccessRate: float64(successes) / float64(len(runs))}
-	if successes > 0 {
-		metrics.AvgTrialRounds = float64(rounds) / float64(successes)
-		metrics.TokensPerFinding = float64(tokens) / float64(successes)
+	metrics := Metrics{InversionSuccessRate: float64(inversions) / float64(len(runs))}
+	if findings > 0 {
+		metrics.AvgTrialRounds = float64(rounds) / float64(findings)
+		metrics.TokensPerFinding = float64(tokens) / float64(findings)
 	}
 	return metrics
+}
+
+// inversionOK reports whether the export carries the two facts R7 requires for
+// an inverted patch: a patch_profile and an exploit_idea.
+func inversionOK(export string) bool {
+	return strings.Contains(export, "type: patch_profile") &&
+		strings.Contains(export, "type: exploit_idea")
+}
+
+// detectFinding implements the controller's runtime finding proxy for R14:
+// the project is completed, the export has an exploit_idea fact, and at least
+// one verdict fact carries a support edge. A refute-only verdict does not count.
+func detectFinding(ctx context.Context, store *graph.Store, projectID, export string) (bool, error) {
+	project, err := store.GetProject(ctx, projectID)
+	if err != nil {
+		return false, fmt.Errorf("eval: read project for finding: %w", err)
+	}
+	if project.Status != "completed" || !strings.Contains(export, "type: exploit_idea") {
+		return false, nil
+	}
+	nodes, err := store.Nodes(ctx, projectID)
+	if err != nil {
+		return false, fmt.Errorf("eval: read nodes for finding: %w", err)
+	}
+	verdicts := make(map[string]struct{})
+	for _, n := range nodes {
+		if n.Kind == "fact" && n.Type == "verdict" {
+			verdicts[n.ID] = struct{}{}
+		}
+	}
+	if len(verdicts) == 0 {
+		return false, nil
+	}
+	edges, err := store.Edges(ctx, projectID)
+	if err != nil {
+		return false, fmt.Errorf("eval: read edges for finding: %w", err)
+	}
+	for _, edge := range edges {
+		if edge.Kind != "support" {
+			continue
+		}
+		if _, ok := verdicts[edge.From]; ok {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // defaultRunOnce drives the real dispatcher lane for one repetition.
@@ -383,12 +448,21 @@ func defaultRunOnce(opts Options) RunOnceFunc {
 		}
 
 		results, trialRounds := measured.snapshot()
-		inversionOK := false
-		if export, err := in.Client.ExportYAML(context.Background(), project.ID); err == nil {
-			inversionOK = strings.Contains(export, "type: patch_profile")
+		exportCtx := context.Background()
+		export, err := in.Client.ExportYAML(exportCtx, project.ID)
+		if err != nil {
+			return Observation{}, fmt.Errorf("export graph: %w", err)
+		}
+		if in.Store == nil {
+			return Observation{}, errors.New("eval: default lane requires a graph store")
+		}
+		finding, err := detectFinding(exportCtx, in.Store, project.ID, export)
+		if err != nil {
+			return Observation{}, err
 		}
 		return Observation{
-			InversionOK: inversionOK,
+			InversionOK: inversionOK(export),
+			Finding:     finding,
 			TrialRounds: trialRounds,
 			Results:     results,
 		}, nil
