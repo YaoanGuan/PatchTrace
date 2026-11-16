@@ -42,23 +42,25 @@ type IntentSpec struct {
 
 // Result is the contract-validated model output for one task.
 //
-//   - Fact:        bootstrap fact description (data.fact.description)
-//   - Complete:    completion description (data.complete.description)
-//   - Intent:      singular intent description (data.intent.description)
-//   - Description: explore fact description (data.description)
-//   - Intents:     declared intent specs (data.intents[])
-//   - Raw:         the raw model output, preserved for audit
+//   - Fact:         bootstrap fact description (data.fact.description)
+//   - Complete:     completion description (data.complete.description)
+//   - CompleteFrom: fact ids the completion is derived from (data.complete.from)
+//   - Intent:       singular intent description (data.intent.description)
+//   - Description:  explore fact description (data.description)
+//   - Intents:      declared intent specs (data.intents[])
+//   - Raw:          the raw model output, preserved for audit
 //
 // Accepted is false for an explicit policy refusal (accepted:false); a
 // refused result never carries writable fields.
 type Result struct {
-	Accepted    bool
-	Fact        *string
-	Complete    *string
-	Intent      *string
-	Description string
-	Intents     []IntentSpec
-	Raw         string
+	Accepted     bool
+	Fact         *string
+	Complete     *string
+	CompleteFrom []string
+	Intent       *string
+	Description  string
+	Intents      []IntentSpec
+	Raw          string
 }
 
 // Driver executes one task against one worker backend.

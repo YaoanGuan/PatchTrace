@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -107,6 +108,26 @@ func TestParseResultReasonComplete(t *testing.T) {
 	}
 	if len(r.Intents) != 0 {
 		t.Fatalf("complete must not produce intents: %+v", r.Intents)
+	}
+}
+
+func TestParseResultReasonCompleteFrom(t *testing.T) {
+	r, err := ParseResult(`{"accepted":true,"data":{"complete":{"from":["f001","f002"],"description":"证据链已覆盖目标"}}}`, TaskReason)
+	if err != nil {
+		t.Fatalf("ParseResult returned error: %v", err)
+	}
+	if !reflect.DeepEqual(r.CompleteFrom, []string{"f001", "f002"}) {
+		t.Fatalf("CompleteFrom = %v, want [f001 f002]", r.CompleteFrom)
+	}
+	if r.Complete == nil || *r.Complete != "证据链已覆盖目标" {
+		t.Fatalf("complete description = %v", r.Complete)
+	}
+
+	if _, err := ParseResult(`{"accepted":true,"data":{"complete":{"description":"缺少来源"}}}`, TaskReason); err == nil {
+		t.Fatal("expected error when complete.from is missing")
+	}
+	if _, err := ParseResult(`{"accepted":true,"data":{"complete":{"from":[],"description":"空来源"}}}`, TaskReason); err == nil {
+		t.Fatal("expected error when complete.from is empty")
 	}
 }
 

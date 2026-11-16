@@ -335,10 +335,12 @@ func parseReasonData(data map[string]json.RawMessage, result *Result) error {
 		if description == "" {
 			return fmt.Errorf("worker: data.complete.description is required")
 		}
-		if len(trimmedStrings(complete.From)) == 0 {
+		from := trimmedStrings(complete.From)
+		if len(from) == 0 {
 			return fmt.Errorf("worker: data.complete.from is required")
 		}
 		result.Complete = &description
+		result.CompleteFrom = from
 		return nil
 	}
 
