@@ -493,3 +493,65 @@ func TestLocalClientLifecycle(t *testing.T) {
 		t.Fatalf("ReleaseReason left reason lease: %+v", released.Reason)
 	}
 }
+
+// TestSnapshotEndpoint proves the read-only panel snapshot returns the project,
+// every node (hint and intent), the edge list and the export timeline.
+func TestSnapshotEndpoint(t *testing.T) {
+	router, _ := newTestRouter(t)
+	projectID := createProject(t, router, nil)
+
+	rec := doRequest(t, router, http.MethodPost, "/api/graph/projects/"+projectID+"/hints",
+		map[string]any{"content": "look at the upload handler", "creator": "analyst"})
+	mustStatus(t, rec, http.StatusCreated)
+	var hint map[string]any
+	decodeBody(t, rec, &hint)
+	hintID, _ := hint["id"].(string)
+
+	intentID := declareIntent(t, router, projectID, "verify /api/v1/validate/code", "worker-1")
+
+	rec = doRequest(t, router, http.MethodGet, "/api/graph/projects/"+projectID+"/snapshot", nil)
+	mustStatus(t, rec, http.StatusOK)
+
+	var out struct {
+		Success bool `json:"success"`
+		Result  struct {
+			Project  map[string]any   `json:"project"`
+			Nodes    []map[string]any `json:"nodes"`
+			Edges    []map[string]any `json:"edges"`
+			Timeline string           `json:"timeline"`
+		} `json:"result"`
+	}
+	decodeBody(t, rec, &out)
+
+	if !out.Success {
+		t.Fatalf("snapshot success = false; body = %s", rec.Body.String())
+	}
+	if got, _ := out.Result.Project["id"].(string); got != projectID {
+		t.Fatalf("snapshot project id = %q, want %q", got, projectID)
+	}
+	nodeIDs := make(map[string]bool, len(out.Result.Nodes))
+	for _, n := range out.Result.Nodes {
+		id, _ := n["id"].(string)
+		nodeIDs[id] = true
+	}
+	if !nodeIDs[hintID] {
+		t.Fatalf("snapshot nodes = %v, want hint %s", nodeIDs, hintID)
+	}
+	if !nodeIDs[intentID] {
+		t.Fatalf("snapshot nodes = %v, want intent %s", nodeIDs, intentID)
+	}
+	if out.Result.Edges == nil {
+		t.Fatalf("snapshot edges is null, want an array (possibly empty); body = %s", rec.Body.String())
+	}
+	if !strings.Contains(out.Result.Timeline, "PROJECT CREATED") {
+		t.Fatalf("snapshot timeline %q does not contain PROJECT CREATED", out.Result.Timeline)
+	}
+}
+
+// TestSnapshotUnknownProject proves an unknown project maps to 404 through the
+// shared error mapper.
+func TestSnapshotUnknownProject(t *testing.T) {
+	router, _ := newTestRouter(t)
+	rec := doRequest(t, router, http.MethodGet, "/api/graph/projects/does-not-exist/snapshot", nil)
+	mustStatus(t, rec, http.StatusNotFound)
+}

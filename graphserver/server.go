@@ -47,6 +47,7 @@ func (s *Server) Register(r gin.IRouter) {
 	g.POST("/projects/:id/reason/release", s.releaseReason)
 	g.POST("/projects/:id/complete", s.complete)
 	g.GET("/projects/:id/export", s.export)
+	g.GET("/projects/:id/snapshot", s.snapshot)
 	g.GET("/projects/:id/provenance", s.provenance)
 }
 
@@ -84,6 +85,33 @@ type nodeView struct {
 	LeaseUntil  *time.Time `json:"lease_until"`
 	CreatedAt   *time.Time `json:"created_at"`
 	ConcludedAt *time.Time `json:"concluded_at"`
+}
+
+type edgeView struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+	Kind string `json:"kind"`
+}
+
+func toEdgeView(e graph.Edge) edgeView {
+	return edgeView{From: e.From, To: e.To, Kind: e.Kind}
+}
+
+func toEdgeViews(edges []graph.Edge) []edgeView {
+	out := make([]edgeView, 0, len(edges))
+	for _, e := range edges {
+		out = append(out, toEdgeView(e))
+	}
+	return out
+}
+
+// snapshotView is the read-only payload the web UI renders. Everything is
+// derived from store reads; it is never accepted as input.
+type snapshotView struct {
+	Project  projectView `json:"project"`
+	Nodes    []nodeView  `json:"nodes"`
+	Edges    []edgeView  `json:"edges"`
+	Timeline string      `json:"timeline"`
 }
 
 type createProjectRequest struct {
@@ -473,6 +501,42 @@ func (s *Server) export(c *gin.Context) {
 		return
 	}
 	c.Data(http.StatusOK, contentType, []byte(out))
+}
+
+// snapshot returns the whole project graph in one read for the read-only UI
+// panel: project metadata, nodes, edges and the plain-text timeline.
+func (s *Server) snapshot(c *gin.Context) {
+	ctx := c.Request.Context()
+	projectID := c.Param("id")
+	p, err := s.store.GetProject(ctx, projectID)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	nodes, err := s.store.Nodes(ctx, projectID)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	edges, err := s.store.Edges(ctx, projectID)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	timeline, err := s.store.ExportTimeline(ctx, projectID)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"result": snapshotView{
+			Project:  toProjectView(p),
+			Nodes:    toNodeViews(nodes),
+			Edges:    toEdgeViews(edges),
+			Timeline: timeline,
+		},
+	})
 }
 
 func (s *Server) provenance(c *gin.Context) {
