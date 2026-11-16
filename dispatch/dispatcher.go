@@ -39,7 +39,10 @@ type Dispatcher struct {
 
 	registry *worker.Registry
 	running  map[string]int
-	executor *Executor
+	// executorMu guards executor so SetExecutor is safe even if it races a
+	// scheduler tick (normal wiring sets it before Run).
+	executorMu sync.RWMutex
+	executor   *Executor
 	// store and ruleBase are the lane's stores. StartLane always records them
 	// so embedders can mount the HTTP API; ownsStore/ownsRuleBase decide
 	// whether Close releases them.
@@ -94,7 +97,15 @@ func (d *Dispatcher) Wait() {
 	if d == nil {
 		return
 	}
-	d.executor.Wait()
+	if e := d.currentExecutor(); e != nil {
+		e.Wait()
+	}
+}
+
+func (d *Dispatcher) currentExecutor() *Executor {
+	d.executorMu.RLock()
+	defer d.executorMu.RUnlock()
+	return d.executor
 }
 
 // Close releases the graph store and rule base opened by StartLane. A
@@ -118,7 +129,9 @@ func (d *Dispatcher) Close() error {
 // behaviour: tick returns decisions without running them. When the executor
 // has no success hook yet, the dispatcher installs its baseline recorder.
 func (d *Dispatcher) SetExecutor(e *Executor) {
+	d.executorMu.Lock()
 	d.executor = e
+	d.executorMu.Unlock()
 	if e == nil {
 		return
 	}
@@ -214,13 +227,14 @@ func (d *Dispatcher) tick(ctx context.Context) ([]Decision, error) {
 				dec.WorkerName = driver.Name()
 				dec.stats = stats
 
+				executor := d.currentExecutor()
 				started := true
-				if d.executor != nil {
-					started = d.executor.Start(ctx, dec, p)
+				if executor != nil {
+					started = executor.Start(ctx, dec, p)
 				}
 				if started {
 					decisions = append(decisions, dec)
-					if d.executor != nil && dec.TaskType == worker.TaskBootstrap {
+					if executor != nil && dec.TaskType == worker.TaskBootstrap {
 						d.bootstrapAttempts[p.ID]++
 					}
 					if dec.TaskType == worker.TaskReason {

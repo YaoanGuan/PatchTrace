@@ -161,6 +161,20 @@ func StartLane(ctx context.Context, opts LaneOptions) (*Dispatcher, error) {
 			return applyVerdictOutcome(ctx, store, ruleBase, projectID, verdictFactID)
 		},
 	})
+	// Bootstrap must search and record hits in the same rule base CE4 writes
+	// into, otherwise injected rules and grown rules live in different SQLite
+	// files (R11).
+	executor.SetBootstrapOptions(tasks.BootstrapOptions{
+		SearchRules: func(query string) []patchintel.Rule {
+			rules, err := ruleBase.Search(query, tasks.BootstrapRuleTopK)
+			if err != nil {
+				misc.Warn("dispatch", fmt.Sprintf("lane: search rule base: %v", err), nil)
+				return nil
+			}
+			return rules
+		},
+		RecordHits: ruleBase.RecordHits,
+	})
 	d.SetExecutor(executor)
 	d.store = store
 	d.ownsStore = ownsStore

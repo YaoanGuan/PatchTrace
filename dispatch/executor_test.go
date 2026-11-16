@@ -52,6 +52,12 @@ func startDecision(t *testing.T, e *Executor, dec Decision, p graph.Project) boo
 	return e.Start(context.Background(), dec, p)
 }
 
+// setRegistryClock pins the registry's unhealthy cooldown clock so tests can
+// cross the retry window without sleeping.
+func setRegistryClock(r *worker.Registry, now *time.Time) {
+	r.SetClock(func() time.Time { return *now })
+}
+
 // --- executor behavior -----------------------------------------------------
 
 func TestExecutorRunsReasonAndAdvancesBaselineOnlyOnSuccess(t *testing.T) {
@@ -75,6 +81,8 @@ func TestExecutorRunsReasonAndAdvancesBaselineOnlyOnSuccess(t *testing.T) {
 	}
 	e := newExecutor(cfg, client, d.registry, nil, deps)
 	d.SetExecutor(e)
+	now := time.Now()
+	setRegistryClock(d.registry, &now)
 
 	decisions, err := d.tick(context.Background())
 	if err != nil {
@@ -90,6 +98,18 @@ func TestExecutorRunsReasonAndAdvancesBaselineOnlyOnSuccess(t *testing.T) {
 	if baselineSet {
 		t.Fatal("a failed reason run must not advance the baseline")
 	}
+	if !d.registry.IsUnhealthy("agent") {
+		t.Fatal("a failed reason run must mark the worker unhealthy")
+	}
+	// The next tick must skip the worker until the cooldown expires.
+	decisions, err = d.tick(context.Background())
+	if err != nil {
+		t.Fatalf("unhealthy tick: %v", err)
+	}
+	if len(decisions) != 0 {
+		t.Fatalf("unhealthy tick decisions = %+v, want none while the worker cools down", decisions)
+	}
+	now = now.Add(2 * time.Minute)
 
 	decisions, err = d.tick(context.Background())
 	if err != nil {
@@ -99,6 +119,9 @@ func TestExecutorRunsReasonAndAdvancesBaselineOnlyOnSuccess(t *testing.T) {
 		t.Fatalf("second tick decisions = %+v, want reason replanned after the failure", decisions)
 	}
 	e.Wait()
+	if d.registry.IsUnhealthy("agent") {
+		t.Fatal("a successful reason run must clear the unhealthy window")
+	}
 
 	decisions, err = d.tick(context.Background())
 	if err != nil {
@@ -138,6 +161,9 @@ func TestExecutorSkipsWhenReasonLeaseHeld(t *testing.T) {
 
 	if successes.Load() != 0 {
 		t.Fatalf("lease-held skip advanced the baseline %d times", successes.Load())
+	}
+	if registry.IsUnhealthy("agent") {
+		t.Fatal("a lease-held skip is not a worker failure and must not enter the cooldown")
 	}
 	if got := e.InFlight(); got != 0 {
 		t.Fatalf("in-flight after skip = %d, want 0", got)
@@ -340,6 +366,8 @@ func TestExecutorBoundsBootstrapRetries(t *testing.T) {
 	}
 	e := newExecutor(cfg, client, d.registry, nil, deps)
 	d.SetExecutor(e)
+	now := time.Now()
+	setRegistryClock(d.registry, &now)
 
 	for i := 0; i < maxBootstrapAttempts; i++ {
 		decisions, err := d.tick(context.Background())
@@ -350,6 +378,9 @@ func TestExecutorBoundsBootstrapRetries(t *testing.T) {
 			t.Fatalf("tick %d decisions = %+v, want one bootstrap decision", i, decisions)
 		}
 		e.Wait()
+		// Each failed bootstrap enters the unhealthy cooldown; cross it before
+		// the next retry tick.
+		now = now.Add(2 * time.Minute)
 	}
 	if got := d.bootstrapAttempts["p1"]; got != maxBootstrapAttempts {
 		t.Fatalf("bootstrap attempts = %d, want %d", got, maxBootstrapAttempts)

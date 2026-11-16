@@ -36,6 +36,17 @@ func NewRegistry(cooldown time.Duration, drivers ...Driver) *Registry {
 	return r
 }
 
+// SetClock overrides the registry clock. It exists so tests can cross the
+// unhealthy retry window without sleeping; production code never calls it.
+func (r *Registry) SetClock(now func() time.Time) {
+	if r == nil || now == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.now = now
+}
+
 // Register adds a driver to the registry.
 func (r *Registry) Register(d Driver) {
 	if d == nil {

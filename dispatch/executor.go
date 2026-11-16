@@ -19,7 +19,10 @@ import (
 // package variables) so tests can drive every decision with fakes.
 type executorDeps struct {
 	bootstrap func(context.Context, graphserver.Client, worker.Driver, graph.Project) error
-	reason    func(context.Context, graphserver.Client, worker.Driver, graph.Project) error
+	// bootstrapWithOptions, when set, is preferred so the lane's rule base
+	// reaches bootstrap's rule search and hit accounting.
+	bootstrapWithOptions func(context.Context, graphserver.Client, worker.Driver, graph.Project, tasks.BootstrapOptions) error
+	reason               func(context.Context, graphserver.Client, worker.Driver, graph.Project) error
 	// explore is the plain runner signature; exploreWithOptions, when set, is
 	// preferred so the configured conclude budget reaches RunExploreWithOptions.
 	explore            func(context.Context, graphserver.Client, worker.Driver, runtime.SandboxRuntime, graph.Project, string) error
@@ -32,10 +35,11 @@ type executorDeps struct {
 
 func defaultExecutorDeps() executorDeps {
 	return executorDeps{
-		bootstrap:          tasks.RunBootstrap,
-		reason:             tasks.RunReason,
-		explore:            tasks.RunExplore,
-		exploreWithOptions: tasks.RunExploreWithOptions,
+		bootstrap:            tasks.RunBootstrap,
+		bootstrapWithOptions: tasks.RunBootstrapWithOptions,
+		reason:               tasks.RunReason,
+		explore:              tasks.RunExplore,
+		exploreWithOptions:   tasks.RunExploreWithOptions,
 	}
 }
 
@@ -52,6 +56,8 @@ type Executor struct {
 	// verdict hook). The per-invocation conclude timeout is still applied from
 	// cfg.
 	exploreOpts tasks.ExploreOptions
+	// bootstrapOpts carries the lane's rule-base closures into bootstrap.
+	bootstrapOpts tasks.BootstrapOptions
 
 	mu          sync.Mutex
 	inFlight    int
@@ -71,8 +77,9 @@ func NewExecutor(cfg Config, client graphserver.Client, registry *worker.Registr
 // over the default options-aware one.
 func newExecutor(cfg Config, client graphserver.Client, registry *worker.Registry, rt runtime.SandboxRuntime, deps executorDeps) *Executor {
 	defaults := defaultExecutorDeps()
-	if deps.bootstrap == nil {
+	if deps.bootstrap == nil && deps.bootstrapWithOptions == nil {
 		deps.bootstrap = defaults.bootstrap
+		deps.bootstrapWithOptions = defaults.bootstrapWithOptions
 	}
 	if deps.reason == nil {
 		deps.reason = defaults.reason
@@ -173,6 +180,15 @@ func (e *Executor) SetExploreOptions(opts tasks.ExploreOptions) {
 	e.exploreOpts = opts
 }
 
+// SetBootstrapOptions sets the bootstrap rule-base hooks. The lane calls this
+// once during StartLane, before the dispatcher starts scheduling.
+func (e *Executor) SetBootstrapOptions(opts tasks.BootstrapOptions) {
+	if e == nil {
+		return
+	}
+	e.bootstrapOpts = opts
+}
+
 func (e *Executor) run(ctx context.Context, dec Decision, p graph.Project) {
 	// Defers run LIFO: release the counts before Done so Wait returning means
 	// the executor is fully quiescent.
@@ -206,13 +222,18 @@ func (e *Executor) run(ctx context.Context, dec Decision, p graph.Project) {
 	if err != nil {
 		if errors.Is(err, tasks.ErrReasonLeaseHeld) {
 			// Another worker owns the reason lease. This is not a failure and
-			// must not advance the baseline.
+			// must not advance the baseline or enter the worker cooldown.
 			return
 		}
+		// A failed task (including one killed by its per-type timeout) makes the
+		// worker unavailable until the cooldown expires, so the next tick picks
+		// another worker or retries later (R6).
+		e.registry.MarkUnhealthy(dec.WorkerName)
 		misc.Warn("dispatch", fmt.Sprintf("executor: %s task for project %s failed: %v",
 			dec.TaskType, decisionProjectID(dec, p), err), nil)
 		return
 	}
+	e.registry.MarkHealthy(dec.WorkerName)
 	if dec.TaskType == worker.TaskReason && e.deps.onReasonSuccess != nil {
 		e.deps.onReasonSuccess(p, dec.stats)
 	}
@@ -221,6 +242,9 @@ func (e *Executor) run(ctx context.Context, dec Decision, p graph.Project) {
 func (e *Executor) invoke(ctx context.Context, dec Decision, p graph.Project, driver worker.Driver) error {
 	switch dec.TaskType {
 	case worker.TaskBootstrap:
+		if e.deps.bootstrapWithOptions != nil {
+			return e.deps.bootstrapWithOptions(ctx, e.client, driver, p, e.bootstrapOpts)
+		}
 		return e.deps.bootstrap(ctx, e.client, driver, p)
 	case worker.TaskReason:
 		return e.deps.reason(ctx, e.client, driver, p)
