@@ -8,9 +8,9 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> **Task 4 已完成（G1 图协议 API 通过）**：提交 `fc3fc1e`，独立评审 spec ✅ / quality Approved，0 Critical / 0 Important。
-> `go test ./graphserver/ -race` → 8/8 PASS；`go build ./...` exit 0。
-> 下一动作：按预审裁定顺序执行 Task 6 · Step 1，写 `dispatch/worker/native_test.go` 失败测试（ParseResult 契约）。
+> **Task 6 已完成（R6 driver 通过）**：提交 `e909aed` + `7522b0e` + `e63b212`，独立评审修复轮复核全部 ADDRESSED。
+> `go test ./dispatch/worker/ -race` → 37/37 PASS；`go build ./...` exit 0。
+> 下一动作：Task 5 · Step 1，写 `dispatch/planner_test.go` 失败测试（bootstrap/reason/explore 决策规则）。
 
 ---
 
@@ -64,8 +64,8 @@
 | 2 | 溯源图模型与存储 | R3 | 完成 | G1 | `6f2a6b3`；race 6/6；评审 Approved |
 | 3 | 溯源图查询与导出 | R8 | 完成 | G1 | `a31275d`+`a111d4f`；race 16/16；评审 Approved |
 | 4 | 图协议 API | R4 | 完成 | G1 | `fc3fc1e`；8/8；评审 Approved |
-| 5 | 调度核心 | R5 | 未开始 | G2 | 预审裁定：T6 先行 |
-| 6 | Worker driver 与 native 实现 | R6 | 进行中 | G2 | — |
+| 5 | 调度核心 | R5 | 进行中 | G2 | — |
+| 6 | Worker driver 与 native 实现 | R6 | 完成 | G2 | `e63b212`；37/37；评审修复轮通过 |
 | 7 | bootstrap 补丁反演任务 | R7 | 未开始 | G2 | — |
 | 8 | reason 溯源图推理任务 | R8, R12 | 未开始 | G3 | — |
 | 9 | explore 沙箱实证与判决 | R9, R10 | 未开始 | G3 | — |
@@ -176,9 +176,12 @@
 
 ### Task 6 · Worker driver（R6，G2）
 
-- [ ] `ParseResult` 覆盖合法/拒绝/缺字段/代码围栏
-- [ ] native driver 能加载五份 prompt
-- [ ] `go test ./dispatch/worker/` → `ok`
+- [x] `ParseResult` 覆盖合法/拒绝/缺字段/代码围栏
+  - 证据：`TestParseResult*` 14 条 PASS（含拒绝、缺字段、代码围栏、bootstrap intents、complete.from）
+- [x] native driver 能加载五份 prompt
+  - 证据：`TestNativeExecuteRendersShippedTemplates` / `TestNativeConcludeRendersShippedTemplates` PASS；未解析占位符 → error
+- [x] `go test ./dispatch/worker/` → `ok AIxVuln/dispatch/worker`
+  - 证据：37 PASS；`-race` exit 0；`go vet` exit 0
 
 ### Task 7 · bootstrap（R7，G2）
 
