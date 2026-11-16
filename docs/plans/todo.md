@@ -8,9 +8,9 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> **Task 5 已完成（R5 调度核心通过）**：提交 `f6cfcf3`，独立评审 spec ✅ / quality Approved（0 Critical / 0 Important，6 Minor 延后整支评审）。
-> `go test ./dispatch/ -race` → 31 个顶层测试 + 4 子测试 PASS；`go vet ./dispatch/` exit 0。
-> 下一动作：Task 7 · Step 1，写 `dispatch/tasks/bootstrap_test.go` 失败测试（patch_profile Fact / inversion Intents / 无补丁源报错）。
+> **Task 7 已完成（R7 bootstrap 通过）**：提交 `095658f` + `f9e917b` + `96d1da1`，独立评审 2 轮修复后全部 ADDRESSED、无新增 Critical/Important。
+> `go test ./dispatch/tasks/ ./dispatch/ -race` → 22 个 bootstrap 测试 + 全部 planner 测试 PASS；`go build ./...` exit 0。
+> 下一动作：Task 8 · Step 1，写 `dispatch/tasks/reason_test.go` 失败测试（complete / intent / noop 三分支 + 非法 from）。
 
 ---
 
@@ -66,7 +66,7 @@
 | 4 | 图协议 API | R4 | 完成 | G1 | `fc3fc1e`；8/8；评审 Approved |
 | 5 | 调度核心 | R5 | 完成 | G2 | `f6cfcf3`；31+4 PASS；评审 Approved |
 | 6 | Worker driver 与 native 实现 | R6 | 完成 | G2 | `e63b212`；37/37；评审修复轮通过 |
-| 7 | bootstrap 补丁反演任务 | R7 | 未开始 | G2 | — |
+| 7 | bootstrap 补丁反演任务 | R7 | 完成 | G2 | `96d1da1`；22+planner PASS；评审 2 轮后通过 |
 | 8 | reason 溯源图推理任务 | R8, R12 | 未开始 | G3 | — |
 | 9 | explore 沙箱实证与判决 | R9, R10 | 未开始 | G3 | — |
 | 10 | CE4 规则回流 | R11 | 未开始 | G3 | — |
@@ -190,9 +190,13 @@
 
 ### Task 7 · bootstrap（R7，G2）
 
-- [ ] diff → `patch_profile` Fact → N 个 inversion Intent
-- [ ] 无补丁源时明确报错且不写图
-- [ ] `go test ./dispatch/tasks/ -run TestBootstrap -race` → `ok`
+- [x] diff → `patch_profile` Fact → N 个 inversion Intent
+  - 证据：`TestBootstrapWritesPatchProfileAndExploitIdeaFacts`（两类 Fact）/ `TestBootstrapDeclaresInversionIntents`（2 条 from=[f001]）/ `TestBootstrapDeclaresOnlyMissingInversionIntents` PASS，`ok AIxVuln/dispatch/tasks 1.355s`
+- [x] 无补丁源时明确报错且不写图
+  - 证据：`TestBootstrapSkipsWhenNoPatchSource` PASS（error 且零 declare/claim/conclude/release）
+- [x] `go test ./dispatch/tasks/ -run TestBootstrap -race` → `ok`
+  - 证据：22 个 bootstrap 测试 PASS；`go vet` exit 0；`gofmt -l` 空
+- 完成标准：评审 2 轮修复后全部 ADDRESSED；exploit_idea 事实经 `patchintel.Invert` 可注入 seam 写入，恢复路径可重入。
 
 ### Task 8 · reason（R8, R12，G3）
 
