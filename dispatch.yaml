@@ -1,0 +1,17 @@
+server: http://127.0.0.1:9999
+runtime:
+  max_workers: 4
+  max_running_projects: 2
+  max_project_workers: 3
+  interval: 5s
+  healthcheck_timeout: 30s
+  prompt_group: default
+tasks:
+  bootstrap:
+    timeout: 20m
+    conclude_timeout: 5m
+  reason:
+    timeout: 10m
+  explore:
+    timeout: 15m
+    conclude_timeout: 5m
