@@ -81,6 +81,19 @@ func GetEmptyProjectSkipProjectOverview() bool {
 	return enabled
 }
 
+// GraphLaneEnabled reports whether the optional graph dispatcher lane is
+// enabled. Only true/1/yes/on (case-insensitive) opt in; every other value,
+// including the shipped default "false", keeps the existing closed loop.
+func GraphLaneEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(
+		GetConfigValueDefault("misc", "graph_lane_enabled", "false"))) {
+	case "true", "1", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
 func GetMessageMaximum() int {
 	num := GetConfigValueDefault("misc", "MessageMaximum", "10240")
 	result, err := strconv.Atoi(num)

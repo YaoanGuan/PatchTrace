@@ -38,6 +38,9 @@ type Dispatcher struct {
 	registry *worker.Registry
 	running  map[string]int
 	executor *Executor
+	// store is set only when StartLane opened the graph store itself. Close
+	// releases it; a caller-supplied store is left open.
+	store *graph.Store
 
 	stateMu    sync.Mutex
 	lastReason map[string]lastReason
@@ -66,6 +69,16 @@ func New(cfg Config, client graphserver.Client, drivers []worker.Driver) *Dispat
 		bootstrapCappedWarned: make(map[string]bool),
 		randIntn:              rand.Intn,
 	}
+}
+
+// Close releases a graph store opened by StartLane. A dispatcher built with
+// New, or one using a caller-supplied store, has nothing to close and returns
+// nil.
+func (d *Dispatcher) Close() error {
+	if d == nil {
+		return nil
+	}
+	return d.store.Close()
 }
 
 // SetExecutor wires the execution layer. A nil executor restores plan-only

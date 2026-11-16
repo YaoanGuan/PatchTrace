@@ -40,6 +40,9 @@ var allDefaults = []configDefault{
 	{Section: "misc", Key: "AGENT_TOOLS_BASE_URL", Value: ""},
 	{Section: "misc", Key: "AUTO_MODE", Value: "off"},
 	{Section: "misc", Key: "EMPTY_PROJECT_SKIP_OVERVIEW", Value: "false"},
+	// graph_lane_enabled gates the optional Cairn-style graph dispatcher lane.
+	// It is off by default so enabling it is an explicit opt-in.
+	{Section: "misc", Key: "graph_lane_enabled", Value: "false"},
 
 	// [skills] — local skill discovery roots
 	// Empty means "use runtime defaults": ./skills and <DATA_DIR>/skills.
