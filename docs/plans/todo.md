@@ -8,9 +8,9 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> **Task 2 已完成（G1 图存储层通过）**：提交 `6f2a6b3`，独立评审 spec ✅ / quality Approved，
-> `go test ./graph/ -race` → 6/6 PASS；`go build ./...` exit 0。
-> 下一动作：Task 3 · Step 1，写 `graph/query_test.go` 失败测试（Provenance / Gaps / Export / Timeline）。
+> **Task 3 已完成（G1 查询与导出通过）**：提交 `a31275d` + 修复 `a111d4f`，独立评审 spec ✅ / quality Approved（修复轮复核 ADDRESSED）。
+> `go test ./graph/ -race` → 16/16 PASS；`go build ./...` exit 0。
+> 下一动作：Task 4 · Step 1，写 `graphserver/server_test.go` 失败测试（生命周期路由 + 403/409/422）。
 
 ---
 
@@ -62,8 +62,8 @@
 |---|---|---|---|---|---|
 | 1 | 迭代地基与两个 Skill | R1, R2 | 完成 | G0 | `7ec3ca7`；评审通过；新会话实读通过 |
 | 2 | 溯源图模型与存储 | R3 | 完成 | G1 | `6f2a6b3`；race 6/6；评审 Approved |
-| 3 | 溯源图查询与导出 | R8 | 进行中 | G1 | — |
-| 4 | 图协议 API | R4 | 未开始 | G1 | — |
+| 3 | 溯源图查询与导出 | R8 | 完成 | G1 | `a31275d`+`a111d4f`；race 16/16；评审 Approved |
+| 4 | 图协议 API | R4 | 进行中 | G1 | — |
 | 5 | 调度核心 | R5 | 未开始 | G2 | — |
 | 6 | Worker driver 与 native 实现 | R6 | 未开始 | G2 | — |
 | 7 | bootstrap 补丁反演任务 | R7 | 未开始 | G2 | — |
@@ -148,10 +148,14 @@
 
 ### Task 3 · 溯源图查询与导出（R8，G1）
 
-- [ ] `Provenance` 返回 origin→finding 有序链
-- [ ] `Gaps` 过滤被阻塞 Intent 并稳定排序
-- [ ] `ExportYAML` 四段结构；`ExportTimeline` 时间有序
-- [ ] `go test ./graph/ -race` → `ok`
+- [x] `Provenance` 返回 origin→finding 有序链
+  - 证据：`TestProvenanceReturnsPatchToFindingPath` PASS；无路径 → `ErrNotFound`
+- [x] `Gaps` 过滤被阻塞 Intent 并稳定排序
+  - 证据：`TestGapsExcludesBlockedIntents` / `TestGapsExcludesClaimedBlocker` / `TestGapsSortsByCreatedAt` PASS；blocker 需 `state=resolved` 才解除阻塞
+- [x] `ExportYAML` 四段结构；`ExportTimeline` 时间有序
+  - 证据：`TestExportYAMLMatchesProtocolShape` / `TestTimelineIsChronological` PASS
+- [x] `go test ./graph/ -race` → `ok AIxVuln/graph 2.197s`（16 个测试）
+- 完成标准：独立评审 spec ✅ / quality Approved；修复轮复核 ADDRESSED。
 
 ### Task 4 · 图协议 API（R4，G1）
 
