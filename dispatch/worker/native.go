@@ -23,6 +23,12 @@ const (
 
 // NativeConfig configures the in-process native driver.
 //
+// Context supplies the values used to render the shipped prompt templates
+// ({graph_yaml}, {fact_ids}, {open_intents}, {intent_id},
+// {intent_description}). A nil Context acts as an empty map; callers that use
+// the template fallback (empty Task.Prompt) must provide every placeholder the
+// template needs.
+//
 // Complete is the injectable one-shot completion used by the driver. When it
 // is nil the driver falls back to llm.GetResponsesClient(Section,
 // "main_setting") and the configured model. Tests and the dispatcher's fake
@@ -32,6 +38,7 @@ type NativeConfig struct {
 	Section   string
 	Model     string
 	PromptDir string
+	Context   func(Task) map[string]string
 	Complete  func(ctx context.Context, prompt string) (string, error)
 }
 
@@ -114,17 +121,44 @@ func (d *nativeDriver) Conclude(ctx context.Context, t Task) (Result, error) {
 	return ParseResult(raw, tt)
 }
 
-// promptFor returns the task's already-rendered prompt, or loads the per-type
-// template and substitutes the placeholders known to the driver.
+// promptFor resolves the prompt for Execute or Conclude.
+//
+// Execute uses a caller-rendered Task.Prompt verbatim when present; otherwise
+// it loads the per-type template and renders it from Context. Conclude always
+// loads the *_conclude template and ignores Task.Prompt, so reusing the
+// executed Task cannot resubmit the execute prompt.
 func (d *nativeDriver) promptFor(tt TaskType, t Task, conclude bool) (string, error) {
-	if strings.TrimSpace(t.Prompt) != "" {
+	if !conclude && strings.TrimSpace(t.Prompt) != "" {
 		return t.Prompt, nil
 	}
 	template, err := LoadPrompt(d.cfg.PromptDir, tt, conclude)
 	if err != nil {
 		return "", err
 	}
-	return RenderPrompt(template, map[string]string{"intent_id": t.IntentID}), nil
+	return renderTemplate(template, d.contextFor(t))
+}
+
+func (d *nativeDriver) contextFor(t Task) map[string]string {
+	if d.cfg.Context == nil {
+		return nil
+	}
+	return d.cfg.Context(t)
+}
+
+// promptPlaceholders is the fixed set understood by the shipped templates.
+var promptPlaceholders = []string{"graph_yaml", "fact_ids", "open_intents", "intent_id", "intent_description"}
+
+// renderTemplate substitutes Context values and refuses to send a prompt that
+// still contains a known placeholder, which would otherwise reach the model as
+// broken context.
+func renderTemplate(template string, values map[string]string) (string, error) {
+	rendered := RenderPrompt(template, values)
+	for _, name := range promptPlaceholders {
+		if strings.Contains(rendered, "{"+name+"}") {
+			return "", fmt.Errorf("worker: unresolved prompt placeholder {%s}", name)
+		}
+	}
+	return rendered, nil
 }
 
 func (d *nativeDriver) complete(ctx context.Context, prompt string) (string, error) {

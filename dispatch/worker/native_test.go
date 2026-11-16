@@ -292,6 +292,9 @@ func TestNativeExecuteLoadsPromptAndInjectsIntentID(t *testing.T) {
 	var captured string
 	d := NewNative(NativeConfig{
 		PromptDir: dir,
+		Context: func(t Task) map[string]string {
+			return map[string]string{"intent_id": t.IntentID}
+		},
 		Complete: func(ctx context.Context, prompt string) (string, error) {
 			captured = prompt
 			return `{"accepted":true,"data":{"description":"已确认"}}`, nil
@@ -384,6 +387,9 @@ func TestNativeConcludeUsesConcludePrompt(t *testing.T) {
 	var captured string
 	d := NewNative(NativeConfig{
 		PromptDir: dir,
+		Context: func(t Task) map[string]string {
+			return map[string]string{"intent_id": t.IntentID}
+		},
 		Complete: func(ctx context.Context, prompt string) (string, error) {
 			captured = prompt
 			return `{"accepted":true,"data":{"description":"收尾事实"}}`, nil
@@ -398,6 +404,151 @@ func TestNativeConcludeUsesConcludePrompt(t *testing.T) {
 	}
 	if r.Description != "收尾事实" {
 		t.Fatalf("unexpected conclude result: %+v", r)
+	}
+}
+
+var allPlaceholderNames = []string{"graph_yaml", "fact_ids", "open_intents", "intent_id", "intent_description"}
+
+func allPromptValues(t Task) map[string]string {
+	return map[string]string{
+		"graph_yaml":         "graph: {}",
+		"fact_ids":           `["f001"]`,
+		"open_intents":       "[]",
+		"intent_id":          t.IntentID,
+		"intent_description": "验证鉴权绕过",
+	}
+}
+
+func assertNoKnownPlaceholder(t *testing.T, prompt string) {
+	t.Helper()
+	for _, name := range allPlaceholderNames {
+		if strings.Contains(prompt, "{"+name+"}") {
+			t.Fatalf("prompt still contains unresolved placeholder {%s}: %q", name, prompt)
+		}
+	}
+}
+
+func TestNativeExecuteRendersShippedTemplates(t *testing.T) {
+	dir := filepath.Join("..", "..", "prompts", "graph", "default")
+	cases := []struct {
+		tt       TaskType
+		intentID string
+		response string
+	}{
+		{TaskBootstrap, "", `{"accepted":true,"data":{"fact":{"description":"补丁事实"}}}`},
+		{TaskReason, "", `{"accepted":true,"data":{}}`},
+		{TaskExplore, "i001", `{"accepted":true,"data":{"description":"探索结论"}}`},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.tt), func(t *testing.T) {
+			var captured string
+			d := NewNative(NativeConfig{
+				PromptDir: dir,
+				Context:   allPromptValues,
+				Complete: func(ctx context.Context, prompt string) (string, error) {
+					captured = prompt
+					return tc.response, nil
+				},
+			})
+			if _, err := d.Execute(context.Background(), Task{Type: string(tc.tt), IntentID: tc.intentID}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			assertNoKnownPlaceholder(t, captured)
+			if !strings.Contains(captured, "graph: {}") {
+				t.Fatalf("context values were not rendered into prompt: %q", captured)
+			}
+		})
+	}
+}
+
+func TestNativeExecuteRejectsUnresolvedPlaceholder(t *testing.T) {
+	dir := t.TempDir()
+	writePromptFile(t, dir, "explore.md", "需要图谱: {graph_yaml}")
+	d := NewNative(NativeConfig{
+		PromptDir: dir,
+		Complete: func(ctx context.Context, prompt string) (string, error) {
+			t.Fatal("completion must not run with unresolved placeholders")
+			return "", nil
+		},
+	})
+	_, err := d.Execute(context.Background(), Task{Type: string(TaskExplore)})
+	if err == nil || !strings.Contains(err.Error(), "graph_yaml") {
+		t.Fatalf("expected unresolved placeholder error, got %v", err)
+	}
+}
+
+func TestNativeConcludeIgnoresProvidedPrompt(t *testing.T) {
+	dir := t.TempDir()
+	writePromptFile(t, dir, "explore.md", "EXECUTE {intent_id}")
+	writePromptFile(t, dir, "explore_conclude.md", "CONCLUDE {intent_id}")
+
+	var captured string
+	d := NewNative(NativeConfig{
+		PromptDir: dir,
+		Context: func(t Task) map[string]string {
+			return map[string]string{"intent_id": t.IntentID}
+		},
+		Complete: func(ctx context.Context, prompt string) (string, error) {
+			captured = prompt
+			return `{"accepted":true,"data":{"description":"收尾"}}`, nil
+		},
+	})
+	if _, err := d.Conclude(context.Background(), Task{
+		Type:     string(TaskExplore),
+		IntentID: "i042",
+		Prompt:   "原始执行提示不得复用",
+	}); err != nil {
+		t.Fatalf("Conclude: %v", err)
+	}
+	if !strings.Contains(captured, "CONCLUDE") || !strings.Contains(captured, "i042") {
+		t.Fatalf("expected conclude template prompt, got %q", captured)
+	}
+	if strings.Contains(captured, "EXECUTE") || strings.Contains(captured, "原始执行提示不得复用") {
+		t.Fatalf("conclude must not reuse the execute prompt, got %q", captured)
+	}
+}
+
+func TestNativeConcludeRendersShippedTemplates(t *testing.T) {
+	dir := filepath.Join("..", "..", "prompts", "graph", "default")
+	cases := []struct {
+		tt       TaskType
+		intentID string
+		response string
+	}{
+		{TaskBootstrap, "i001", `{"accepted":true,"data":{"fact":{"description":"收尾事实"}}}`},
+		{TaskExplore, "i002", `{"accepted":true,"data":{"description":"收尾结论"}}`},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.tt), func(t *testing.T) {
+			var captured string
+			d := NewNative(NativeConfig{
+				PromptDir: dir,
+				Context:   allPromptValues,
+				Complete: func(ctx context.Context, prompt string) (string, error) {
+					captured = prompt
+					return tc.response, nil
+				},
+			})
+			if _, err := d.Conclude(context.Background(), Task{Type: string(tc.tt), IntentID: tc.intentID}); err != nil {
+				t.Fatalf("Conclude: %v", err)
+			}
+			assertNoKnownPlaceholder(t, captured)
+			if !strings.Contains(captured, "graph: {}") {
+				t.Fatalf("context values were not rendered into conclude prompt: %q", captured)
+			}
+		})
+	}
+}
+
+func TestNativeConcludeRejectsReason(t *testing.T) {
+	d := NewNative(NativeConfig{
+		Complete: func(ctx context.Context, prompt string) (string, error) {
+			t.Fatal("completion must not run for reason conclude")
+			return "", nil
+		},
+	})
+	if _, err := d.Conclude(context.Background(), Task{Type: string(TaskReason), Prompt: "任意提示"}); err == nil {
+		t.Fatal("expected error: reason has no conclude template")
 	}
 }
 
