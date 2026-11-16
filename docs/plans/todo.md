@@ -8,9 +8,10 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> **Task 9 已完成**：`59b12d5` + `ffb5a4e`；评审 1 轮 Critical+Important 修复后 scoped re-review 全部 ADDRESSED。
-> `go test ./dispatch/tasks/ ./dispatch/runtime/ ./graph/ ./dockerManager/ -race` → 全 `ok`；`go build ./...` exit 0。
-> 下一动作：Task 9b（调度接线）· Step 1，按 brief 写 `dispatch/executor_test.go` 失败测试。
+> **Task 9 / 9b 已完成**：`59b12d5`+`ffb5a4e`（explore+dockerManager 实证）；`87474a4`（调度执行/并发上限/超时/基线/重试）。
+> 评审：Task 9 修复 1 轮后 ADDRESSED；Task 9b spec ✅ / Approved（5 Minor 延后）。
+> `go test ./dispatch/... ./graph/ ./graphserver/ -race` → 全 `ok`；`go build ./...` exit 0。
+> 下一动作：Task 10 · Step 1，写 `dispatch/tasks/outcome_test.go` 失败测试（confirm_count / 置信度 / 版本+1）。
 
 ---
 
@@ -69,7 +70,7 @@
 | 7 | bootstrap 补丁反演任务 | R7 | 完成 | G2 | `96d1da1`；22+planner PASS；评审 2 轮后通过 |
 | 8 | reason 溯源图推理任务 | R8, R12 | 完成 | G3 | `93bff65`；40+ PASS；评审 1 轮后通过 |
 | 9 | explore 沙箱实证与判决 | R9, R10 | 完成 | G3 | `59b12d5`+`ffb5a4e`；评审 1 轮修复后 ADDRESSED |
-| 9b | 调度接线（执行/并发/超时） | R5, R9 | 未开始 | G3 | 拆分任务；brief 已就绪 |
+| 9b | 调度接线（执行/并发/超时） | R5, R9 | 完成 | G3 | `87474a4`；评审 Approved（5 Minor 延后） |
 | 10 | CE4 规则回流 | R11 | 未开始 | G3 | — |
 | 11 | 评测、端到端与灰度 | R13–R16 | 未开始 | G4 | — |
 
