@@ -483,3 +483,64 @@ webui-marketplace/
 - 不引入 UI 组件库（Radix 可选，非必需）；样式用 Tailwind 工具类，不写自定义 CSS 主题。
 - 不写单元测试（本轮只验收类型与构建）；组件保持纯展示 + store 订阅。
 - 不修改验收标准；任何状态变化先回写 `todo.md`。
+
+---
+
+## 8. T7–T8 · 真实 API 实现
+
+### 目标
+
+把前端的内存 mock 替换为真实 HTTP 契约实现，前后端字段严格对齐 §4。
+
+### 架构决策
+
+- 新增独立 Go 服务：包 `marketplace/` + 入口 `cmd/marketplace/main.go`，默认监听 `:8081`。
+- 不挂进既有 `Web.Server`：那边所有 `/api` 路由要求 Bearer 鉴权，而 marketplace 前端是独立产品，避免把两个产品的鉴权模型耦在一起。
+- 存储：进程内内存存储（`sync.RWMutex`），启动时按 §4 种子数据初始化；重启即重置。真实持久化（SQLite）不在本轮。
+- 仅用标准库 `net/http` + `encoding/json`，不新增 Go 依赖。
+- CORS 允许 `http://localhost:5174`、`http://localhost:4180` 与同源请求。
+
+### T7 · Go API 服务
+
+生效接口（与 §4 一一对应）：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/me` | 当前用户与能力认证 |
+| GET | `/api/tasks` | 列表，支持 `status`/`keyword`/`rewardMin`/`rewardMax`/`page` |
+| POST | `/api/tasks` | 发布任务，冻结赏金，`DRAFT→PUBLISHED` |
+| GET | `/api/tasks/:id` | 详情（含 pipeline/escrow） |
+| POST | `/api/tasks/:id/accept` | 接单，返回 `leaseExpiresAt` |
+| GET | `/api/tasks/:id/trace` | 证据链，`task_1001` 6 节点完整链 |
+| GET | `/api/wallet` | 余额与流水 |
+| GET | `/api/reputation/:userId` | 信誉维度与历史评分 |
+| POST | `/api/ratings` | 双向评分，追加历史 |
+| POST | `/api/auth/register/:channel` | 三通道注册，返回 `PENDING`/`VERIFIED` |
+| POST | `/api/tasks/:id/contracts/sign` | 契约签署，返回 `signatureHash` |
+| GET | `/api/healthz` | 健康检查 |
+
+约束：
+
+- `POST /api/tasks` 必须在服务端再次校验 `complianceAck=true`、`reward.amount > 0`、必填字段；非法请求返回 400 + `{"error":"..."}`，不得 panic。
+- 状态迁移复用 `ALLOWED_TRANSITIONS` 的口径；非法迁移返回 409。
+- 所有时间用 RFC3339 UTC。
+- 错误响应统一 `{"error": "..."}`，成功响应与 §4 字段完全一致。
+
+DONE：
+- `go test ./marketplace/...` 全绿（覆盖 11 个接口 + 非法参数 + 非法迁移）。
+- `go vet ./marketplace/... ./cmd/marketplace/` 干净。
+- `go run ./cmd/marketplace -port 8081` 后，curl 矩阵全部符合预期。
+
+### T8 · 前端 HTTP 客户端
+
+- `src/lib/api/client.ts`：保留 mock，新增 HTTP 实现；切换开关 `import.meta.env.VITE_API_MODE === 'http'`，基址 `import.meta.env.VITE_API_BASE_URL ?? ''`（默认同源）。
+- HTTP 实现必须与 mock 函数签名、返回 DTO 完全一致；非 2xx 抛出带 `status` 与后端 `error` 文本的 `Error`。
+- `vite.config.ts`：`server.proxy` 与 `preview.proxy` 把 `/api` 转发到 `http://127.0.0.1:8081`。
+- 新增 `.env.example`：`VITE_API_MODE=http`、`VITE_API_BASE_URL=`。
+- DONE：`npx tsc --noEmit` exit 0；`npm run build` exit 0；`VITE_API_MODE=http npm run build` exit 0。
+
+### T9 · 联调验收
+
+- 启动 Go 服务 + HTTP 模式前端，6 条路由 headless 渲染仍通过。
+- curl 抽查：发布任务后列表 +1、接单后状态 `ACCEPTED`、签署返回 `sha256:` 哈希。
+- 提交并推送分支。

@@ -8,9 +8,10 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> T0–T6 全部完成：设计、地基、4 个业务模块、集成验收。
-> 证据：全量 `tsc --noEmit` 0 错误；`npm run build` exit 0；6 条路由 headless 渲染通过。
-> 下一动作：`cd webui-marketplace && npm run dev`（端口 5174），浏览器人工走查 4 个模块的交互。
+> T0–T9 全部完成：设计、地基、4 个业务模块、Go API 契约、前端 HTTP 接入、端到端联调。
+> 证据：`go test ./marketplace/... -race` ok；`tsc` exit 0；`npm run build` exit 0；HTTP 模式渲染出 curl 新建任务。
+> 下一动作：两个终端分别执行 `go run ./cmd/marketplace -port 8081` 与 `cd webui-marketplace && VITE_API_MODE=http npm run dev`，浏览器走查。
+> 注意：memory 存储重启即重置；默认 mock 模式仍可单独运行前端。
 
 ---
 
@@ -25,6 +26,9 @@
 | T4 | 审计与免责契约 | M3 | 完成 | tsc | `src/features/audit` 零错误；篡改链路测试 INVALID |
 | T5 | 准入与双向信誉 | M4 | 完成 | tsc | `src/features/onboarding` 零错误；headless 渲染含三通道/评分 |
 | T6 | 集成验收 + 提交 | — | 完成 | tsc + build + commit | 全量 tsc 0 错误；build exit 0；7 路由渲染通过 |
+| T7 | Go API 服务 | — | 完成 | go test + curl | `go test -race` ok；11 接口 curl 矩阵通过 |
+| T8 | 前端 HTTP 客户端 | — | 完成 | tsc + build | tsc/build/HTTP 模式构建均 exit 0 |
+| T9 | 前后端联调 | — | 完成 | 渲染 + curl | HTTP 模式渲染 9 任务（含 curl 新建）；证据链完整 |
 
 ---
 
@@ -91,6 +95,34 @@
   - 证据：`b086f92 feat(marketplace): add AI task marketplace frontend`；已推送 `origin/feat/ai-marketplace-frontend`（104 文件）
 - [x] 视觉走查与一致性修复
   - 证据：6 路由 headless 截图；修复状态文案双口径（PUBLISHED 统一「招募中」）、接单卡徽标竖排、哈希卡换行；`tsc` exit 0、`build` exit 0
+
+### T7 · Go API 服务（P8-backend）
+
+- [x] `marketplace/` 包：types / store / handlers / router，字段对齐 task.md §4
+- [x] `cmd/marketplace/main.go`：`-port` 默认 8081，CORS，优雅退出
+- [x] 种子数据：7 条任务、task_1001 6 节点链、钱包、信誉
+- [x] 11 个接口 + healthz，非法参数 400、非法迁移 409、错误体 `{"error":...}`
+- [x] `go test ./marketplace/...` 覆盖接口与错误路径
+- [x] 验证：`go test`、`go vet`、curl 矩阵
+  - 证据：`go test ./marketplace/... -race -count=1` → `ok AIxVuln/marketplace 1.428s`；`go vet` 无输出；`CGO_ENABLED=0 go build ./...` exit 0
+  - curl：healthz 200、me 200、tasks 7 条、publish 201（task_1008）、accept 200（lease +2h）、sign 200（sha256 确定性）、bad ack 400、非法迁移 409、未知任务 404
+
+### T8 · 前端 HTTP 客户端（P8-frontend）
+
+- [x] `client.ts` 新增 HTTP 实现，`VITE_API_MODE=http` 切换，签名与 mock 一致
+- [x] `vite.config.ts` dev/preview 代理 `/api` → `127.0.0.1:8081`
+- [x] `.env.example`
+- [x] 验证：`tsc`、mock 构建、HTTP 模式构建
+  - 证据：`npx tsc --noEmit` → `TSC_EXIT=0`；`npm run build` → exit 0；`VITE_API_MODE=http npm run build` → exit 0（产物含 `/api/me`，mock 构建不含）
+
+### T9 · 前后端联调（P9）
+
+- [x] Go 服务启动 + HTTP 模式前端渲染关键路由
+  - 证据：preview 代理 `/api/healthz` 200；`/marketplace` 渲染 9 张任务卡（7 种子 + 2 条 curl 新建，含 `E2E-联调-*`）；`/audit/task_1001` 显示「链完整」；`/identity` 显示真实 `/api/me` 数据（mock 模式 6 路由渲染已在 T6 覆盖）
+- [x] curl 抽查发布/接单/签署
+  - 证据：publish 201 → task_1008；accept 200 lease `+2h`；sign 200 两次哈希一致
+- [x] 提交并推送
+  - 证据：见 `git log feat/ai-marketplace-frontend` 最新提交
 
 ---
 
