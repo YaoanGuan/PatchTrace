@@ -89,6 +89,8 @@
   - 证据：`src` 下 72 个 `.tsx`；marker grep 命中各模块核心组件文案
 - [x] 提交到 `feat/ai-marketplace-frontend`
   - 证据：`b086f92 feat(marketplace): add AI task marketplace frontend`；已推送 `origin/feat/ai-marketplace-frontend`（104 文件）
+- [x] 视觉走查与一致性修复
+  - 证据：6 路由 headless 截图；修复状态文案双口径（PUBLISHED 统一「招募中」）、接单卡徽标竖排、哈希卡换行；`tsc` exit 0、`build` exit 0
 
 ---
 

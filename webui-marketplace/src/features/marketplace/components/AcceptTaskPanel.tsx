@@ -140,7 +140,10 @@ export function AcceptTaskPanel({
                   <p className="line-clamp-2 text-sm font-medium text-slate-900">
                     {selected.title}
                   </p>
-                  <Badge variant={STATUS_BADGE_VARIANT[selected.status]}>
+                  <Badge
+                    variant={STATUS_BADGE_VARIANT[selected.status]}
+                    className="shrink-0 whitespace-nowrap"
+                  >
                     {STATUS_LABEL[selected.status]}
                   </Badge>
                 </div>

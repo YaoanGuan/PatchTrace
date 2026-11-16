@@ -1,46 +1,20 @@
 import type { BadgeVariant } from '../../components/ui/Badge';
+import {
+  TASK_STATUS_LABELS as STATUS_LABEL,
+  TASK_STATUS_VARIANTS as STATUS_BADGE_VARIANT,
+} from '../../lib/taskStatus';
 import type {
   EscrowStatus,
   PipelineStageKey,
   PipelineStageStatus,
   TaskDetail,
-  TaskStatus,
   WalletTransaction,
   WalletTransactionType,
 } from '../../types/domain';
 import type { CategoryOption, EscrowRowModel, SkillOption } from './types';
 
-export const STATUS_LABEL: Record<TaskStatus, string> = {
-  DRAFT: '草稿',
-  PUBLISHED: '招募中',
-  ACCEPTED: '已接单',
-  IN_PROGRESS: '执行中',
-  SUBMITTED: '已提交',
-  AI_VALIDATING: 'AI 复核中',
-  VALIDATION_FAILED: '复核未通过',
-  COMPLIANCE_SCAN: '合规扫描中',
-  SETTLING: '结算中',
-  COMPLETED: '已完成',
-  DISPUTED: '争议中',
-  REFUNDED: '已退款',
-  CANCELLED: '已取消',
-};
-
-export const STATUS_BADGE_VARIANT: Record<TaskStatus, BadgeVariant> = {
-  DRAFT: 'outline',
-  PUBLISHED: 'info',
-  ACCEPTED: 'warning',
-  IN_PROGRESS: 'warning',
-  SUBMITTED: 'info',
-  AI_VALIDATING: 'info',
-  VALIDATION_FAILED: 'danger',
-  COMPLIANCE_SCAN: 'warning',
-  SETTLING: 'warning',
-  COMPLETED: 'success',
-  DISPUTED: 'danger',
-  REFUNDED: 'default',
-  CANCELLED: 'default',
-};
+// 状态文案与色调的唯一权威源在 src/lib/taskStatus.ts，这里保留旧导出名兼容现有调用方。
+export { STATUS_LABEL, STATUS_BADGE_VARIANT };
 
 export const STAGE_LABEL: Record<PipelineStageKey, string> = {
   AI_GENERATION: 'AI 生成',

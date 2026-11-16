@@ -37,8 +37,8 @@ export function HashChainStatus({ trace, verification }: HashChainStatusProps) {
       <div className="grid gap-2 sm:grid-cols-3">
         <MetaItem label="节点数量">{verification.nodeCount} 个</MetaItem>
         <MetaItem label="校验方式">
-          <span className="inline-flex items-center gap-1 font-mono text-[11px] text-slate-500">
-            <Link2 className="h-3 w-3" aria-hidden="true" />
+          <span className="inline-flex items-center gap-1 whitespace-nowrap font-mono text-[11px] text-slate-500">
+            <Link2 className="h-3 w-3 shrink-0" aria-hidden="true" />
             prevHash 链
           </span>
         </MetaItem>

@@ -1,6 +1,10 @@
 import type { GetTraceResponse } from '../../types/api';
 import type { TaskStatus, TraceNode } from '../../types/domain';
 import type { BadgeVariant } from '../../components/ui/Badge';
+import {
+  TASK_STATUS_LABELS,
+  TASK_STATUS_VARIANTS,
+} from '../../lib/taskStatus';
 import type { ChainIssue, ChainVerification } from './types';
 
 /** 空 / 未加载状态下的校验结果，避免各组件重复构造 */
@@ -145,25 +149,22 @@ export function verifyTrace(
   };
 }
 
-/** 任务状态中文标签与徽标色调 */
+/**
+ * 任务状态中文标签与徽标色调，统一消费 src/lib/taskStatus.ts 的权威映射，
+ * 避免审计列表与任务大厅出现同状态不同文案。
+ */
 export const TASK_STATUS_META: Record<
   TaskStatus,
   { label: string; variant: BadgeVariant }
-> = {
-  DRAFT: { label: '草稿', variant: 'outline' },
-  PUBLISHED: { label: '已发布', variant: 'info' },
-  ACCEPTED: { label: '已接单', variant: 'info' },
-  IN_PROGRESS: { label: '进行中', variant: 'info' },
-  SUBMITTED: { label: '已提交', variant: 'warning' },
-  AI_VALIDATING: { label: 'AI 复核中', variant: 'warning' },
-  VALIDATION_FAILED: { label: '复核未通过', variant: 'danger' },
-  COMPLIANCE_SCAN: { label: '合规扫描', variant: 'warning' },
-  SETTLING: { label: '结算中', variant: 'warning' },
-  COMPLETED: { label: '已完成', variant: 'success' },
-  DISPUTED: { label: '争议中', variant: 'danger' },
-  REFUNDED: { label: '已退款', variant: 'default' },
-  CANCELLED: { label: '已取消', variant: 'default' },
-};
+> = Object.fromEntries(
+  (Object.keys(TASK_STATUS_LABELS) as TaskStatus[]).map((status) => [
+    status,
+    {
+      label: TASK_STATUS_LABELS[status],
+      variant: TASK_STATUS_VARIANTS[status],
+    },
+  ]),
+) as Record<TaskStatus, { label: string; variant: BadgeVariant }>;
 
 const FNV_OFFSET = 0x811c9dc5;
 const FNV_PRIME = 0x01000193;
