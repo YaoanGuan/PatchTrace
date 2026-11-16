@@ -58,6 +58,11 @@ type LaneOptions struct {
 	Section    string
 	PromptDir  string
 	Complete   func(ctx context.Context, prompt string) (string, error)
+
+	// GraphOnly opens the graph store and rule base but builds no drivers and
+	// no executor, so the caller can mount the read-only graph API when no LLM
+	// is configured. The caller must not call Run; Wait and Close remain safe.
+	GraphOnly bool
 }
 
 // defaultRuleBasePath mirrors patchintel.DefaultRuleBase. Keeping the lane on
@@ -134,6 +139,17 @@ func StartLane(ctx context.Context, opts LaneOptions) (*Dispatcher, error) {
 	}
 
 	client := graphserver.NewLocalClient(store)
+
+	if opts.GraphOnly {
+		// API-only mode: no drivers, no executor, nothing scheduled. The store
+		// and rule base are still owned and released by Close.
+		d := New(opts.Config, client, nil)
+		d.store = store
+		d.ownsStore = ownsStore
+		d.ruleBase = ruleBase
+		d.ownsRuleBase = ownsRuleBase
+		return d, nil
+	}
 
 	drivers := append([]worker.Driver(nil), opts.Drivers...)
 	if len(drivers) == 0 {

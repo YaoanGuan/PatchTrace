@@ -170,8 +170,19 @@ func startGraphLane(ctx context.Context, server *Web.Server) *graphLane {
 	}
 	complete, err := dispatch.NativeComplete("main_setting")
 	if err != nil {
-		misc.Warn("graph-lane", fmt.Sprintf("未启动图调度车道: %v", err), nil)
-		return nil
+		// No model configured: mount the read-only graph API anyway so the
+		// provenance panel and protocol work. Nothing is scheduled.
+		misc.Warn("graph-lane", fmt.Sprintf("图调度未启动（模型未配置）: %v", err), nil)
+		dispatcher, laneErr := dispatch.StartLane(ctx, dispatch.LaneOptions{Config: cfg, GraphOnly: true})
+		if laneErr != nil {
+			misc.Warn("graph-lane", fmt.Sprintf("未挂载图 API: %v", laneErr), nil)
+			return nil
+		}
+		if server != nil && dispatcher.Store() != nil {
+			server.RegisterAPIRoutes(graphserver.New(dispatcher.Store()).Register)
+		}
+		misc.Info("graph-lane", "图 API 已挂载，调度未启动（模型未配置）", nil)
+		return &graphLane{dispatcher: dispatcher}
 	}
 	dispatcher, err := dispatch.StartLane(ctx, dispatch.LaneOptions{Config: cfg, Complete: complete})
 	if err != nil {
