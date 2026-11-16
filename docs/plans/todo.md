@@ -8,10 +8,9 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> **Task 9 / 9b 已完成**：`59b12d5`+`ffb5a4e`（explore+dockerManager 实证）；`87474a4`（调度执行/并发上限/超时/基线/重试）。
-> 评审：Task 9 修复 1 轮后 ADDRESSED；Task 9b spec ✅ / Approved（5 Minor 延后）。
-> `go test ./dispatch/... ./graph/ ./graphserver/ -race` → 全 `ok`；`go build ./...` exit 0。
-> 下一动作：Task 10 · Step 1，写 `dispatch/tasks/outcome_test.go` 失败测试（confirm_count / 置信度 / 版本+1）。
+> **Task 10 已完成**：`48c1ed3` + `e93148d`；评审 1 轮 3 项 Important 修复后 scoped re-review 全部 ADDRESSED。
+> `go test ./dispatch/tasks/ ./graph/ ./patchintel/ ./toolCalling/ -race` → 全 `ok`；`go build ./...` exit 0。
+> 下一动作：Task 11 · Step 1，写 `eval/patcheval_test.go` 失败测试（双条件 N=3、Metrics 三字段、`graph_lane_enabled` 默认 false）。
 
 ---
 
@@ -71,7 +70,7 @@
 | 8 | reason 溯源图推理任务 | R8, R12 | 完成 | G3 | `93bff65`；40+ PASS；评审 1 轮后通过 |
 | 9 | explore 沙箱实证与判决 | R9, R10 | 完成 | G3 | `59b12d5`+`ffb5a4e`；评审 1 轮修复后 ADDRESSED |
 | 9b | 调度接线（执行/并发/超时） | R5, R9 | 完成 | G3 | `87474a4`；评审 Approved（5 Minor 延后） |
-| 10 | CE4 规则回流 | R11 | 未开始 | G3 | — |
+| 10 | CE4 规则回流 | R11 | 完成 | G3 | `48c1ed3`+`e93148d`；评审 1 轮修复后 ADDRESSED |
 | 11 | 评测、端到端与灰度 | R13–R16 | 未开始 | G4 | — |
 
 状态取值：`未开始` / `进行中` / `阻塞` / `完成`。
@@ -230,9 +229,13 @@
 
 ### Task 10 · CE4 回流（R11，G3）
 
-- [ ] confirm_count 自增、置信度变化
-- [ ] 同 pattern 新版本 version+1，旧版保留
-- [ ] `go test ./dispatch/tasks/ -run TestConfirmedVerdict -race` → `ok`
+- [x] confirm_count 自增、置信度变化
+  - 证据：`TestConfirmedVerdictIncrementsConfirmCount` PASS（1→2，v1 保留）；`TestFailedVerdictLowersConfidence` PASS（in-place）
+- [x] 同 pattern 新版本 version+1，旧版保留
+  - 证据：`TestNewPatternPromotedAsNewVersion` PASS；`rule_hit` 事实 + produce 边
+- [x] `go test ./dispatch/tasks/ -run TestConfirmedVerdict -race` → `ok`
+  - 证据：`ok AIxVuln/dispatch/tasks`、`ok AIxVuln/graph`、`ok AIxVuln/patchintel`、`ok AIxVuln/toolCalling`；vet/gofmt 干净
+- 完成标准：评审 1 轮 3 项 Important 修复后 scoped re-review 全部 ADDRESSED；5 Minor 延后。
 
 ### Task 11 · 评测与端到端（R13–R16，G4）
 
