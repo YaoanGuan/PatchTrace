@@ -8,9 +8,9 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> **Task 6 已完成（R6 driver 通过）**：提交 `e909aed` + `7522b0e` + `e63b212`，独立评审修复轮复核全部 ADDRESSED。
-> `go test ./dispatch/worker/ -race` → 37/37 PASS；`go build ./...` exit 0。
-> 下一动作：Task 5 · Step 1，写 `dispatch/planner_test.go` 失败测试（bootstrap/reason/explore 决策规则）。
+> **Task 5 已完成（R5 调度核心通过）**：提交 `f6cfcf3`，独立评审 spec ✅ / quality Approved（0 Critical / 0 Important，6 Minor 延后整支评审）。
+> `go test ./dispatch/ -race` → 31 个顶层测试 + 4 子测试 PASS；`go vet ./dispatch/` exit 0。
+> 下一动作：Task 7 · Step 1，写 `dispatch/tasks/bootstrap_test.go` 失败测试（patch_profile Fact / inversion Intents / 无补丁源报错）。
 
 ---
 
@@ -64,7 +64,7 @@
 | 2 | 溯源图模型与存储 | R3 | 完成 | G1 | `6f2a6b3`；race 6/6；评审 Approved |
 | 3 | 溯源图查询与导出 | R8 | 完成 | G1 | `a31275d`+`a111d4f`；race 16/16；评审 Approved |
 | 4 | 图协议 API | R4 | 完成 | G1 | `fc3fc1e`；8/8；评审 Approved |
-| 5 | 调度核心 | R5 | 进行中 | G2 | — |
+| 5 | 调度核心 | R5 | 完成 | G2 | `f6cfcf3`；31+4 PASS；评审 Approved |
 | 6 | Worker driver 与 native 实现 | R6 | 完成 | G2 | `e63b212`；37/37；评审修复轮通过 |
 | 7 | bootstrap 补丁反演任务 | R7 | 未开始 | G2 | — |
 | 8 | reason 溯源图推理任务 | R8, R12 | 未开始 | G3 | — |
@@ -169,10 +169,15 @@
 
 ### Task 5 · 调度核心（R5，G2）
 
-- [ ] 初始态→bootstrap；新态势→reason；有 open intent→explore
-- [ ] 单项目 reason 唯一
-- [ ] 配置缺项报错
-- [ ] `go test ./dispatch/ -race` → `ok`
+- [x] 初始态→bootstrap；新态势→reason；有 open intent→explore
+  - 证据：`TestPlanPrefersBootstrapOnInitialProject` / `TestPlanReasonOnNewFacts` / `TestPlanReasonOnNewHints` / `TestPlanReasonWhenOpenIntentsDrained` / `TestPlanExploreWhenOpenIntentExists` PASS
+- [x] 单项目 reason 唯一
+  - 证据：`TestReasonOnlyOncePerProject` PASS（非空 `Project.Reason` 抑制 reason）
+- [x] 配置缺项报错
+  - 证据：`TestConfigRequiresTimeouts` PASS（缺 `explore.timeout` → error）
+- [x] `go test ./dispatch/ -race` → `ok`
+  - 证据：31 个顶层测试 + 4 子测试 PASS，`ok AIxVuln/dispatch 1.081s`；`go vet`/`gofmt` clean
+- 完成标准：独立评审 spec ✅ / quality Approved（6 Minor 延后至整支评审）；runner 接线与并发上限按裁定归 Task 9。
 
 ### Task 6 · Worker driver（R6，G2）
 
