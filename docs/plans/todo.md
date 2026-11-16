@@ -8,7 +8,7 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> **本轮迭代已完成并推送**：`origin/main` = `9a9eac8`（分支 `feat/cairn-graph-backend` 同点）。
+> **本轮迭代已完成并推送**：交付与评审收口 `9a9eac8`（分支 `feat/cairn-graph-backend` 同点）；本文件最终更新 `fbe6599` → `origin/main`。
 > **Task 11 已完成**：`b794e85` + `2c40df2` + `6cc683c`；评审 2 轮修复后 scoped re-review 全部 ADDRESSED。
 > **整支最终评审已完成**：`7d0e635..e83793f`；初评 1 Critical + 6 Important + 8 Minor；单轮修复 `f118081`、`5d56134`、`4c6b10a`、`c15edbd`、`9b2c2fa`、`e83793f`；scoped re-review 全部 findings ADDRESSED，无新增 Critical/Important；文档收口 `9a9eac8`。
 > 证据：`CGO_ENABLED=0 go build ./...` → BUILD_OK；`go test ./graph/ ./graphserver/ ./dispatch/... ./eval/ -race -count=1` 全 `ok`；`go test ./...` 仅遗留 ProjectManager 既有失败（base `7d0e635` 可复现，包未被本分支改动）。
