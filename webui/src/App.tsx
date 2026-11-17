@@ -3093,7 +3093,7 @@ function App() {
         return (
             <div className="aix-shell cyber-bg" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
                 <div style={{ textAlign: 'center', opacity: 0.5 }}>
-                    <div style={{ fontSize: 18, fontWeight: 600 }}>ParchTrace | 寻迹</div>
+                    <div style={{ fontSize: 18, fontWeight: 600 }}>ParchTrace | 循迹</div>
                     <div style={{ fontSize: 13, marginTop: 8 }}>正在初始化…</div>
                 </div>
             </div>
@@ -3213,7 +3213,7 @@ function App() {
             <div className="aix-shell cyber-bg" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
                 <Card className="w-full max-w-[560px] mx-4">
                     <CardHeader className="text-center">
-                        <CardTitle className="text-2xl">ParchTrace | 寻迹 初始化设置</CardTitle>
+                        <CardTitle className="text-2xl">ParchTrace | 循迹 初始化设置</CardTitle>
                         <div className="aix-slogan mt-1">Trace the Patch, Uncover the Flaw.</div>
                         <div className="text-sm text-muted-foreground mt-1">
                             {initStep === 'user' ? '首次启动，请设置管理员账户' : 'Docker 镜像引导'}
@@ -3303,7 +3303,7 @@ function App() {
             <div className="aix-shell cyber-bg" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
                 <Card className="w-full max-w-[380px] mx-4">
                     <CardHeader className="text-center">
-                        <CardTitle className="text-2xl">ParchTrace | 寻迹</CardTitle>
+                        <CardTitle className="text-2xl">ParchTrace | 循迹</CardTitle>
                         <div className="aix-slogan mt-1">Trace the Patch, Uncover the Flaw.</div>
                         <div className="text-sm text-muted-foreground mt-1">登录以继续</div>
                     </CardHeader>
@@ -3373,7 +3373,7 @@ function App() {
 
             <div className="aix-header">
                 <div className="aix-brand">
-                    <div className="aix-title">ParchTrace | 寻迹 - Autonomous Penetration System</div>
+                    <div className="aix-title">ParchTrace | 循迹 - 自主渗透系统</div>
                     <div className="aix-slogan">Trace the Patch, Uncover the Flaw.</div>
                 </div>
                 <div className="aix-actions">

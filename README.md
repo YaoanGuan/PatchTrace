@@ -1,4 +1,4 @@
-# ParchTrace | 寻迹 - 自主渗透系统
+# ParchTrace | 循迹 - 自主渗透系统
 
 > **Trace the Patch, Uncover the Flaw.**
 > **寻迹补丁，洞见漏洞。**
@@ -385,7 +385,7 @@ MIT，详见 [`LICENSE`](LICENSE)。
 
 ## 实际界面
 
-以下截图来自本仓库本地构建的实际运行实例（演示数据：`probe-*` 图项目），不是设计稿或生成图。
+以下截图来自本仓库本地构建的实际运行实例（演示数据：Langflow CVE-2025-3248 与 PatchOracle 图项目），不是设计稿或生成图。
 
 ![ParchTrace 图驱动首页](docs/images/patchtrace-home.png)
 
