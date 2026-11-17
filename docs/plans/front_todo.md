@@ -8,7 +8,7 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> **本轮前端迭代已交付**：`origin/main = dcd3dd6`；9999 已用新二进制重启，首页与溯源图终验通过。
+> **本轮前端迭代已交付**：`origin/main = e008d0f`；9999 已用新二进制重启，首页与溯源图终验通过。
 > 下一轮唯一动作：按 `docs/runbooks/cve-2025-3248.md` §2–§5，在有 Docker + LLM 配置的环境跑 CVE-2025-3248 实弹验收。
 
 ### 0.1 前一轮前端错误复盘（必须保留在文档中）
@@ -35,7 +35,7 @@ F4 的验收就是逐项检查旧入口是否仍在。
 | F4 | 首页集成 + 旧入口保留 | 旧能力红线 | 完成 | `<GraphOverview>` 下方保留 `#legacy-labs`；四个 `*Project` handler 均在 |
 | F5 | 图面板能力说明 | R3–R13 | 完成 | 语义标签 10 处调用 + 能力图例 1 处；`tsc` exit 0 |
 | F6 | 构建、重启与真实页面验证 | 验收 | 完成 | `tsc`/`npm run build`/`go build` exit 0；9999 重启后 `/` 200、图 API 401；首页与图面板断言全绿 |
-| F7 | 提交与推送 | 交付 | 完成 | `f94a941` + `dcd3dd6`；`git push origin HEAD:main` exit 0 |
+| F7 | 提交与推送 | 交付 | 完成 | `f94a941` + `5810293` + `e008d0f`；`git push origin HEAD:main` exit 0 |
 
 状态取值：`未开始` / `进行中` / `阻塞` / `完成`。
 
@@ -137,7 +137,7 @@ F4 的验收就是逐项检查旧入口是否仍在。
 - [x] **F7.2** `git commit`
 - [x] **F7.3** `git push origin main`
 - [x] **F7.4** 回写本文件与 `docs/plans/todo.md`
-  - 证据（2026-11-17）：提交 `f94a941`（基于 `origin/main` 的 `6d918d2`，仅含 9 个前端/文档文件）；`git push origin HEAD:main` 输出 `6d918d2..f94a941  HEAD -> main`，`push_exit=0`。
+  - 证据（2026-11-17）：提交 `f94a941`（基于 `origin/main` 的 `6d918d2`，仅含 9 个前端/文档文件）；`git push origin HEAD:main` 输出 `6d918d2..f94a941  HEAD -> main`，`push_exit=0`。后续修正：`5810293`（断言计数）、`e008d0f`（首页按 `created_at` 选取最新项目，附排序测试）；最终 `origin/main = e008d0f`。
 
 ---
 
