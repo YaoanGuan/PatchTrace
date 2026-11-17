@@ -4,12 +4,20 @@ import type {
   WalletTransaction,
   WalletTransactionType,
 } from '../../types/domain';
-import { getWallet } from '../../lib/api/client';
+import type { WalletOverview, WalletVip } from '../../types/api';
+import {
+  getWallet,
+  rechargeWallet,
+  subscribeVip as subscribeVipApi,
+} from '../../lib/api/client';
 
 export interface WalletState {
   balance: WalletBalance;
   transactions: WalletTransaction[];
+  vip: WalletVip | null;
   refresh(): Promise<void>;
+  recharge(amount: number): Promise<void>;
+  subscribeVip(level: 'PRO' | 'ENTERPRISE'): Promise<void>;
   freezeForTask(taskId: string, amount: number): Promise<void>;
   settleTask(taskId: string): Promise<void>;
 }
@@ -34,16 +42,31 @@ const makeTransaction = (
   status: 'SETTLED',
 });
 
+/** 把钱包接口返回值一次性写入 state，充值 / VIP / 刷新共用。 */
+const overviewPatch = (response: WalletOverview) => ({
+  balance: response.balance,
+  transactions: response.transactions,
+  vip: response.vip ?? null,
+});
+
 export const useWalletStore = create<WalletState>((set, get) => ({
   balance: { available: 0, frozen: 0, currency: 'CNY' },
   transactions: [],
+  vip: null,
 
   refresh: async () => {
     const response = await getWallet();
-    set({
-      balance: response.balance,
-      transactions: response.transactions,
-    });
+    set(overviewPatch(response));
+  },
+
+  recharge: async (amount) => {
+    const response = await rechargeWallet({ amount });
+    set(overviewPatch(response));
+  },
+
+  subscribeVip: async (level) => {
+    const response = await subscribeVipApi({ level });
+    set(overviewPatch(response));
   },
 
   freezeForTask: async (taskId, amount) => {

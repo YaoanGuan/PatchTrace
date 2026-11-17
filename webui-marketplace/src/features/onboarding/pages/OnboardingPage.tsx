@@ -14,7 +14,7 @@ export default function OnboardingPage() {
     <section className="space-y-8">
       <header className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-wide text-indigo-600">
-          M4 · 准入机制与生态信誉
+          M5 · 准入机制与生态信誉
         </p>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
           准入与信誉

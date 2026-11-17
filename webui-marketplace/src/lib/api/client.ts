@@ -5,7 +5,6 @@ import type {
   GetTasksQuery,
   GetTasksResponse,
   GetTraceResponse,
-  GetWalletResponse,
   PublishTaskInput,
   RegisterChannelInput,
   RegisterChannelResponse,
@@ -14,7 +13,18 @@ import type {
   SubmitRatingInput,
   SubmitRatingResponse,
 } from '../../types/api';
-import type { TaskDetail } from '../../types/domain';
+import type {
+  ApiGatewayOverview,
+  ApiKeyRecord,
+  CreateApiKeyInput,
+  CreateApiKeyResponse,
+  ExpertOverview,
+  RechargeInput,
+  SubscribeVipInput,
+  TaskDetail,
+  TaskTrust,
+  WalletOverview,
+} from '../../types/domain';
 import { mockApi } from './mock';
 
 /**
@@ -152,11 +162,63 @@ export async function acceptTask(taskId: string): Promise<AcceptTaskResponse> {
   );
 }
 
-export async function getWallet(): Promise<GetWalletResponse> {
+export async function getWallet(): Promise<WalletOverview> {
   if (!useHttp) {
     return mockApi.getWallet();
   }
-  return request<GetWalletResponse>('/api/wallet');
+  return request<WalletOverview>('/api/wallet');
+}
+
+export async function rechargeWallet(input: RechargeInput): Promise<WalletOverview> {
+  if (!useHttp) {
+    return mockApi.rechargeWallet(input);
+  }
+  return request<WalletOverview>('/api/wallet/recharge', jsonInit('POST', input));
+}
+
+export async function subscribeVip(input: SubscribeVipInput): Promise<WalletOverview> {
+  if (!useHttp) {
+    return mockApi.subscribeVip(input);
+  }
+  return request<WalletOverview>('/api/wallet/vip', jsonInit('POST', input));
+}
+
+export async function getExpertOverview(): Promise<ExpertOverview> {
+  if (!useHttp) {
+    return mockApi.getExpertOverview();
+  }
+  return request<ExpertOverview>('/api/expert/overview');
+}
+
+export async function getTaskTrust(taskId: string): Promise<TaskTrust> {
+  if (!useHttp) {
+    return mockApi.getTaskTrust(taskId);
+  }
+  return request<TaskTrust>(`/api/tasks/${encodeURIComponent(taskId)}/trust`);
+}
+
+export async function getApiGateway(): Promise<ApiGatewayOverview> {
+  if (!useHttp) {
+    return mockApi.getApiGateway();
+  }
+  return request<ApiGatewayOverview>('/api/gateway');
+}
+
+export async function createApiKey(input: CreateApiKeyInput): Promise<CreateApiKeyResponse> {
+  if (!useHttp) {
+    return mockApi.createApiKey(input);
+  }
+  return request<CreateApiKeyResponse>('/api/gateway/keys', jsonInit('POST', input));
+}
+
+export async function revokeApiKey(keyId: string): Promise<ApiKeyRecord> {
+  if (!useHttp) {
+    return mockApi.revokeApiKey(keyId);
+  }
+  return request<ApiKeyRecord>(
+    `/api/gateway/keys/${encodeURIComponent(keyId)}/revoke`,
+    { method: 'POST' },
+  );
 }
 
 export async function getTrace(taskId: string): Promise<GetTraceResponse> {

@@ -115,8 +115,79 @@ func (h *Handler) getTrace(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, trace)
 }
 
+func (h *Handler) expertOverview(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, h.store.ExpertOverview())
+}
+
+func (h *Handler) taskTrust(w http.ResponseWriter, r *http.Request) {
+	trust, ok := h.store.TaskTrust(r.PathValue("id"))
+	if !ok {
+		writeError(w, http.StatusNotFound, "task not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, trust)
+}
+
 func (h *Handler) wallet(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, h.store.Wallet())
+}
+
+func (h *Handler) rechargeWallet(w http.ResponseWriter, r *http.Request) {
+	var input RechargeInput
+	if err := decodeJSON(r, &input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	overview, err := h.store.Recharge(input.Amount)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, overview)
+}
+
+func (h *Handler) subscribeVip(w http.ResponseWriter, r *http.Request) {
+	var input SubscribeVipInput
+	if err := decodeJSON(r, &input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	overview, err := h.store.SubscribeVip(input.Level)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, overview)
+}
+
+func (h *Handler) gatewayOverview(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, h.store.Gateway())
+}
+
+func (h *Handler) createApiKey(w http.ResponseWriter, r *http.Request) {
+	var input CreateApiKeyInput
+	if err := decodeJSON(r, &input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	response, err := h.store.CreateApiKey(input)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, response)
+}
+
+func (h *Handler) revokeApiKey(w http.ResponseWriter, r *http.Request) {
+	record, err := h.store.RevokeApiKey(r.PathValue("id"))
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, record)
 }
 
 func (h *Handler) reputation(w http.ResponseWriter, r *http.Request) {

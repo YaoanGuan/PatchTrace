@@ -6,14 +6,16 @@ import { TrustBadgeWall } from '../../../components/shared/TrustBadgeWall';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { ProfileHeader } from '../components/ProfileHeader';
+import { WalletPanel } from '../components/WalletPanel';
+import { ApiGatewayPanel } from '../components/ApiGatewayPanel';
 import { SkillLegend, SkillRadarChart } from '../components/SkillRadarChart';
 import { ExpertiseRepository } from '../components/ExpertiseRepository';
 import { CredentialUploadDialog } from '../components/CredentialUploadDialog';
 
 /**
  * M1 · 个人中枢与能力认证。
- * 组合个人档案、视角切换、五维能力雷达、专家库与信任凭证；
- * 数据全部来自 sessionStore.currentUser（mock API），缺字段时各子组件自行降级为空态。
+ * 组合个人档案、钱包、API 中转站、视角切换、五维能力雷达、专家库与信任凭证；
+ * 数据来自 sessionStore / walletStore 与 API 层，缺字段时各子组件自行降级为空态。
  */
 export default function IdentityPage() {
   const currentUser = useSessionStore((state) => state.currentUser);
@@ -46,6 +48,10 @@ export default function IdentityPage() {
       </header>
 
       <ProfileHeader />
+
+      <WalletPanel />
+
+      <ApiGatewayPanel />
 
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="p-5 lg:col-span-3">

@@ -10,7 +10,7 @@ export default function NotFoundPage() {
         页面不存在
       </h1>
       <p className="max-w-md text-sm text-slate-500">
-        你访问的路径不在 PatchTrace Marketplace 的模块路由中。
+        你访问的路径不在 PatchTrace Market 的模块路由中。
       </p>
       <Link
         to="/marketplace"

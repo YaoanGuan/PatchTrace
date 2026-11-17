@@ -1,5 +1,11 @@
 import { NavLink } from 'react-router-dom';
-import { GraduationCap, ShieldCheck, Store, UserRound } from 'lucide-react';
+import {
+  CircuitBoard,
+  GraduationCap,
+  ShieldCheck,
+  Store,
+  UserRound,
+} from 'lucide-react';
 import { cn } from '../../lib/cn';
 
 interface NavItem {
@@ -11,9 +17,10 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { to: '/identity', label: '个人中枢', hint: 'M1', icon: UserRound },
-  { to: '/marketplace', label: '任务大厅', hint: 'M2', icon: Store },
-  { to: '/audit', label: '审计证据', hint: 'M3', icon: ShieldCheck },
-  { to: '/onboarding', label: '准入信誉', hint: 'M4', icon: GraduationCap },
+  { to: '/expert', label: 'AI 专家', hint: 'M2', icon: CircuitBoard },
+  { to: '/marketplace', label: '任务大厅', hint: 'M3', icon: Store },
+  { to: '/audit', label: '审计证据', hint: 'M4', icon: ShieldCheck },
+  { to: '/onboarding', label: '准入信誉', hint: 'M5', icon: GraduationCap },
 ];
 
 export function SideNav() {

@@ -128,7 +128,7 @@ export function AuditDetailPage() {
             返回审计列表
           </Button>
           <p className="text-xs font-medium uppercase tracking-wide text-indigo-600">
-            M3 · 单任务证据链 + 免责契约
+            M4 · 单任务证据链 + 免责契约
           </p>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
             证据链审计 · {taskId}

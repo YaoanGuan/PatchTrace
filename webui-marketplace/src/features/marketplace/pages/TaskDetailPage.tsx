@@ -14,6 +14,7 @@ import {
   SubmitWorkPanel,
   TaskSummary,
 } from '../components';
+import { TaskTrustPipeline } from '../../expert/components/TaskTrustPipeline';
 
 type PagePhase = 'loading' | 'ready' | 'missing';
 
@@ -121,6 +122,8 @@ export default function TaskDetailPage() {
         <AIValidationPipeline task={task} />
         <EscrowWallet taskId={task.id} escrow={task.escrow} />
       </div>
+
+      <TaskTrustPipeline taskId={task.id} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">

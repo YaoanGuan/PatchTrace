@@ -88,7 +88,7 @@ export function AuditPage() {
     <section className="space-y-6">
       <div className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-wide text-indigo-600">
-          M3 · 责任隔离与防篡改审计
+          M4 · 责任隔离与防篡改审计
         </p>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
           审计证据

@@ -5,7 +5,6 @@ import type {
   GetTasksQuery,
   GetTasksResponse,
   GetTraceResponse,
-  GetWalletResponse,
   PublishTaskInput,
   RegisterChannelInput,
   RegisterChannelResponse,
@@ -15,15 +14,29 @@ import type {
   SubmitRatingResponse,
 } from '../../types/api';
 import type {
+  AiToolIntegration,
+  ApiGatewayOverview,
+  ApiKeyRecord,
+  ComplianceFinding,
+  CreateApiKeyInput,
+  CreateApiKeyResponse,
+  CrossValidation,
+  ExpertOverview,
+  ModelCatalogItem,
   PipelineStage,
   PipelineStageKey,
   Rating,
+  RechargeInput,
+  RiskAssessment,
+  SubscribeVipInput,
   TaskDetail,
   TaskStatus,
   TaskSummary,
+  TaskTrust,
   TraceNode,
   User,
   UserSummary,
+  WalletOverview,
   WalletTransaction,
 } from '../../types/domain';
 
@@ -516,8 +529,8 @@ const traces: Record<string, GetTraceResponse> = {
   task_1004: traceTask1004,
 };
 
-const wallet = {
-  balance: { available: 3200, frozen: 1200, currency: 'CNY' as const },
+const wallet: WalletOverview = {
+  balance: { available: 3200, frozen: 1200, currency: 'CNY' },
   transactions: [
     {
       id: 'tx_001',
@@ -566,6 +579,419 @@ const wallet = {
       status: 'SETTLED',
     },
   ] as WalletTransaction[],
+  vip: {
+    level: 'FREE',
+    expiresAt: null,
+    feeRate: 0.15,
+  },
+};
+
+let nextWalletTransactionId = 7;
+
+const makeWalletTransaction = (
+  type: WalletTransaction['type'],
+  amount: number,
+): WalletTransaction => {
+  const transaction: WalletTransaction = {
+    id: `tx_${String(nextWalletTransactionId).padStart(3, '0')}`,
+    type,
+    amount,
+    at: new Date().toISOString(),
+    status: 'SETTLED',
+  };
+  nextWalletTransactionId += 1;
+  return transaction;
+};
+
+/* ------------------------------------------------------------------ */
+/* M2 AI 专家种子                                                      */
+/* ------------------------------------------------------------------ */
+
+const expertTools: AiToolIntegration[] = [
+  {
+    id: 'tool_grok_bot',
+    name: 'Grok Bot',
+    vendor: 'xAI',
+    category: 'CLOUD_COMPUTER',
+    protocol: 'MCP',
+    grade: 'S',
+    status: 'CONNECTED',
+    roles: ['EMPLOYER', 'COMMANDER'],
+    permissions: ['task:publish', 'task:execute', 'evidence:read'],
+    compliance: ['PCPD', 'SOC2'],
+  },
+  {
+    id: 'tool_chatgpt_dot',
+    name: 'ChatGPT Dot',
+    vendor: 'OpenAI',
+    category: 'CLOUD_COMPUTER',
+    protocol: 'Screen',
+    grade: 'A',
+    status: 'CONNECTED',
+    roles: ['EMPLOYER'],
+    permissions: ['task:publish', 'catalog:read'],
+    compliance: ['PCPD'],
+  },
+  {
+    id: 'tool_claude_code',
+    name: 'Claude Code',
+    vendor: 'Anthropic',
+    category: 'AI_CLI',
+    protocol: 'CLI',
+    grade: 'S',
+    status: 'CONNECTED',
+    roles: ['COMMANDER'],
+    permissions: ['task:execute', 'task:submit', 'evidence:write'],
+    compliance: ['SOC2'],
+  },
+  {
+    id: 'tool_codex_cli',
+    name: 'Codex CLI',
+    vendor: 'OpenAI',
+    category: 'AI_CLI',
+    protocol: 'CLI',
+    grade: 'A',
+    status: 'SANDBOX',
+    roles: ['COMMANDER'],
+    permissions: ['task:execute', 'task:submit'],
+    compliance: ['PCPD'],
+  },
+  {
+    id: 'tool_cursor',
+    name: 'Cursor',
+    vendor: 'Anysphere',
+    category: 'AI_IDE',
+    protocol: 'IDE Plugin',
+    grade: 'B',
+    status: 'CONNECTED',
+    roles: ['COMMANDER'],
+    permissions: ['task:execute', 'evidence:write'],
+    compliance: ['SOC2'],
+  },
+  {
+    id: 'tool_trae',
+    name: 'Trae',
+    vendor: 'ByteDance',
+    category: 'AI_IDE',
+    protocol: 'IDE Plugin',
+    grade: 'B',
+    status: 'PENDING',
+    roles: ['COMMANDER'],
+    permissions: ['task:execute'],
+    compliance: ['PCPD'],
+  },
+  {
+    id: 'tool_chatbox',
+    name: 'Chatbox',
+    vendor: 'Chatbox',
+    category: 'CHAT_UI',
+    protocol: 'Screen',
+    grade: 'C',
+    status: 'SANDBOX',
+    roles: ['EMPLOYER', 'COMMANDER'],
+    permissions: ['task:publish', 'task:execute'],
+    compliance: ['PCPD'],
+  },
+];
+
+const expertValidation: CrossValidation = {
+  taskId: 'task_1001',
+  generator: 'Claude',
+  generatorModel: 'claude-opus-5-5',
+  generatorVerdict: 'PASS',
+  reviewer: 'Codex',
+  reviewerModel: 'gpt-5-codex',
+  reviewerVerdict: 'PASS',
+  consensus: 'PASS',
+  confidence: 0.94,
+  cost: 12.6,
+  elapsedMs: 8421,
+  at: '2026-11-16T02:40:00Z',
+};
+
+const expertCompliance: ComplianceFinding[] = [
+  {
+    id: 'cmp_001',
+    rule: 'PCPD-ART-13 个人数据跨境传输',
+    severity: 'HIGH',
+    status: 'BLOCK',
+    detail: '任务输入包含境外传输字段，需先完成跨境评估并显式阻断。',
+  },
+  {
+    id: 'cmp_002',
+    rule: 'PCPD-ART-17 最小必要原则',
+    severity: 'MEDIUM',
+    status: 'WARN',
+    detail: '采集字段超出验收所需范围，建议删减非必要样本。',
+  },
+  {
+    id: 'cmp_003',
+    rule: 'PCPD-ART-24 数据留存期限',
+    severity: 'LOW',
+    status: 'WARN',
+    detail: '默认留存 90 天，请确认与委托方约定一致。',
+  },
+  {
+    id: 'cmp_004',
+    rule: 'PCPD-ART-09 安全审计日志',
+    severity: 'LOW',
+    status: 'PASS',
+    detail: '审计日志、哈希链与操作授权记录完整。',
+  },
+];
+
+const expertRisk: RiskAssessment = {
+  score: 82,
+  level: 'HIGH',
+  threshold: 70,
+  blocked: true,
+  reasons: ['PCPD BLOCK 规则命中，已阻断结算', '任务涉及跨境数据传输路径，需补充合法依据'],
+};
+
+const expertOverview: ExpertOverview = {
+  tools: expertTools,
+  validation: expertValidation,
+  compliance: expertCompliance,
+  risk: expertRisk,
+  pricing: [
+    { service: '多 Agent 交叉验证', unit: 'CNY/次', price: 8 },
+    { service: '合规扫描', unit: 'CNY/次', price: 5 },
+    { service: '风险阻断', unit: 'CNY/次', price: 3 },
+  ],
+};
+
+/* ------------------------------------------------------------------ */
+/* 任务信任流水线（必须与任务状态一致）                                */
+/* ------------------------------------------------------------------ */
+
+const HIGH_RISK_TASK_IDS = new Set(['task_1003', 'task_1004', 'task_1007']);
+
+const validationForStatus = (taskId: string, status: TaskStatus): CrossValidation => {
+  const base: CrossValidation = {
+    taskId,
+    generator: 'Claude',
+    generatorModel: 'claude-opus-5-5',
+    generatorVerdict: 'PENDING',
+    reviewer: 'Codex',
+    reviewerModel: 'gpt-5-codex',
+    reviewerVerdict: 'PENDING',
+    consensus: 'PENDING',
+    confidence: 0,
+    cost: 0,
+    elapsedMs: 0,
+    at: '2026-11-16T02:40:00Z',
+  };
+
+  switch (status) {
+    case 'SUBMITTED':
+    case 'AI_VALIDATING':
+      return { ...base, generatorVerdict: 'PASS', confidence: 0.6, cost: 6.2, elapsedMs: 3200 };
+    case 'VALIDATION_FAILED':
+      return {
+        ...base,
+        generatorVerdict: 'PASS',
+        reviewerVerdict: 'FAIL',
+        consensus: 'FAIL',
+        confidence: 0.35,
+        cost: 9.8,
+        elapsedMs: 6100,
+      };
+    case 'COMPLIANCE_SCAN':
+    case 'SETTLING':
+    case 'COMPLETED':
+      return {
+        ...base,
+        generatorVerdict: 'PASS',
+        reviewerVerdict: 'PASS',
+        consensus: 'PASS',
+        confidence: 0.94,
+        cost: 12.6,
+        elapsedMs: 8421,
+      };
+    default:
+      return base;
+  }
+};
+
+const complianceForTask = (highRisk: boolean): ComplianceFinding[] => {
+  const crossBorderStatus: ComplianceFinding['status'] = highRisk ? 'BLOCK' : 'WARN';
+  return [
+    {
+      id: 'cmp_001',
+      rule: 'PCPD-ART-13 个人数据跨境传输',
+      severity: 'HIGH',
+      status: crossBorderStatus,
+      detail: '任务输入包含境外传输字段，需先完成跨境评估并显式阻断。',
+    },
+    {
+      id: 'cmp_002',
+      rule: 'PCPD-ART-17 最小必要原则',
+      severity: 'MEDIUM',
+      status: 'WARN',
+      detail: '采集字段超出验收所需范围，建议删减非必要样本。',
+    },
+    {
+      id: 'cmp_003',
+      rule: 'PCPD-ART-24 数据留存期限',
+      severity: 'LOW',
+      status: 'WARN',
+      detail: '默认留存 90 天，请确认与委托方约定一致。',
+    },
+    {
+      id: 'cmp_004',
+      rule: 'PCPD-ART-09 安全审计日志',
+      severity: 'LOW',
+      status: 'PASS',
+      detail: '审计日志、哈希链与操作授权记录完整。',
+    },
+  ];
+};
+
+const riskForTask = (highRisk: boolean): RiskAssessment =>
+  highRisk
+    ? {
+        score: 82,
+        level: 'HIGH',
+        threshold: 70,
+        blocked: true,
+        reasons: ['PCPD BLOCK 规则命中，已阻断结算', '任务涉及跨境数据传输路径，需补充合法依据'],
+      }
+    : {
+        score: 58,
+        level: 'MEDIUM',
+        threshold: 70,
+        blocked: false,
+        reasons: ['任务涉及跨境数据传输路径，需补充合法依据', '沙箱内执行授权尚未完成二次复核'],
+      };
+
+const hasBlockFinding = (findings: ComplianceFinding[]): boolean =>
+  findings.some((finding) => finding.status === 'BLOCK');
+
+/* ------------------------------------------------------------------ */
+/* API 中转站种子                                                      */
+/* ------------------------------------------------------------------ */
+
+const gatewayModels: ModelCatalogItem[] = [
+  {
+    id: 'deepseek-chat',
+    provider: 'DeepSeek',
+    name: 'DeepSeek V3.2',
+    contextWindow: 131072,
+    inputPricePerMTok: 1,
+    outputPricePerMTok: 2,
+    latencyMs: 680,
+    status: 'ONLINE',
+    capabilities: ['chat', 'code', 'tools'],
+  },
+  {
+    id: 'qwen3-max',
+    provider: 'Qwen',
+    name: 'Qwen3 Max',
+    contextWindow: 131072,
+    inputPricePerMTok: 1.6,
+    outputPricePerMTok: 6.4,
+    latencyMs: 720,
+    status: 'ONLINE',
+    capabilities: ['chat', 'code', 'reasoning'],
+  },
+  {
+    id: 'glm-4.6',
+    provider: 'GLM',
+    name: 'GLM-4.6',
+    contextWindow: 128000,
+    inputPricePerMTok: 2,
+    outputPricePerMTok: 8,
+    latencyMs: 760,
+    status: 'ONLINE',
+    capabilities: ['chat', 'tools'],
+  },
+  {
+    id: 'kimi-k2',
+    provider: 'Kimi',
+    name: 'Kimi K2',
+    contextWindow: 262144,
+    inputPricePerMTok: 2.4,
+    outputPricePerMTok: 10,
+    latencyMs: 910,
+    status: 'ONLINE',
+    capabilities: ['chat', 'long-context'],
+  },
+  {
+    id: 'minimax-m2',
+    provider: 'MiniMax',
+    name: 'MiniMax M2',
+    contextWindow: 200000,
+    inputPricePerMTok: 1.8,
+    outputPricePerMTok: 7.2,
+    latencyMs: 840,
+    status: 'DEGRADED',
+    capabilities: ['chat', 'code'],
+  },
+  {
+    id: 'claude-opus-5-5',
+    provider: 'Claude',
+    name: 'Claude Opus 5.5',
+    contextWindow: 200000,
+    inputPricePerMTok: 30,
+    outputPricePerMTok: 150,
+    latencyMs: 1200,
+    status: 'ONLINE',
+    capabilities: ['chat', 'code', 'vision', 'tools'],
+  },
+  {
+    id: 'gpt-5-codex',
+    provider: 'GPT',
+    name: 'GPT-5 Codex',
+    contextWindow: 400000,
+    inputPricePerMTok: 25,
+    outputPricePerMTok: 100,
+    latencyMs: 1150,
+    status: 'ONLINE',
+    capabilities: ['chat', 'code', 'tools'],
+  },
+  {
+    id: 'gemini-3-pro',
+    provider: 'Gemini',
+    name: 'Gemini 3 Pro',
+    contextWindow: 1000000,
+    inputPricePerMTok: 12,
+    outputPricePerMTok: 48,
+    latencyMs: 980,
+    status: 'ONLINE',
+    capabilities: ['chat', 'vision', 'long-context'],
+  },
+];
+
+const gateway: ApiGatewayOverview = {
+  models: gatewayModels,
+  keys: [
+    {
+      id: 'key_001',
+      label: '默认开发密钥',
+      maskedKey: 'sk-pt-****-7f3a',
+      createdAt: '2026-11-01T08:00:00Z',
+      lastUsedAt: '2026-11-17T01:20:00Z',
+      scopes: ['models:read', 'chat:write'],
+      status: 'ACTIVE',
+    },
+  ],
+  usage: {
+    period: '2026-11',
+    tokensIn: 1_284_000,
+    tokensOut: 496_000,
+    requests: 3_912,
+    spend: 86.4,
+  },
+};
+
+let nextApiKeyId = 2;
+
+const randomHex = (length: number): string => {
+  let output = '';
+  while (output.length < length) {
+    output += Math.floor(Math.random() * 16).toString(16);
+  }
+  return output;
 };
 
 const ratingsForUsr001: Rating[] = [
@@ -749,9 +1175,100 @@ export const mockApi = {
     return { taskId, status: 'ACCEPTED', leaseExpiresAt };
   },
 
-  async getWallet(): Promise<GetWalletResponse> {
+  async getWallet(): Promise<WalletOverview> {
     await latency();
     return clone(wallet);
+  },
+
+  async rechargeWallet(input: RechargeInput): Promise<WalletOverview> {
+    await latency();
+    if (!Number.isFinite(input.amount) || input.amount <= 0) {
+      throw new Error('充值金额必须大于 0');
+    }
+    wallet.balance.available += input.amount;
+    wallet.transactions.unshift(makeWalletTransaction('DEPOSIT', input.amount));
+    return clone(wallet);
+  },
+
+  async subscribeVip(input: SubscribeVipInput): Promise<WalletOverview> {
+    await latency();
+    const priceByLevel: Record<SubscribeVipInput['level'], number> = {
+      PRO: 99,
+      ENTERPRISE: 999,
+    };
+    const price = priceByLevel[input.level];
+    if (wallet.balance.available < price) {
+      throw new Error('余额不足，无法订阅 VIP');
+    }
+
+    wallet.balance.available -= price;
+    wallet.transactions.unshift(makeWalletTransaction('FEE', price));
+
+    const expiresAt = new Date();
+    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+    wallet.vip = {
+      level: input.level,
+      expiresAt: expiresAt.toISOString(),
+      feeRate: input.level === 'PRO' ? 0.1 : 0.05,
+    };
+
+    return clone(wallet);
+  },
+
+  async getExpertOverview(): Promise<ExpertOverview> {
+    await latency();
+    return clone(expertOverview);
+  },
+
+  async getTaskTrust(taskId: string): Promise<TaskTrust> {
+    await latency();
+    const task = findTask(taskId);
+    if (!task) {
+      throw new Error('任务不存在');
+    }
+    const highRisk = HIGH_RISK_TASK_IDS.has(taskId);
+    const compliance = complianceForTask(highRisk);
+    const risk = riskForTask(highRisk);
+    // 硬约束：blocked 必须与是否存在 BLOCK 命中完全一致。
+    risk.blocked = hasBlockFinding(compliance);
+    return clone({
+      taskId,
+      validation: validationForStatus(taskId, task.status),
+      compliance,
+      risk,
+    });
+  },
+
+  async getApiGateway(): Promise<ApiGatewayOverview> {
+    await latency();
+    return clone(gateway);
+  },
+
+  async createApiKey(input: CreateApiKeyInput): Promise<CreateApiKeyResponse> {
+    await latency();
+    const hex = randomHex(8);
+    const record: ApiKeyRecord = {
+      id: `key_${String(nextApiKeyId).padStart(3, '0')}`,
+      label: input.label,
+      maskedKey: `sk-pt-****-${hex.slice(-4)}`,
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null,
+      scopes: [...input.scopes],
+      status: 'ACTIVE',
+    };
+    nextApiKeyId += 1;
+    gateway.keys.unshift(record);
+    return { key: clone(record), plaintextKey: `sk-pt-${hex}` };
+  },
+
+  async revokeApiKey(keyId: string): Promise<ApiKeyRecord> {
+    await latency();
+    const record = gateway.keys.find((key) => key.id === keyId);
+    if (!record) {
+      throw new Error('API Key 不存在');
+    }
+    record.status = 'REVOKED';
+    return clone(record);
   },
 
   async getTrace(taskId: string): Promise<GetTraceResponse> {

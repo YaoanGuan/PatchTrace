@@ -23,11 +23,14 @@ type persistedState struct {
 	Users        map[string]UserSummary       `json:"users"`
 	Tasks        []persistedTaskRecord        `json:"tasks"`
 	Traces       map[string]GetTraceResponse  `json:"traces"`
-	Wallet       GetWalletResponse            `json:"wallet"`
+	Wallet       WalletOverview               `json:"wallet"`
 	Reputations  map[string]ReputationSummary `json:"reputations"`
+	Expert       ExpertState                  `json:"expert"`
+	Gateway      GatewayState                 `json:"gateway"`
 	NextTaskID   int                          `json:"nextTaskId"`
 	NextRatingID int                          `json:"nextRatingId"`
 	NextTxID     int                          `json:"nextTxId"`
+	NextApiKeyID int                          `json:"nextApiKeyId"`
 }
 
 type persistedTaskRecord struct {
@@ -103,6 +106,18 @@ func OpenStore(path string) (*Store, error) {
 		return nil, err
 	}
 	store.db = db
+
+	// Older snapshots predate the trust layer, API gateway and VIP fields.
+	// Fill only the missing sections (never touch tasks, balances or ledgers)
+	// and write the upgraded snapshot back without changing the version.
+	store.mu.Lock()
+	store.ensureSeededLocked()
+	persistErr := store.persistLocked()
+	store.mu.Unlock()
+	if persistErr != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("upgrade marketplace state: %w", persistErr)
+	}
 	return store, nil
 }
 
@@ -136,10 +151,43 @@ func storeFromPersisted(state persistedState) (*Store, error) {
 		traces:       state.Traces,
 		wallet:       state.Wallet,
 		reputations:  state.Reputations,
+		expert:       state.Expert,
+		gateway:      state.Gateway,
 		nextTaskID:   state.NextTaskID,
 		nextRatingID: state.NextRatingID,
 		nextTxID:     state.NextTxID,
+		nextApiKeyID: state.NextApiKeyID,
 	}, nil
+}
+
+// ensureSeededLocked fills sections that older snapshots did not persist. It is
+// intentionally field-granular so a partially populated snapshot keeps whatever
+// is already there; tasks, wallet balances and transactions are never touched.
+func (s *Store) ensureSeededLocked() {
+	// The expert overview is read-only demo data with no write path, so a
+	// persisted snapshot can never contain anything newer than the seed. Always
+	// replace it unconditionally; otherwise an old snapshot (for example one
+	// whose risk section still says score=58/blocked=false) would shadow the
+	// current seed and break the blocked == hasBlock(compliance) invariant.
+	s.expert = seedExpert()
+
+	gateway := seedGateway()
+	if len(s.gateway.Models) == 0 {
+		s.gateway.Models = gateway.Models
+	}
+	if len(s.gateway.Keys) == 0 {
+		s.gateway.Keys = gateway.Keys
+	}
+	if s.gateway.Usage.Period == "" {
+		s.gateway.Usage = gateway.Usage
+	}
+
+	if s.wallet.Vip.Level == "" {
+		s.wallet.Vip = seedWalletVip()
+	}
+	if s.nextApiKeyID <= 0 {
+		s.nextApiKeyID = seedNextApiKeyID
+	}
 }
 
 // Close releases the database handle. It is safe to call more than once.
@@ -208,8 +256,11 @@ func (s *Store) snapshotLocked() persistedState {
 		Traces:       s.traces,
 		Wallet:       s.wallet,
 		Reputations:  s.reputations,
+		Expert:       s.expert,
+		Gateway:      s.gateway,
 		NextTaskID:   s.nextTaskID,
 		NextRatingID: s.nextRatingID,
 		NextTxID:     s.nextTxID,
+		NextApiKeyID: s.nextApiKeyID,
 	}
 }

@@ -8,9 +8,9 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> T0–T10 全部完成：设计、地基、4 个业务模块、Go API 契约、前端 HTTP 接入、端到端联调、SQLite 持久化。
-> 证据：`go test ./marketplace/... -race` ok；`tsc` exit 0；`npm run build` exit 0；HTTP 模式渲染出 curl 新建任务；重启后任务仍在。
-> 下一动作：两个终端分别执行 `go run ./cmd/marketplace -port 8081` 与 `cd webui-marketplace && VITE_API_MODE=http npm run dev`，浏览器走查。
+> T0–T14 全部完成：设计、4+1 个业务模块、Go API、前端 HTTP 接入、SQLite 持久化、品牌升级、M2 AI 专家、钱包、API 中转站。
+> 证据：`go test ./marketplace/... -race` → `ok 1.950s`；`tsc` exit 0（0 error）；mock/HTTP 双模式 build exit 0；三路由 headless 渲染无错误；信任口径不变量全部为 true。
+> 下一动作：浏览器打开 http://localhost:5174/expert 与 /identity 人工验收。
 > 注意：数据默认落 `data/marketplace.db`（gitignored）；默认 mock 模式仍可单独运行前端。
 
 ---
@@ -30,6 +30,10 @@
 | T8 | 前端 HTTP 客户端 | — | 完成 | tsc + build | tsc/build/HTTP 模式构建均 exit 0 |
 | T9 | 前后端联调 | — | 完成 | 渲染 + curl | HTTP 模式渲染 9 任务（含 curl 新建）；证据链完整 |
 | T10 | SQLite 持久化 | — | 完成 | go test + 重启验证 | `go test -race` ok；重启后 curl 查回发布任务 |
+| T11 | 品牌与导航 | — | 完成 | tsc + 渲染 | 标题/广告语/M2 导航均渲染 |
+| T12 | M2 AI 专家（信任收费站） | M2 | 完成 | tsc + 渲染 | 7 工具四类、82/高风险/已阻断 |
+| T13 | 个人中枢钱包 + API 中转站 | M1 | 完成 | tsc + 渲染 | 余额 3300、8 模型、Key 管理 |
+| T14 | 后端扩展与联调 | — | 完成 | go test + 三路由 | 8 接口、迁移、重启持久化 |
 
 ---
 
@@ -136,6 +140,53 @@
 - [x] 验证：`go test`、`go vet`、`build`、实机重启 curl
   - 证据：`go test ./marketplace/... -race -count=1` → `ok AIxVuln/marketplace 1.471s`；`go vet` 无输出；`gofmt -l marketplace cmd/marketplace` 无输出；`CGO_ENABLED=0 go build ./...` exit 0
   - 实机：`/tmp/mkt-server -port 8083 -db /tmp/mkt-verify.db` 发布 `P9重启验证-1794887498` → 201，`total=1`；SIGTERM 停止后同库重启 → `healthz_after_restart 200`、`total=1`、标题一致；DB 文件 40960 bytes
+
+### T11 · 品牌与导航（P8-shell）
+
+- [x] `index.html` 标题改为 `PatchTrace Market · AI 雇佣 AI 的教育平台`
+- [x] `TopBar`：品牌副标题 + 广告语 `Trace the Patch, Uncover the Flaw.`，窄屏降级
+- [x] `SideNav` 增加 `/expert`（M2），任务大厅 M3、审计 M4、准入 M5
+- [x] 页面眉标改号：marketplace M3、audit/audit-detail M4、onboarding M5
+- [x] `router.tsx` 新增 `/expert` 懒加载路由
+- [x] `TaskDetailPage` 接入「信任流水线」卡（引用 `features/expert/components/TaskTrustPipeline`）
+- [x] 验证：`npx tsc --noEmit`、`npm run build`
+  - 证据：headless DOM `<title>PatchTrace Market · AI 雇佣 AI 的教育平台</title>`；TopBar 命中 `Trace the Patch, Uncover the Flaw.`；SideNav 五项 M1–M5；`npm run build` → `✓ built in 7.45s` exit 0
+
+### T12 · M2 AI 专家（P8-expert）
+
+- [x] `ExpertPage` + Hero（信任收费站定位与计价）
+- [x] `AccessMatrix`：云托管计算机 / AI CLI / AI IDE / 聊天客户端四类全覆盖，S/A/B/C 分级，角色权限
+- [x] `RoleBridge`：雇主发布 / 指挥官执行两类接入
+- [x] `CrossValidationPanel` + `PipelineStatus`：Claude 生成 → Codex 复核 → 共识
+- [x] `ComplianceScanPanel`：PCPD 基线，PASS/WARN/BLOCK
+- [x] `RiskGauge`：0–100、四级、阈值、阻断原因
+- [x] `TaskTrustPipeline`：供任务详情页复用
+- [x] 验证：`npx tsc --noEmit`；headless `/expert` 含接入矩阵与风险仪表
+  - 证据：`/expert` DOM 114916 bytes，命中「信任收费站 / 接入矩阵 / 交叉验证 / 合规扫描 / 风险阻断」；7 工具全部渲染（Grok Bot、ChatGPT Dot、Claude Code、Codex CLI、Cursor、Trae、Chatbox），四类 category 齐全
+  - 口径修复：overview 风险改为 `82/HIGH/blocked=true`（1 条 BLOCK）；任务级 validation 按状态派生，`task_1001` 全 PENDING、`task_1003` blocked=true、`task_1006` PASS；不变量 `blocked == hasBlock(compliance)` 全为 true
+
+### T13 · 个人中枢钱包 + API 中转站（P8-identity）
+
+- [x] `WalletPanel`：余额 / 冻结 / VIP / 充值 / 订阅 / 三条资金流 / 流水
+- [x] `ApiGatewayPanel`：主流模型目录、Key 创建/吊销、用量、接入指南、五步闭环
+- [x] `IdentityPage`：钱包紧贴 `ProfileHeader`，API 中转站为独立栏目
+- [x] `walletStore` 扩展 recharge / subscribeVip
+- [x] 验证：`npx tsc --noEmit`；headless `/identity` 含「钱包」「API 中转站」
+  - 证据：`/identity` DOM 125428 bytes；渲染可用余额 3,300、冻结 1,200、VIP 免费版、充值/订阅按钮；模型目录 8 个；API Key 两条（含验证期创建的 `sk-pt-****-a2f9`）；五步闭环「模型 API → 发布/完成任务 → 审核 → 支付 → 知识沉淀」
+
+### T14 · 后端扩展与联调（P8-backend）
+
+- [x] `GET /api/expert/overview`、`GET /api/tasks/{id}/trust`
+- [x] `POST /api/wallet/recharge`、`POST /api/wallet/vip`
+- [x] `GET /api/gateway`、`POST /api/gateway/keys`、`POST /api/gateway/keys/{id}/revoke`
+- [x] Store/持久化兼容旧快照，新增字段补种子
+- [x] Go 测试覆盖成功/400/404；`-race` 全绿
+- [x] 联调：HTTP 模式 headless `/expert`、`/identity`、`/marketplace/tasks/task_1001`
+- [x] 验证：`go test`、`go vet`、`build`、`tsc`、`npm run build`
+  - 证据：`go test ./marketplace/... -race -count=1` → `ok AIxVuln/marketplace 1.950s`；`go vet` 无输出；`CGO_ENABLED=0 go build ./...` exit 0；`gofmt -l` 无输出；`tsc` exit 0（0 error）
+  - 接口：overview 82/HIGH/blocked=true；task_1001 PENDING/58/MEDIUM/未阻断；task_1003 blocked=true/82/HIGH；task_1006 PASS；未知 trust 404；recharge 0 → 400；非法 VIP → 400；非法 Key → 400
+  - 持久化：充值 100 → available 3300；创建 key_002；SIGTERM 重启后 3300、7 条流水、2 个 key 仍在；旧快照 expert 种子被代码种子覆盖（`TestOpenStoreOverwritesStaleExpertSeed`）
+  - 前端双模式：`VITE_API_MODE=http npm run build` exit 0；默认 mock build exit 0；mock preview `:4180` 三路由命中新模块；HTTP 模式 `:5174` 三路由数据来自真实 API
 
 ---
 

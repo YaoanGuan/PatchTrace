@@ -5,6 +5,7 @@ import { AppShell } from '../components/layout/AppShell';
 const IdentityPage = lazy(
   () => import('../features/identity/pages/IdentityPage'),
 );
+const ExpertPage = lazy(() => import('../features/expert/pages/ExpertPage'));
 const MarketplacePage = lazy(
   () => import('../features/marketplace/pages/MarketplacePage'),
 );
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/marketplace" replace /> },
       { path: 'identity', element: withSuspense(<IdentityPage />) },
+      { path: 'expert', element: withSuspense(<ExpertPage />) },
       { path: 'marketplace', element: withSuspense(<MarketplacePage />) },
       {
         path: 'marketplace/tasks/:taskId',

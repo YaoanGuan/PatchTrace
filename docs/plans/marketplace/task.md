@@ -22,12 +22,13 @@
 | 路径 | 页面 | 模块 |
 |---|---|---|
 | `/` | 重定向到 `/marketplace` | — |
-| `/identity` | `IdentityPage`（个人中枢与能力认证） | M1 |
-| `/marketplace` | `MarketplacePage`（任务撮合大厅） | M2 |
-| `/marketplace/tasks/:taskId` | `TaskDetailPage`（任务详情 + 流水线 + 托管） | M2 |
-| `/audit` | `AuditPage`（审计列表与证据链入口） | M3 |
-| `/audit/:taskId` | `AuditDetailPage`（单任务证据链 + 免责契约） | M3 |
-| `/onboarding` | `OnboardingPage`（准入与信誉） | M4 |
+| `/identity` | `IdentityPage`（个人中枢 + 钱包 + API 中转站） | M1 |
+| `/expert` | `ExpertPage`（AI 专家 · 信任收费站） | M2 |
+| `/marketplace` | `MarketplacePage`（任务撮合大厅） | M3 |
+| `/marketplace/tasks/:taskId` | `TaskDetailPage`（任务详情 + 信任流水线 + 托管） | M3 |
+| `/audit` | `AuditPage`（审计列表与证据链入口） | M4 |
+| `/audit/:taskId` | `AuditDetailPage`（单任务证据链 + 免责契约） | M4 |
+| `/onboarding` | `OnboardingPage`（准入与信誉） | M5 |
 | `*` | `NotFoundPage` | — |
 
 路由实现：`src/app/router.tsx`，使用 `createBrowserRouter` + `React.lazy` 按页懒加载；`AppShell` 作为父路由承载顶栏、侧栏与全局弹窗。
@@ -562,3 +563,138 @@ DONE：
 - `go test ./marketplace/... -race` 全绿，新增重启持久化用例（发布/接单/评分）。
 - `go vet` 干净，`CGO_ENABLED=0 go build ./...` exit 0。
 - 实机验证：发布任务 → 停止服务 → 重启 → 列表中仍有该任务。
+
+---
+
+## 5. 第二轮迭代 · 品牌升级 / M2 AI 专家 / 钱包与 API 中转站
+
+> 触发：2026-11-17 用户反馈「前端再完善一下」。
+> 品牌口径：用户原文写作 `ParchTrace Market-AI雇佣AI的教育平台`，按既有品牌 `PatchTrace` 落地（`ParchTrace` 视为笔误）；标题文案保留 `Market-AI 雇佣 AI 的教育平台`，广告语原样使用。
+> 模块编号：新增模块插入 M1 与任务大厅之间 → M1 个人中枢、M2 AI 专家、M3 任务大厅、M4 审计证据、M5 准入信誉。
+
+### T11 · 品牌与导航
+
+- `index.html` `<title>`：`PatchTrace Market · AI 雇佣 AI 的教育平台`。
+- `TopBar`：主品牌 `PatchTrace Market` + 副标题 `AI 雇佣 AI 的教育平台` + 广告语 `Trace the Patch, Uncover the Flaw.`；窄屏隐藏副标题与广告语，保留品牌。
+- `SideNav`：新增 `/expert`（M2 · AI 专家）；任务大厅标 M3、审计标 M4、准入标 M5。
+- 各页面眉标同步改号：marketplace → M3、audit/audit-detail → M4、onboarding → M5；`NotFoundPage` 品牌文案同步。
+- 路由：新增 `/expert`，懒加载 `features/expert/pages/ExpertPage`。
+
+### T12 · M2 AI 专家（信任收费站 / Trust Layer）
+
+定位：不做"纯 API 代理"（可替代、无定价权），把**多 Agent 交叉验证 + 合规检查 + 风险阻断**做成可计价产品。
+
+路由 `/expert`，单一页面 + 多板块：
+
+1. **Hero**：标题「AI 专家 · 信任收费站」，一句话说明信任是产品；信任服务计价卡（交叉验证 / 合规扫描 / 风险阻断 三档单价）。
+2. **接入矩阵**（`AccessMatrix` + `ToolCard`）：
+   - 分类：`CLOUD_COMPUTER`（Grok Bot、ChatGPT Dot）、`AI_CLI`（Claude Code、Codex CLI）、`AI_IDE`（Cursor、Trae）、`CHAT_UI`（Chatbox）。
+   - 每张卡：名称、厂商、接入协议（MCP / CLI / IDE Plugin / Screen）、信任等级 `S/A/B/C`、状态 `CONNECTED/PENDING/SANDBOX`、允许角色（雇主可发布 / 指挥官可执行）、合规标签。
+   - 分类筛选 + 等级筛选；覆盖「云托管计算机 / CLI / IDE / 聊天客户端」四类无死角。
+3. **角色接入桥**（`RoleBridge`）：雇主 AI 接入 → 发布/托管任务；指挥官 AI 接入 → 领取/执行/提交任务；展示各自所需 scope 与审计留存要求。
+4. **多 Agent 交叉验证**（`CrossValidationPanel` + `PipelineStatus`）：Agent A（Claude）生成 PoC → Agent B（Codex）复核 → 共识 `PASS/FAIL/PENDING`、置信度、耗时、成本；两步状态条（生成 / 复核 / 共识）。
+5. **自动化合规扫描**（`ComplianceScanPanel`）：基于 PCPD 基线的规则命中表，字段 `rule / severity / status(PASS|WARN|BLOCK) / detail`；`BLOCK` 必须显式阻断任务。
+6. **风险定级与阻断**（`RiskGauge`）：0–100 分、四级 `LOW/MEDIUM/HIGH/CRITICAL`、阈值线、阻断状态、触发原因列表。
+7. **任务详情页集成**：`TaskDetailPage` 新增「信任流水线」卡（组件 `features/expert/components/TaskTrustPipeline.tsx`），消费 `GET /api/tasks/:id/trust`，展示 `PipelineStatus` + `RiskGauge`，失败时降级为静态说明，不得整页报错。
+
+新增类型（`src/types/domain.ts`）：
+
+```ts
+export type AiToolCategory = 'CLOUD_COMPUTER' | 'AI_CLI' | 'AI_IDE' | 'CHAT_UI';
+export type AiToolGrade = 'S' | 'A' | 'B' | 'C';
+export type AiToolStatus = 'CONNECTED' | 'PENDING' | 'SANDBOX';
+export interface AiToolIntegration {
+  id: string; name: string; vendor: string; category: AiToolCategory;
+  protocol: string; grade: AiToolGrade; status: AiToolStatus;
+  roles: UserRole[]; permissions: string[]; compliance: string[];
+}
+export type ValidationVerdict = 'PASS' | 'FAIL' | 'PENDING';
+export interface CrossValidation {
+  taskId: string; generator: string; generatorModel: string; generatorVerdict: ValidationVerdict;
+  reviewer: string; reviewerModel: string; reviewerVerdict: ValidationVerdict;
+  consensus: ValidationVerdict; confidence: number; cost: number; elapsedMs: number; at: string;
+}
+export type ComplianceSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export interface ComplianceFinding {
+  id: string; rule: string; severity: ComplianceSeverity;
+  status: 'PASS' | 'WARN' | 'BLOCK'; detail: string;
+}
+export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export interface RiskAssessment {
+  score: number; level: RiskLevel; threshold: number; blocked: boolean; reasons: string[];
+}
+export interface ExpertOverview {
+  tools: AiToolIntegration[]; validation: CrossValidation;
+  compliance: ComplianceFinding[]; risk: RiskAssessment;
+  pricing: { service: string; unit: string; price: number }[];
+}
+export interface TaskTrust {
+  taskId: string; validation: CrossValidation;
+  compliance: ComplianceFinding[]; risk: RiskAssessment;
+}
+```
+
+API：
+
+| Method | Path | 响应 |
+|---|---|---|
+| GET | `/api/expert/overview` | `ExpertOverview` |
+| GET | `/api/tasks/{id}/trust` | `TaskTrust`（未知任务 404） |
+
+口径约束：`validation` 必须按任务状态派生——未进入验证（PUBLISHED/ACCEPTED/IN_PROGRESS 等）返回 `PENDING`，不得伪造 `PASS`；任何 `compliance` 命中 `BLOCK` 时 `risk.blocked` 必须为 `true`，否则为 `false`。
+
+### T13 · 个人中枢：钱包 + API 中转站
+
+**钱包**（`WalletPanel`，放在 `ProfileHeader` 正下方）：
+
+- 余额卡：可用 / 冻结 / VIP 等级 / 到期时间；按钮「充值」「订阅 VIP」。
+- 三条资金流说明：雇主托管支付、指挥官收入、平台 AI 增值服务费（按任务抽成）。
+- 近 10 笔流水，复用 `WalletTransaction`。
+- 交互：充值弹窗（金额 -> `POST /api/wallet/recharge`，mock 同步）；VIP 弹窗（`PRO/ENTERPRISE` -> `POST /api/wallet/vip`）；成功后刷新钱包并 toast。
+
+**API 中转站**（`ApiGatewayPanel`，钱包下方独立栏目）：
+
+- 主流模型目录：DeepSeek、Qwen、GLM、Kimi、MiniMax、Claude、GPT、Gemini；字段 `provider / name / contextWindow / inputPricePerMTok / outputPricePerMTok / latencyMs / status / capabilities`。
+- API Key 管理：列表（打码）、创建（返回一次完整 key，仅显示一次）、吊销。
+- 用量卡：本期 tokens 入/出、请求数、花费。
+- 接入指南：Claude Code / Codex CLI / Cursor / Chatbox 的 Base URL 与模型名示例。
+- 闭环条：`模型 API → 发布/完成任务 → 审核 → 支付 → 知识沉淀`。
+
+新增类型：
+
+```ts
+export interface WalletVip { level: 'FREE' | 'PRO' | 'ENTERPRISE'; expiresAt: string | null; feeRate: number; }
+export interface WalletOverview { balance: WalletBalance; transactions: WalletTransaction[]; vip: WalletVip; }
+export interface RechargeInput { amount: number; }
+export interface SubscribeVipInput { level: 'PRO' | 'ENTERPRISE'; }
+export interface ModelCatalogItem {
+  id: string; provider: string; name: string; contextWindow: number;
+  inputPricePerMTok: number; outputPricePerMTok: number; latencyMs: number;
+  status: 'ONLINE' | 'DEGRADED'; capabilities: string[];
+}
+export interface ApiKeyRecord { id: string; label: string; maskedKey: string; createdAt: string; lastUsedAt: string | null; scopes: string[]; status: 'ACTIVE' | 'REVOKED'; }
+export interface ApiUsage { period: string; tokensIn: number; tokensOut: number; requests: number; spend: number; }
+export interface ApiGatewayOverview { models: ModelCatalogItem[]; keys: ApiKeyRecord[]; usage: ApiUsage; }
+export interface CreateApiKeyInput { label: string; scopes: string[]; }
+export interface CreateApiKeyResponse { key: ApiKeyRecord; plaintextKey: string; }
+```
+
+API：
+
+| Method | Path | 说明 |
+|---|---|---|
+| GET | `/api/wallet` | 扩展返回 `vip`（向后兼容：新增字段） |
+| POST | `/api/wallet/recharge` | `{amount}` > 0；返回更新后的 `WalletOverview`；400 非法 |
+| POST | `/api/wallet/vip` | `{level}` ∈ PRO/ENTERPRISE；返回更新后的 `WalletOverview` |
+| GET | `/api/gateway` | `ApiGatewayOverview` |
+| POST | `/api/gateway/keys` | `{label, scopes}` → `CreateApiKeyResponse`（201） |
+| POST | `/api/gateway/keys/{id}/revoke` | 返回更新后的 `ApiKeyRecord`；未知 404 |
+
+### T14 · 后端扩展与联调
+
+- `marketplace/expert.go`、`marketplace/gateway.go`：种子数据与 handler；Store 新增 `expert ExpertState`、`gateway GatewayState` 字段；钱包新增 VIP 字段。
+- 持久化兼容：旧快照缺少新字段时，`OpenStore` 加载后补种子（不 bump 版本、不重置用户数据）。
+- 新增测试：专家总览、任务信任、充值、VIP、API Key 创建/吊销、400/404。
+- 联调：`go test -race`、`go vet`、`CGO_ENABLED=0 go build ./...`、`tsc --noEmit`、`npm run build`、HTTP 模式 headless 渲染 `/expert`、`/identity`、`/marketplace/tasks/task_1001`。
+
+DONE：上述命令全绿；重启后新数据仍在；截图/摘录存档到 todo.md。

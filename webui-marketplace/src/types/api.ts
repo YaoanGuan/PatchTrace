@@ -1,4 +1,6 @@
 import type {
+  ApiGatewayOverview,
+  ExpertOverview,
   Money,
   Rating,
   RatingDirection,
@@ -7,11 +9,40 @@ import type {
   TaskDetail,
   TaskStatus,
   TaskSummary,
+  TaskTrust,
   TraceNode,
   User,
   UserRole,
-  WalletBalance,
-  WalletTransaction,
+  WalletOverview,
+} from './domain';
+
+/**
+ * 第二轮迭代新增的领域类型统一从 `types/api` 再导出，
+ * 既有页面/store 直接 `import type { ... } from '.../types/api'` 即可。
+ */
+export type {
+  AiToolCategory,
+  AiToolGrade,
+  AiToolIntegration,
+  AiToolStatus,
+  ApiGatewayOverview,
+  ApiKeyRecord,
+  ApiUsage,
+  ComplianceFinding,
+  ComplianceSeverity,
+  CreateApiKeyInput,
+  CreateApiKeyResponse,
+  CrossValidation,
+  ExpertOverview,
+  ModelCatalogItem,
+  RechargeInput,
+  RiskAssessment,
+  RiskLevel,
+  SubscribeVipInput,
+  TaskTrust,
+  ValidationVerdict,
+  WalletOverview,
+  WalletVip,
 } from './domain';
 
 /** GET /api/me */
@@ -60,11 +91,23 @@ export interface GetTraceResponse {
   nodes: TraceNode[];
 }
 
-/** GET /api/wallet */
-export interface GetWalletResponse {
-  balance: WalletBalance;
-  transactions: WalletTransaction[];
-}
+/** GET /api/wallet（向后兼容：保留别名，结构扩展 vip 字段） */
+export type GetWalletResponse = WalletOverview;
+
+/** POST /api/wallet/recharge */
+export type RechargeWalletResponse = WalletOverview;
+
+/** POST /api/wallet/vip */
+export type SubscribeVipResponse = WalletOverview;
+
+/** GET /api/expert/overview */
+export type GetExpertOverviewResponse = ExpertOverview;
+
+/** GET /api/tasks/:taskId/trust */
+export type GetTaskTrustResponse = TaskTrust;
+
+/** GET /api/gateway */
+export type GetApiGatewayResponse = ApiGatewayOverview;
 
 /** GET /api/reputation/:userId */
 export type GetReputationResponse = ReputationSummary;

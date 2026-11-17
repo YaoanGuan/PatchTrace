@@ -51,12 +51,15 @@ type Store struct {
 	users       map[string]UserSummary
 	tasks       []*taskRecord
 	traces      map[string]GetTraceResponse
-	wallet      GetWalletResponse
+	wallet      WalletOverview
 	reputations map[string]ReputationSummary
+	expert      ExpertState
+	gateway     GatewayState
 
 	nextTaskID   int
 	nextRatingID int
 	nextTxID     int
+	nextApiKeyID int
 }
 
 const pageSize = 20
@@ -110,9 +113,12 @@ func NewStore() *Store {
 		traces:       seedTraces(),
 		wallet:       seedWallet(),
 		reputations:  seedReputations(me.Skills),
+		expert:       seedExpert(),
+		gateway:      seedGateway(),
 		nextTaskID:   1008,
 		nextRatingID: 4,
 		nextTxID:     7,
+		nextApiKeyID: seedNextApiKeyID,
 	}
 }
 
@@ -516,9 +522,14 @@ func seedTraces() map[string]GetTraceResponse {
 	}
 }
 
-func seedWallet() GetWalletResponse {
-	return GetWalletResponse{
+func seedWalletVip() WalletVip {
+	return WalletVip{Level: VipFree, ExpiresAt: nil, FeeRate: 0.15}
+}
+
+func seedWallet() WalletOverview {
+	return WalletOverview{
 		Balance: WalletBalance{Available: 3200, Frozen: 1200, Currency: "CNY"},
+		Vip:     seedWalletVip(),
 		Transactions: []WalletTransaction{
 			{ID: "tx_001", Type: TxEscrowFreeze, Amount: 1200, TaskID: "task_1001", At: "2026-11-15T10:00:00Z", Status: TxSettled},
 			{ID: "tx_002", Type: TxEscrowFreeze, Amount: 860, TaskID: "task_1002", At: "2026-11-16T02:00:00Z", Status: TxSettled},
@@ -745,8 +756,8 @@ func (s *Store) GetTrace(id string) (GetTraceResponse, bool) {
 	}, true
 }
 
-// Wallet returns a copy of the wallet snapshot.
-func (s *Store) Wallet() GetWalletResponse {
+// Wallet returns a copy of the wallet snapshot, including the VIP state.
+func (s *Store) Wallet() WalletOverview {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return cloneWallet(s.wallet)
@@ -985,9 +996,12 @@ func cloneTrace(input GetTraceResponse) GetTraceResponse {
 	return output
 }
 
-func cloneWallet(input GetWalletResponse) GetWalletResponse {
+func cloneWallet(input WalletOverview) WalletOverview {
 	output := input
 	output.Transactions = append([]WalletTransaction(nil), input.Transactions...)
+	if input.Vip.ExpiresAt != nil {
+		output.Vip.ExpiresAt = stringPtr(*input.Vip.ExpiresAt)
+	}
 	return output
 }
 

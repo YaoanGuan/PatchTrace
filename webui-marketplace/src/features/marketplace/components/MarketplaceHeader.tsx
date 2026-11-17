@@ -19,7 +19,7 @@ export function MarketplaceHeader() {
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="space-y-1">
         <p className="text-xs font-medium uppercase tracking-wide text-indigo-600">
-          M2 · 任务撮合大厅与 AI 流水线
+          M3 · 任务撮合大厅与 AI 流水线
         </p>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
           任务撮合大厅

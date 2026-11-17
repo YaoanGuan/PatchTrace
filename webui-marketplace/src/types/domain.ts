@@ -271,3 +271,148 @@ export interface Toast {
   description?: string;
   variant?: ToastVariant;
 }
+
+/* ------------------------------------------------------------------ */
+/* M2 AI 专家（信任收费站 / Trust Layer）                              */
+/* ------------------------------------------------------------------ */
+
+export type AiToolCategory = 'CLOUD_COMPUTER' | 'AI_CLI' | 'AI_IDE' | 'CHAT_UI';
+
+export type AiToolGrade = 'S' | 'A' | 'B' | 'C';
+
+export type AiToolStatus = 'CONNECTED' | 'PENDING' | 'SANDBOX';
+
+export interface AiToolIntegration {
+  id: string;
+  name: string;
+  vendor: string;
+  category: AiToolCategory;
+  protocol: string;
+  grade: AiToolGrade;
+  status: AiToolStatus;
+  roles: UserRole[];
+  permissions: string[];
+  compliance: string[];
+}
+
+export type ValidationVerdict = 'PASS' | 'FAIL' | 'PENDING';
+
+export interface CrossValidation {
+  taskId: string;
+  generator: string;
+  generatorModel: string;
+  generatorVerdict: ValidationVerdict;
+  reviewer: string;
+  reviewerModel: string;
+  reviewerVerdict: ValidationVerdict;
+  consensus: ValidationVerdict;
+  confidence: number;
+  cost: number;
+  elapsedMs: number;
+  at: string;
+}
+
+export type ComplianceSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export interface ComplianceFinding {
+  id: string;
+  rule: string;
+  severity: ComplianceSeverity;
+  status: 'PASS' | 'WARN' | 'BLOCK';
+  detail: string;
+}
+
+export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export interface RiskAssessment {
+  score: number;
+  level: RiskLevel;
+  threshold: number;
+  blocked: boolean;
+  reasons: string[];
+}
+
+export interface ExpertOverview {
+  tools: AiToolIntegration[];
+  validation: CrossValidation;
+  compliance: ComplianceFinding[];
+  risk: RiskAssessment;
+  pricing: { service: string; unit: string; price: number }[];
+}
+
+export interface TaskTrust {
+  taskId: string;
+  validation: CrossValidation;
+  compliance: ComplianceFinding[];
+  risk: RiskAssessment;
+}
+
+/* ------------------------------------------------------------------ */
+/* 钱包 VIP 与 API 中转站                                              */
+/* ------------------------------------------------------------------ */
+
+export interface WalletVip {
+  level: 'FREE' | 'PRO' | 'ENTERPRISE';
+  expiresAt: string | null;
+  feeRate: number;
+}
+
+export interface WalletOverview {
+  balance: WalletBalance;
+  transactions: WalletTransaction[];
+  vip: WalletVip;
+}
+
+export interface RechargeInput {
+  amount: number;
+}
+
+export interface SubscribeVipInput {
+  level: 'PRO' | 'ENTERPRISE';
+}
+
+export interface ModelCatalogItem {
+  id: string;
+  provider: string;
+  name: string;
+  contextWindow: number;
+  inputPricePerMTok: number;
+  outputPricePerMTok: number;
+  latencyMs: number;
+  status: 'ONLINE' | 'DEGRADED';
+  capabilities: string[];
+}
+
+export interface ApiKeyRecord {
+  id: string;
+  label: string;
+  maskedKey: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  scopes: string[];
+  status: 'ACTIVE' | 'REVOKED';
+}
+
+export interface ApiUsage {
+  period: string;
+  tokensIn: number;
+  tokensOut: number;
+  requests: number;
+  spend: number;
+}
+
+export interface ApiGatewayOverview {
+  models: ModelCatalogItem[];
+  keys: ApiKeyRecord[];
+  usage: ApiUsage;
+}
+
+export interface CreateApiKeyInput {
+  label: string;
+  scopes: string[];
+}
+
+export interface CreateApiKeyResponse {
+  key: ApiKeyRecord;
+  plaintextKey: string;
+}

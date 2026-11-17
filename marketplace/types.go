@@ -438,10 +438,43 @@ type GetTraceResponse struct {
 	Nodes    []TraceNode `json:"nodes"`
 }
 
-// GetWalletResponse is GET /api/wallet.
+// GetWalletResponse is the legacy wallet shape (balance + transactions).
 type GetWalletResponse struct {
 	Balance      WalletBalance       `json:"balance"`
 	Transactions []WalletTransaction `json:"transactions"`
+}
+
+// WalletVipLevel is the subscription tier of the current user.
+type WalletVipLevel string
+
+const (
+	VipFree       WalletVipLevel = "FREE"
+	VipPro        WalletVipLevel = "PRO"
+	VipEnterprise WalletVipLevel = "ENTERPRISE"
+)
+
+// WalletVip is the VIP subscription snapshot.
+type WalletVip struct {
+	Level     WalletVipLevel `json:"level"`
+	ExpiresAt *string        `json:"expiresAt"`
+	FeeRate   float64        `json:"feeRate"`
+}
+
+// WalletOverview is GET /api/wallet: the legacy balance/transactions plus vip.
+type WalletOverview struct {
+	Balance      WalletBalance       `json:"balance"`
+	Transactions []WalletTransaction `json:"transactions"`
+	Vip          WalletVip           `json:"vip"`
+}
+
+// RechargeInput is POST /api/wallet/recharge.
+type RechargeInput struct {
+	Amount float64 `json:"amount"`
+}
+
+// SubscribeVipInput is POST /api/wallet/vip.
+type SubscribeVipInput struct {
+	Level string `json:"level"`
 }
 
 // SubmitRatingInput is POST /api/ratings.
