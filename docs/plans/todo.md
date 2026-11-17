@@ -15,6 +15,7 @@
 > 遗留（已裁定并记录）：R13 Web 面板已于 `199d0ca`+`2ef42ab`+`21b6626` 补齐（只读面板 + GraphOnly 车道 + snapshot 端点），评审无 Critical/Important，Minor 修复 `78febdb`，最终 `origin/main` = `20ec53c`；Finding 报告仍后置（requirement §12）；R6 一次性 driver；真实 CVE 实弹未跑；explore prompt 仍把 `command` 标为可选（无命令的 verdict 会被证据闸门丢弃，需后续收紧 prompt）。
 > 面板启用：`misc.graph_lane_enabled=true`（`data/AIxVuln.db`）后重启，模型未配置时自动退化为 GraphOnly 挂载 `/api/graph`；已验证 `/api/graph/projects`（401 未授权 / Bearer 后返回项目）与 snapshot 渲染。
 > 前端全协议对齐：`webui/src/GraphPanel.tsx` 覆盖新建项目、状态/完成/重开、Hint、Intent 声明/领取/心跳/释放/总结、总脑租约、YAML/时间线导出、provenance 追溯与车道状态；UI 实操验证 Hint 写入、Intent 领取+总结（新增 f003）、总脑领取+释放，`npx tsc --noEmit` 与构建通过。
+> 前端迭代：`f94a941` 已推送 `origin/main`；三份 `front_*.md` 与 `GraphOverview` 首页落地，旧实验室四来源/启停/进入入口保留；`tsc`、`npm run build`、`go build` 均 exit 0。遗留：9999 仍运行上一版二进制，需用新构建重启并重拍终版首页/图面板截图。
 > 下一动作：有 Docker + LLM 配置时，按 `docs/runbooks/cve-2025-3248.md` §2–§5 跑实弹验收（diff 导入 → 沙箱验证 → Finding → 规则库 +1）。
 
 ---
@@ -77,6 +78,7 @@
 | 9b | 调度接线（执行/并发/超时） | R5, R9 | 完成 | G3 | `87474a4`；评审 Approved（5 Minor 延后） |
 | 10 | CE4 规则回流 | R11 | 完成 | G3 | `48c1ed3`+`e93148d`；评审 1 轮修复后 ADDRESSED |
 | 11 | 评测、端到端与灰度 | R13–R16 | 完成（R13 面板后置） | G4 | `b794e85`+`2c40df2`+`6cc683c`；最终评审后单轮修复 `f118081`..`e83793f`；re-review ADDRESSED；R13 面板/报告见 requirement §12 |
+| F | 前端图驱动首页与旧入口保留 | R3–R16 产品面 | 完成（重启/截图待执行） | F-A1–F-A8 | `f94a941`；`tsc`/`npm build`/`go build` exit 0；旧实验室四来源与 start/stop/enter/delete 保留 |
 
 状态取值：`未开始` / `进行中` / `阻塞` / `完成`。
 
@@ -257,6 +259,22 @@
   - 现状：`eval.Report.JSON()` 可输出逐条对照 NDJSON；**未**落盘为仓库内固定路径产物（未打勾）
 - [x] 最终评审修复轮（R10 证据闸门、verdict 溯源、R14 finding 口径、R11 规则库接线、R15 runbook、R6 health 窗口）
   - 证据：`f118081`..`e83793f`；scoped re-review 全部 ADDRESSED；`go build ./...` BUILD_OK；`go test ./graph/ ./graphserver/ ./dispatch/... ./eval/ -race` 全 `ok`
+
+### Task F · 前端图驱动首页与旧入口保留（2026-11-17）
+
+- [x] 三份 front 文档：`front_requirement.md` / `front_task.md` / `front_todo.md`
+  - 证据：均含 §0“上一轮移除旧入口”复盘；R1–R16 → 前端落点矩阵；状态回写到 F7。
+- [x] 品牌与首页：`ParchTrace | 寻迹 - Autonomous Penetration System` + `Trace the Patch, Uncover the Flaw.`
+  - 证据：`webui/index.html` 1 处、`App.tsx` 标题 1 处 / slogan 3 处；`App.css` 含 `.aix-brand` / `.aix-slogan`。
+- [x] `GraphOverview` 首页总览：指标条、01–07 模块、R1–R16 矩阵、图项目速览、旧入口 CTA
+  - 证据：`GraphOverview.tsx`；只读聚合 `/api/graph/projects` + 最多 5 个 snapshot；R14 标注无 HTTP 端点、不伪造数据。
+- [x] 旧能力红线：实验室列表 + 四种来源创建 + sandbox 自动执行入口保留在首页
+  - 证据：`App.tsx` 中 `startProject/stopProject/enterProject/deleteProject` 绑定在 `4409–4421`；四来源按钮 `4455`；`#legacy-labs` 位于 `<GraphOverview>` 之后。
+- [x] 构建闸门：`npx tsc --noEmit` exit 0；`npm run build` exit 0；`CGO_ENABLED=0 go build` exit 0
+  - 证据：2026-11-17 三条命令均 exit 0；`go build` 输出 `go_build_exit=0`。
+- [x] 推送：`f94a941` → `origin/main`
+  - 证据：`git push origin HEAD:main` 输出 `6d918d2..f94a941  HEAD -> main`。
+  - 遗留：9999 进程仍为上一版二进制，重启与终版首页/图面板截图待执行；R14 仍无 HTTP 端点；Finding 报告后置。
 
 ---
 

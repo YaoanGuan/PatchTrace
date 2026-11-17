@@ -2,14 +2,14 @@
 
 > 配套：`front_requirement.md`（需求）、`front_task.md`（计划）
 > 更新规则：每完成一步立即回写；没有命令输出或截图就不打勾。
-> 当前轮次：F1–F5 完成，F6 进行中（待 Go 构建 / 重启 / 截图），F7 待推送 · 2026-11-17
+> 当前轮次：F1–F5、F7 完成；F6 部分完成（tsc / npm build / go build 通过，重启与终版截图待执行）· 2026-11-17
 
 ---
 
 ## 0. 下一步动作（只做这一件）
 
-> **执行 F6.3–F6.6：`CGO_ENABLED=0 go build` → 重启 9999 → 重拍首页与溯源图截图。**
-> 通过后回写本节和 §7，再执行 F7 提交并 `git push origin HEAD:main`。
+> **执行 F6.4–F6.6：用新二进制重启 9999（`/root/aixvuln-web-graphui`）→ 重拍首页与溯源图截图。**
+> 推送已完成：`origin/main = f94a941`。
 
 ### 0.1 前一轮前端错误复盘（必须保留在文档中）
 
@@ -34,8 +34,8 @@ F4 的验收就是逐项检查旧入口是否仍在。
 | F3 | 首页图驱动总览组件 | R3–R12, R15 | 完成 | `GraphOverview.tsx`；01–07 模块 + R1–R16 矩阵；`tsc` exit 0 |
 | F4 | 首页集成 + 旧入口保留 | 旧能力红线 | 完成 | `<GraphOverview>` 下方保留 `#legacy-labs`；四个 `*Project` handler 均在 |
 | F5 | 图面板能力说明 | R3–R13 | 完成 | 语义标签 10 处调用 + 能力图例 1 处；`tsc` exit 0 |
-| F6 | 构建、重启与真实页面验证 | 验收 | 进行中 | `tsc`/`npm run build` exit 0；Go 构建 / 重启 / 终版截图待执行 |
-| F7 | 提交与推送 | 交付 | 未开始 | — |
+| F6 | 构建、重启与真实页面验证 | 验收 | 进行中 | `tsc`/`npm run build`/`go build` exit 0；重启与终版截图待执行 |
+| F7 | 提交与推送 | 交付 | 完成 | 提交 `f94a941`；`git push origin HEAD:main` exit 0 |
 
 状态取值：`未开始` / `进行中` / `阻塞` / `完成`。
 
@@ -119,8 +119,8 @@ F4 的验收就是逐项检查旧入口是否仍在。
   - 证据：2026-11-17 执行，`tsc_exit=0`。
 - [x] **F6.2** `npm run build` → exit 0
   - 证据：2026-11-17 执行，`npm_exit=0`；产出 `dist/assets/index.1c64b74b.js`、`dist/assets/index.3028854b.css`。
-- [ ] **F6.3** `CGO_ENABLED=0 go build ./...` → exit 0
-  - 状态：待执行（本轮最后一次前端改动后尚未重新构建 Go 二进制）。
+- [x] **F6.3** `CGO_ENABLED=0 go build ./...` → exit 0
+  - 证据：2026-11-17 执行 `CGO_ENABLED=0 go build -o /tmp/aixvuln-push-check .`，`go_build_exit=0`。
 - [ ] **F6.4** 重启服务，日志含 `图调度车道已启动`
   - 状态：待执行；9999 当前进程仍是上一版二进制，未包含终版标签与 R 矩阵。
 - [ ] **F6.5** 页面验证：标题、slogan、01–07 模块、创建实验室四种来源
@@ -133,11 +133,11 @@ F4 的验收就是逐项检查旧入口是否仍在。
 
 ## 8. F7 · 提交与推送
 
-- [ ] **F7.1** `git add` 前端文件与三份文档
-- [ ] **F7.2** `git commit`
-- [ ] **F7.3** `git push origin main`
-- [ ] **F7.4** 回写本文件与 `docs/plans/todo.md`
-  - 证据：待填
+- [x] **F7.1** `git add` 前端文件与三份文档
+- [x] **F7.2** `git commit`
+- [x] **F7.3** `git push origin main`
+- [x] **F7.4** 回写本文件与 `docs/plans/todo.md`
+  - 证据（2026-11-17）：提交 `f94a941`（基于 `origin/main` 的 `6d918d2`，仅含 9 个前端/文档文件）；`git push origin HEAD:main` 输出 `6d918d2..f94a941  HEAD -> main`，`push_exit=0`。
 
 ---
 
