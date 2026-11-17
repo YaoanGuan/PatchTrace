@@ -29,7 +29,7 @@ F4 的验收就是逐项检查旧入口是否仍在。
 
 | # | Task | 需求 | 状态 | 证据 |
 |---|---|---|---|---|
-| F1 | 三份 front 文档与入口盘点 | R1–R16 对齐 | 完成 | 3 份文档共 513 行；`grep` 四来源与操作入口均命中 |
+| F1 | 三份 front 文档与入口盘点 | R1–R16 对齐 | 完成 | 3 份文档共 520 行；`grep` 四来源与操作入口均命中 |
 | F2 | 品牌标题与 slogan | R13 | 完成 | `index.html` 1 处、`App.tsx` 标题 1 处、slogan 3 处 |
 | F3 | 首页图驱动总览组件 | R3–R12, R15 | 完成 | `GraphOverview.tsx`；01–07 模块 + R1–R16 矩阵；`tsc` exit 0 |
 | F4 | 首页集成 + 旧入口保留 | 旧能力红线 | 完成 | `<GraphOverview>` 下方保留 `#legacy-labs`；四个 `*Project` handler 均在 |

@@ -15,7 +15,7 @@
 > 遗留（已裁定并记录）：R13 Web 面板已于 `199d0ca`+`2ef42ab`+`21b6626` 补齐（只读面板 + GraphOnly 车道 + snapshot 端点），评审无 Critical/Important，Minor 修复 `78febdb`，最终 `origin/main` = `20ec53c`；Finding 报告仍后置（requirement §12）；R6 一次性 driver；真实 CVE 实弹未跑；explore prompt 仍把 `command` 标为可选（无命令的 verdict 会被证据闸门丢弃，需后续收紧 prompt）。
 > 面板启用：`misc.graph_lane_enabled=true`（`data/AIxVuln.db`）后重启，模型未配置时自动退化为 GraphOnly 挂载 `/api/graph`；已验证 `/api/graph/projects`（401 未授权 / Bearer 后返回项目）与 snapshot 渲染。
 > 前端全协议对齐：`webui/src/GraphPanel.tsx` 覆盖新建项目、状态/完成/重开、Hint、Intent 声明/领取/心跳/释放/总结、总脑租约、YAML/时间线导出、provenance 追溯与车道状态；UI 实操验证 Hint 写入、Intent 领取+总结（新增 f003）、总脑领取+释放，`npx tsc --noEmit` 与构建通过。
-> 前端迭代：`f94a941` + `dcd3dd6` 已推送 `origin/main`；三份 `front_*.md` 与 `GraphOverview` 首页落地，旧实验室四来源/启停/进入入口保留；`tsc`、`npm run build`、`go build` 均 exit 0。9999 已用新二进制重启，`/` 200、图 API 401；首页断言 12/12（`enter_lab` 因隔离实例无实验室为 False，源码绑定保留），图面板断言 8/8。
+> 前端迭代：`f94a941`..`e8de8d2` 已推送 `origin/main`；三份 `front_*.md` 与 `GraphOverview` 首页落地，旧实验室四来源/启停/进入入口保留；`tsc`、`npm run build`、`go build` 均 exit 0。9999 已用新二进制重启，`/` 200、图 API 401；首页断言 11/12（`enter_lab` 因隔离实例无实验室为 False，源码绑定保留），图面板断言 8/8。
 > 下一动作：有 Docker + LLM 配置时，按 `docs/runbooks/cve-2025-3248.md` §2–§5 跑实弹验收（diff 导入 → 沙箱验证 → Finding → 规则库 +1）。
 
 ---
@@ -78,7 +78,7 @@
 | 9b | 调度接线（执行/并发/超时） | R5, R9 | 完成 | G3 | `87474a4`；评审 Approved（5 Minor 延后） |
 | 10 | CE4 规则回流 | R11 | 完成 | G3 | `48c1ed3`+`e93148d`；评审 1 轮修复后 ADDRESSED |
 | 11 | 评测、端到端与灰度 | R13–R16 | 完成（R13 面板后置） | G4 | `b794e85`+`2c40df2`+`6cc683c`；最终评审后单轮修复 `f118081`..`e83793f`；re-review ADDRESSED；R13 面板/报告见 requirement §12 |
-| F | 前端图驱动首页与旧入口保留 | R3–R16 产品面 | 完成 | F-A1–F-A8 | `f94a941`+`dcd3dd6`；`tsc`/`npm build`/`go build` exit 0；9999 重启 `/` 200；首页断言 12/12、图面板 8/8；旧实验室四来源与 start/stop/enter/delete 保留 |
+| F | 前端图驱动首页与旧入口保留 | R3–R16 产品面 | 完成 | F-A1–F-A8 | `f94a941`..`e8de8d2`；`tsc`/`npm build`/`go build` exit 0；9999 重启 `/` 200；首页断言 11/12、图面板 8/8；旧实验室四来源与 start/stop/enter/delete 保留 |
 
 状态取值：`未开始` / `进行中` / `阻塞` / `完成`。
 
