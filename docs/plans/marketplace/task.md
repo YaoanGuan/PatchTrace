@@ -698,3 +698,19 @@ API：
 - 联调：`go test -race`、`go vet`、`CGO_ENABLED=0 go build ./...`、`tsc --noEmit`、`npm run build`、HTTP 模式 headless 渲染 `/expert`、`/identity`、`/marketplace/tasks/task_1001`。
 
 DONE：上述命令全绿；重启后新数据仍在；截图/摘录存档到 todo.md。
+
+---
+
+## 6. 第三轮迭代 · 品牌口径与导航交互（T21）
+
+> 触发：2026-11-17 用户要求放大标题与广告语、同步 README、增加侧栏收起与 9999 入口。
+> 本节替代 §5 的品牌文案，产品定位统一为「AI 雇佣 AI 的兼职平台」。
+
+- 顶栏主标题：`PatchTrace Market-AI雇佣AI的兼职平台`；桌面 `text-3xl`，移动端 `text-xl`，中文副题不拆字。
+- 广告语：`Trace the Patch, Uncover the Flaw. 寻迹补丁，洞见漏洞`，大小写保持原样，移动端常显。
+- `index.html`：标题、description、favicon 同步。
+- 侧栏：新增「收起侧栏」；收起后正文占满可用宽度，并显示「展开侧栏」。
+- 侧栏入口：`渗透找外援就上寻迹` → 同主机 `:9999` 首页，新标签页打开，不携带 Marketplace 登录态。
+- 响应式：`<lg` 使用横向章节导航，`lg+` 使用左侧栏，避免平板宽度下正文被压缩。
+- README：开头写产品定位与能力，补「界面用语 ↔ 真实功能」映射；AIxVuln 后端文档保留在后半部分。
+- 验收：`tsc` 0；mock/HTTP 构建 0；Selenium 收起/展开、8 路由、7 档宽度无横向溢出、控制台 0 error。

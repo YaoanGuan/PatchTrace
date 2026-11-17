@@ -8,9 +8,10 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> T0–T20 已完成。本轮迭代：游戏化皮肤（赛博地牢 HUD）。
-> 方案：`docs/plans/marketplace/game-theme-plan.md`；执行计划：`docs/superpowers/plans/2026-11-17-game-theme-ui.md`。
-> 下一动作：审阅 §2.15 验收证据；确认后提交（当前未 commit / 未 push）。
+> T0–T21 已完成。
+> 游戏化皮肤：`docs/plans/marketplace/game-theme-plan.md`；执行计划：`docs/superpowers/plans/2026-11-17-game-theme-ui.md`。
+> 品牌与交互：T21（标题、广告语、README、侧栏收起、9999 入口）。
+> 下一动作：审阅 T21 验收证据；确认后提交（当前未 commit / 未 push）。
 > 注意：只改前端表现层；API 契约、类型字段、状态机、风险口径保持不变。
 
 ---
@@ -40,6 +41,7 @@
 | T18 | M3 悬赏大厅 | M3 | 完成 | tsc + 渲染 | DOM 147,698B；六标记全中；task_1003 BLOCK/PENDING |
 | T19 | M4/M5 战报与新手村 | M4/M5 | 完成 | tsc + 渲染 | audit 114,342B / detail 128,814B / onboarding 125,206B；标记全中 |
 | T20 | 游戏化验收 | — | 完成 | 截图 + build | 10 路由非空；5 词齐全；双构建 0；12 张截图 |
+| T21 | 品牌口径、README 与侧栏交互 | — | 完成 | tsc + build + Selenium | 标题/广告语、9999 入口、侧栏收起、全宽度无溢出 |
 
 ---
 
@@ -249,6 +251,20 @@
 - [x] API 不变量：overview `"score":82` `"level":"HIGH"` `"blocked":true`；task_1003 `"blocked":true`；wallet `"available":3300`
 - [x] 截图走查：6 页 × 2 宽度（1440×1600 / 390×844），深色面板、无白色大块、无横向溢出、无遮挡
 - [ ] 提交：等待用户确认后执行（未 commit / 未 push）
+
+### T21 · 品牌口径、README 与侧栏交互
+
+- [x] 顶栏主标题改为 `PatchTrace Market-AI雇佣AI的兼职平台`，字号增至 `text-xl / sm:text-2xl / xl:text-3xl`
+- [x] 广告语固定为 `Trace the Patch, Uncover the Flaw. 寻迹补丁，洞见漏洞`，去掉 `uppercase`，移动端常显并加亮
+- [x] `index.html` 标题与 meta description 同步；新增本地 `favicon.svg`，控制台 0 错误
+- [x] 侧栏新增「收起侧栏」按钮，收起后正文宽度 1190 → 1430；正文顶部提供「展开侧栏」
+- [x] 侧栏新增「渗透找外援就上寻迹」，`href=http://<host>:9999/`，`target=_blank`；实际点击后新标签页打开 `http://localhost:9999/`，标题 `ParchTrace | 寻迹 - Autonomous Penetration System`
+- [x] 侧栏断点从 `sm` 调到 `lg`：390 / 640 / 768 走横向导航，1024+ 走左侧栏
+- [x] README 顶部改为兼职平台叙事，补模块表、界面用语与真实功能映射、运行方式；AIxVuln 后端文档保留在后半部分
+- [x] 验证：`npx tsc --noEmit` → `TSC_EXIT=0`；`npm run build` → `✓ built in 5.23s`；`VITE_API_MODE=http npm run build` → `✓ built in 5.10s`
+  - Selenium：桌面收起/展开通过；390×844 与 1440×1000 无横向溢出；8 条路由标记齐全，控制台 0 error
+  - 响应式：390 / 640 / 768 / 1024 / 1280 / 1440 / 1600 均 `scrollWidth <= innerWidth`
+  - 截图：`/tmp/ui-desktop-final.png`、`/tmp/ui-desktop-collapsed.png`、`/tmp/ui-mobile-390.png`、`/tmp/ui-768b.png`
 
 ---
 

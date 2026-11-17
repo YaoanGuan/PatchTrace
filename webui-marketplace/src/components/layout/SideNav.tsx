@@ -1,7 +1,10 @@
 import { NavLink } from 'react-router-dom';
 import {
   CircuitBoard,
+  Crosshair,
+  ExternalLink,
   GraduationCap,
+  PanelLeftClose,
   ShieldCheck,
   Store,
   UserRound,
@@ -54,16 +57,38 @@ const navItems: NavItem[] = [
   },
 ];
 
-export function SideNav() {
+const PATCHTRACE_HOME_URL =
+  typeof window === 'undefined'
+    ? 'http://localhost:9999/'
+    : `${window.location.protocol}//${window.location.hostname}:9999/`;
+
+export interface SideNavProps {
+  onCollapse: () => void;
+}
+
+export function SideNav({ onCollapse }: SideNavProps) {
   return (
-    <aside className="w-full shrink-0 border-b border-panel-line bg-panel/60 sm:w-60 sm:border-b-0 sm:border-r">
-      <div className="hidden items-center justify-between border-b border-panel-line/70 px-4 py-3 sm:flex">
+    <aside
+      id="site-sidebar"
+      className="w-full shrink-0 border-b border-panel-line bg-panel/60 lg:w-60 lg:border-b-0 lg:border-r"
+    >
+      <div className="flex items-center justify-between border-b border-panel-line/70 px-4 py-3">
         <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-dim">
-          Quest Log
+          Quest Log <span className="text-gold">5 CHAPTERS</span>
         </span>
-        <span className="font-mono text-[10px] text-gold">5 CHAPTERS</span>
+        <button
+          type="button"
+          onClick={onCollapse}
+          aria-label="收起侧栏"
+          aria-controls="site-sidebar"
+          aria-expanded="true"
+          title="收起侧栏"
+          className="inline-flex h-7 w-7 items-center justify-center rounded border border-panel-line text-ink-muted transition-colors hover:border-neon/40 hover:text-neon focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neon"
+        >
+          <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
-      <nav className="flex gap-1 overflow-x-auto p-2 sm:flex-col sm:p-3">
+      <nav className="flex gap-1 overflow-x-auto p-2 lg:flex-col lg:p-3">
         {navItems.map(({ to, label, hint, chapter, icon: Icon }) => (
           <NavLink
             key={to}
@@ -87,13 +112,27 @@ export function SideNav() {
             </span>
             <Icon className="h-4 w-4" aria-hidden="true" />
             <span>{label}</span>
-            <span className="ml-auto hidden rounded border border-panel-line px-1.5 py-0.5 font-mono text-[9px] font-normal text-ink-dim sm:inline">
+            <span className="ml-auto hidden rounded border border-panel-line px-1.5 py-0.5 font-mono text-[9px] font-normal text-ink-dim lg:inline">
               {hint}
             </span>
           </NavLink>
         ))}
       </nav>
-      <div className="hidden px-4 py-4 sm:block">
+
+      <div className="px-2 pb-2 lg:px-3 lg:pb-3">
+        <a
+          href={PATCHTRACE_HOME_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 rounded border border-neon/30 bg-neon/10 px-3 py-2 text-xs font-semibold text-neon transition-colors hover:border-neon/60 hover:bg-neon/15 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neon"
+        >
+          <Crosshair className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="flex-1">渗透找外援就上寻迹</span>
+          <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
+        </a>
+      </div>
+
+      <div className="hidden px-4 py-4 lg:block">
         <div className="game-rule mb-3" />
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-dim">
           Next Boss

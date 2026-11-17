@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { PanelLeftOpen, X } from 'lucide-react';
 import { TopBar } from './TopBar';
 import { SideNav } from './SideNav';
 import { useSessionStore } from '../../app/store/sessionStore';
@@ -105,6 +105,7 @@ function ToastViewport() {
 export function AppShell() {
   const loadProfile = useSessionStore((state) => state.loadProfile);
   const refreshWallet = useWalletStore((state) => state.refresh);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     void loadProfile();
@@ -115,10 +116,31 @@ export function AppShell() {
     <div className="relative flex min-h-screen flex-col bg-transparent text-ink">
       <GameBackdrop />
       <TopBar />
-      <div className="flex flex-1 flex-col sm:flex-row">
-        <SideNav />
+      <div className="flex flex-1 flex-col lg:flex-row">
+        {sidebarCollapsed ? null : (
+          <SideNav onCollapse={() => setSidebarCollapsed(true)} />
+        )}
         <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-          <div className="mx-auto w-full max-w-6xl">
+          <div
+            className={cn(
+              'mx-auto w-full',
+              sidebarCollapsed ? 'max-w-[1600px]' : 'max-w-6xl',
+            )}
+          >
+            {sidebarCollapsed && (
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed(false)}
+                aria-label="展开侧栏"
+                aria-controls="site-sidebar"
+                aria-expanded="false"
+                title="展开侧栏"
+                className="mb-4 inline-flex items-center gap-2 rounded border border-panel-line bg-panel-soft px-3 py-2 text-xs font-medium text-ink-muted transition-colors hover:border-neon/40 hover:text-neon focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neon"
+              >
+                <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
+                展开侧栏
+              </button>
+            )}
             <Outlet />
           </div>
         </main>

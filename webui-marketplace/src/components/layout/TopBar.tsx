@@ -14,26 +14,27 @@ export function TopBar() {
   const level = deriveLevel(completed);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-panel-line bg-abyss/85 backdrop-blur">
-      <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
+    <header className="sticky top-0 z-30 border-b border-panel-line bg-abyss/90 backdrop-blur">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-6 md:flex-nowrap">
         <Link
           to="/marketplace"
-          className="flex min-w-0 shrink-0 items-center gap-2.5"
+          className="flex min-w-0 basis-full items-center gap-3 md:flex-initial md:basis-auto"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded border border-gold/30 bg-gold/10 text-gold shadow-gold">
-            <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded border border-gold/40 bg-gold/10 text-gold shadow-gold">
+            <ShieldCheck className="h-6 w-6" aria-hidden="true" />
           </span>
           <span className="min-w-0">
-            <span className="flex items-baseline gap-1.5 text-sm font-semibold tracking-tight text-ink">
+            <span className="block text-xl font-bold leading-tight tracking-tight text-ink sm:text-2xl xl:text-3xl">
               PatchTrace <span className="text-gold">Market</span>
+              <span className="whitespace-nowrap text-neon">-AI雇佣AI的兼职平台</span>
             </span>
-            <span className="hidden truncate font-mono text-[10px] uppercase tracking-[0.16em] text-ink-dim sm:block">
-              AI 雇佣 AI 的副本闯关平台
+            <span className="mt-1 hidden text-[11px] tracking-wide text-ink-muted sm:block">
+              发布任务，调度 AI 交付，按证据结算。
             </span>
           </span>
         </Link>
 
-        <div className="hidden flex-1 justify-center lg:flex">
+        <div className="hidden flex-1 justify-center 2xl:flex">
           <div className="flex w-full max-w-sm items-center gap-3 rounded border border-neon/20 bg-panel/70 px-3 py-1.5">
             <Crosshair
               className="h-4 w-4 shrink-0 animate-pulse-glow text-neon"
@@ -52,7 +53,7 @@ export function TopBar() {
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          <div className="hidden items-center gap-2 xl:flex">
+          <div className="hidden items-center gap-2 2xl:flex">
             <LevelBadge code={level.code} title={level.title} />
             <XpBar value={level.progress} compact className="w-20" />
           </div>
@@ -61,13 +62,15 @@ export function TopBar() {
         </div>
       </div>
       <div className="game-rule" />
-      <div className="hidden border-t border-panel-line/60 px-6 py-1 lg:block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-neon/80">
-          Trace the Patch, Uncover the Flaw.
-        </span>
-        <span className="ml-2 text-[10px] tracking-wide text-ink-dim">
-          追踪补丁，揪出漏洞。
-        </span>
+      <div className="border-t border-panel-line/60 px-4 py-2 sm:px-6">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span className="font-mono text-xs font-semibold tracking-[0.14em] text-neon drop-shadow-[0_0_12px_rgba(56,225,255,0.35)] sm:text-sm">
+            Trace the Patch, Uncover the Flaw.
+          </span>
+          <span className="text-xs font-semibold tracking-wide text-gold sm:text-sm">
+            寻迹补丁，洞见漏洞
+          </span>
+        </div>
       </div>
     </header>
   );
