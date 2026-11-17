@@ -14,9 +14,11 @@ type GraphOverviewProps = {
     authHeader: string;
     labTotal: number;
     labRunning: number;
-    onOpenGraph: () => void;
+    onOpenGraph: (target?: { projectId?: string; factType?: string }) => void;
     onOpenLabs: () => void;
 };
+
+type GraphEntryTarget = { projectId?: string; factType?: string };
 
 type GraphNode = {
     id: string;
@@ -51,6 +53,7 @@ type DemoModule = {
     req: string;
     metric: string;
     desc: string;
+    factType?: string;
 };
 
 type RequirementRow = {
@@ -108,6 +111,17 @@ function shortOrigin(origin?: string): string {
     if (!raw) return '未填写来源';
     const parts = raw.split(/[\\/]/).filter(Boolean);
     return parts.length > 0 ? parts[parts.length - 1] : raw;
+}
+
+// focusTarget keeps module deep-links pointed at the project a module is about:
+// patch ingestion prefers the newest bootstrap-enabled project, every other
+// module opens the newest project.
+function focusTarget(projects: GraphProject[], factType?: string): GraphEntryTarget {
+    const newest = recentProjects(projects, projects.length);
+    const project = factType === 'patch_profile'
+        ? newest.find(p => p.bootstrap_enabled) || newest[0]
+        : newest[0];
+    return { projectId: project?.id, factType };
 }
 
 export default function GraphOverview({
@@ -269,6 +283,7 @@ export default function GraphOverview({
             metric: `${aggregate.patchProfiles} 个补丁档案 · ${aggregate.exploitIdeas} 条利用假设`,
             desc: 'diff 经 bootstrap 解析为 patch_profile / exploit_idea 事实；来源文件：' +
                 shortOrigin(projects.find(p => p.bootstrap_enabled)?.origin || projects[0]?.origin),
+            factType: 'patch_profile',
         },
         {
             no: '02',
@@ -297,6 +312,7 @@ export default function GraphOverview({
             req: 'R9 · R10',
             metric: `${aggregate.observations} 条观测 · ${aggregate.verdicts} 条判决`,
             desc: 'explore 在 Docker 沙箱执行验证并回写 observation；verdict 必须带 support/refute 边。',
+            factType: 'observation',
         },
         {
             no: '06',
@@ -304,6 +320,7 @@ export default function GraphOverview({
             req: 'R11 · R14',
             metric: `${aggregate.ruleHits} 条规则命中 · 规则库 SQLite`,
             desc: 'CE4 将终态回流 RuleBase；评测口径：反演成功率 / 试错轮次 / 单位 finding token 成本（NDJSON，当前无 HTTP 端点）。',
+            factType: 'rule_hit',
         },
         {
             no: '07',
@@ -311,6 +328,7 @@ export default function GraphOverview({
             req: 'R10 · R15',
             metric: `${aggregate.completedProjects} 个完成项目 · ${aggregate.edges.length} 条可导出边`,
             desc: 'complete 建立 from → goal 完成边；reopen 写入纠错事实；YAML / timeline 可回放。',
+            factType: 'finding',
         },
     ];
 
@@ -375,7 +393,7 @@ export default function GraphOverview({
                         <button
                             key={m.no}
                             type="button"
-                            onClick={onOpenGraph}
+                            onClick={() => onOpenGraph(focusTarget(projects, m.factType))}
                             className="group rounded-lg border border-border bg-background/20 p-3 text-left transition-colors hover:border-primary/60 hover:bg-primary/5"
                             title={`进入溯源图：${m.title}`}
                         >
@@ -421,14 +439,14 @@ export default function GraphOverview({
                 <div className="mt-4 rounded-lg border border-border bg-background/20">
                     <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
                         <div className="text-xs font-semibold">图项目速览</div>
-                        <Button size="sm" variant="ghost" onClick={onOpenGraph}>全部项目 →</Button>
+                        <Button size="sm" variant="ghost" onClick={() => onOpenGraph()}>全部项目 →</Button>
                     </div>
                     <div className="divide-y divide-border/60">
                         {recentProjects(projects, 4).map(p => (
                             <button
                                 key={p.id}
                                 type="button"
-                                onClick={onOpenGraph}
+                                onClick={() => onOpenGraph({ projectId: p.id })}
                                 className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-muted/20"
                             >
                                 <div className="min-w-0">
@@ -445,7 +463,7 @@ export default function GraphOverview({
                         {!loading && !laneUnavailable && !error && projects.length === 0 ? (
                             <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 text-xs text-muted-foreground">
                                 <span>暂无图项目。新建时来源填写补丁 diff 绝对路径并勾选 bootstrap。</span>
-                                <Button size="sm" variant="outline" onClick={onOpenGraph}>进入溯源图新建项目 →</Button>
+                                <Button size="sm" variant="outline" onClick={() => onOpenGraph()}>进入溯源图新建项目 →</Button>
                             </div>
                         ) : null}
                     </div>

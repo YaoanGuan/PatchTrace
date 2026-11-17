@@ -277,6 +277,8 @@
 - [x] 重启与终版验证：9999 新二进制 + 首页 / 图面板截图
   - 证据：日志 `图调度车道已启动，配置: dispatch.yaml`；`/` 200、`/api/graph/projects` 401；服务端 bundle 含 R 矩阵与保留入口；`/tmp/r13/front-home-final.png`；图面板 `panel/legend/export_yaml/export_timeline/hint/intent/reason/capability/projects_loaded` 全 True。
   - 遗留：R14 仍无 HTTP 端点；Finding 报告后置。
+- [x] 后端图数据深链适配：模块卡与项目速览选中目标项目，事实区按类型过滤
+  - 证据：`GraphOverview` 传 `projectId + factType`，`GraphPanel` 支持 `initialProjectId` / `initialFactType`；隔离实例 CDP 11/11（速览选中 `probe-5`、模块 01 选中 `probe-6`、两类事实过滤互斥）；`tsc`/`npm build`/`go build` exit 0。
 
 ---
 

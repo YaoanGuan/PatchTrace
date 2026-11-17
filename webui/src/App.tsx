@@ -424,6 +424,7 @@ function App() {
     const [projectIsRunning, setProjectIsRunning] = useState<boolean>(false);
     const [brainFinished, setBrainFinished] = useState<boolean>(false);
     const [view, setView] = useState<'home' | 'detail' | 'settings' | 'mcp' | 'skills' | 'digital_humans' | 'report_templates' | 'graph'>('home');
+    const [graphEntry, setGraphEntry] = useState<{ projectId?: string; factType?: string }>({});
     const [detailProject, setDetailProject] = useState<string>('');
     const [detailProjectName, setDetailProjectName] = useState<string>('');
     const [detailOpen, setDetailOpen] = useState<boolean>(false);
@@ -4368,7 +4369,8 @@ function App() {
                     );
                 })()
                 : view === 'graph' ? (
-                    <GraphPanel baseURL={baseURL} authHeader={authHeader} />
+                    <GraphPanel baseURL={baseURL} authHeader={authHeader}
+                        initialProjectId={graphEntry.projectId} initialFactType={graphEntry.factType} />
                 )
                 : view === 'home' ? (
                 <>
@@ -4377,7 +4379,10 @@ function App() {
                     authHeader={authHeader}
                     labTotal={projects.length}
                     labRunning={projects.filter(p => p.isRunning || p.isStarting).length}
-                    onOpenGraph={() => { window.location.hash = '#/graph'; }}
+                    onOpenGraph={(target) => {
+                        setGraphEntry(target || {});
+                        window.location.hash = '#/graph';
+                    }}
                     onOpenLabs={() => {
                         document.getElementById('legacy-labs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }}

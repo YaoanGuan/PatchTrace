@@ -2,7 +2,7 @@
 
 > 配套：`front_requirement.md`（需求）、`front_task.md`（计划）
 > 更新规则：每完成一步立即回写；没有命令输出或截图就不打勾。
-> 当前轮次：F1–F7 全部完成 · 2026-11-17
+> 当前轮次：F1–F8 全部完成 · 2026-11-17
 
 ---
 
@@ -36,6 +36,7 @@ F4 的验收就是逐项检查旧入口是否仍在。
 | F5 | 图面板能力说明 | R3–R13 | 完成 | 语义标签 10 处调用 + 能力图例 1 处；`tsc` exit 0 |
 | F6 | 构建、重启与真实页面验证 | 验收 | 完成 | `tsc`/`npm run build`/`go build` exit 0；9999 重启后 `/` 200、图 API 401；首页 21/22（`enter_lab` 因隔离实例无实验室）、图面板 8/8；排序/空态/降级/归一化 7/7 单测 |
 | F7 | 提交与推送 | 交付 | 完成 | `f94a941` + `5810293` + `e008d0f`；`git push origin HEAD:main` exit 0 |
+| F8 | 图数据深链适配 | R3–R12 | 完成 | 模块卡传 `projectId + factType`；速览选中项目；面板事实过滤；CDP 11/11 |
 
 状态取值：`未开始` / `进行中` / `阻塞` / `完成`。
 
@@ -144,7 +145,17 @@ F4 的验收就是逐项检查旧入口是否仍在。
 
 ---
 
-## 9. 阻塞
+## 9. F8 · 图数据深链适配
+
+- [x] **F8.1** 01–07 模块卡携带跳转目标：补丁模块选最新 bootstrap 项目，其余模块选最新项目
+- [x] **F8.2** 图项目速览点击后选中该项目，而不是只打开图面板
+- [x] **F8.3** `GraphPanel` 接收 `initialProjectId` / `initialFactType`，事实区显示类型过滤条（全部 + 当前项目实际类型）
+- 验收命令：`cd webui && npx tsc --noEmit`；`npm run build`；`CGO_ENABLED=0 go build -o /root/aixvuln-web-graphui .`
+  - 证据（2026-11-17）：`tsc` exit 0；`npm run build` exit 0；`go build` exit 0。隔离实例（6 个项目 + patch_profile/rule_hit 事实）CDP 断言 11/11：速览 `probe-5` 选中、模块 01 选中 `probe-6`、补丁档案过滤隐藏 rule_hit、规则命中过滤隐藏 patch_profile；截图 `/tmp/r13/graph-deeplink.png`。
+
+---
+
+## 10. 阻塞
 
 | 日期 | Task | 现象 | 需要谁决策 | 状态 |
 |---|---|---|---|---|

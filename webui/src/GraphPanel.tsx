@@ -62,6 +62,8 @@ type GraphSnapshot = {
 type GraphPanelProps = {
     baseURL: string;
     authHeader: string;
+    initialProjectId?: string;
+    initialFactType?: string;
 };
 
 type JSONResult = { ok: true; data: any } | { ok: false; error: string };
@@ -264,12 +266,13 @@ function FactPicker({
     );
 }
 
-export default function GraphPanel({ baseURL, authHeader }: GraphPanelProps) {
+export default function GraphPanel({ baseURL, authHeader, initialProjectId, initialFactType }: GraphPanelProps) {
     const [projects, setProjects] = useState<GraphProject[]>([]);
     const [projectsLoading, setProjectsLoading] = useState<boolean>(false);
     const [laneUnavailable, setLaneUnavailable] = useState<boolean>(false);
     const [projectsError, setProjectsError] = useState<string>('');
     const [selectedId, setSelectedId] = useState<string>('');
+    const [factTypeFilter, setFactTypeFilter] = useState<string>(initialFactType || '');
 
     const [snapshot, setSnapshot] = useState<GraphSnapshot | null>(null);
     const [snapshotLoading, setSnapshotLoading] = useState<boolean>(false);
@@ -361,6 +364,7 @@ export default function GraphPanel({ baseURL, authHeader }: GraphPanelProps) {
                     setProjects(list);
                     setProjectsError('');
                     setSelectedId(prev => {
+                        if (initialProjectId && list!.some(p => p.id === initialProjectId)) return initialProjectId;
                         if (prev && list!.some(p => p.id === prev)) return prev;
                         return list![0]?.id || '';
                     });
@@ -379,7 +383,11 @@ export default function GraphPanel({ baseURL, authHeader }: GraphPanelProps) {
             cancelled = true;
             controller.abort();
         };
-    }, [baseURL, authHeader, reloadKey]);
+    }, [baseURL, authHeader, reloadKey, initialProjectId]);
+
+    useEffect(() => {
+        setFactTypeFilter(initialFactType || '');
+    }, [initialFactType]);
 
     useEffect(() => {
         if (!authHeader || !selectedId) {
@@ -429,6 +437,14 @@ export default function GraphPanel({ baseURL, authHeader }: GraphPanelProps) {
     const facts = useMemo(
         () => (snapshot?.nodes || []).filter(n => n.kind === 'fact' && n.type !== 'goal'),
         [snapshot],
+    );
+    const factTypes = useMemo(
+        () => Array.from(new Set(facts.map(f => f.type || ''))).filter(Boolean),
+        [facts],
+    );
+    const visibleFacts = useMemo(
+        () => (factTypeFilter ? facts.filter(f => (f.type || '') === factTypeFilter) : facts),
+        [facts, factTypeFilter],
     );
     const intents = useMemo(() => (snapshot?.nodes || []).filter(n => n.kind === 'intent'), [snapshot]);
     const hints = useMemo(() => (snapshot?.nodes || []).filter(n => n.kind === 'hint'), [snapshot]);
@@ -1011,9 +1027,18 @@ export default function GraphPanel({ baseURL, authHeader }: GraphPanelProps) {
                                     </div>
 
                                     <div className="rounded-lg border border-border bg-background/20 p-4">
-                                        <SectionTitle count={facts.length}>事实</SectionTitle>
+                                        <SectionTitle count={visibleFacts.length}>事实</SectionTitle>
+                                        <div className="mb-2 flex flex-wrap gap-1">
+                                            <Button size="sm" variant={factTypeFilter ? 'outline' : 'default'}
+                                                onClick={() => setFactTypeFilter('')}>全部</Button>
+                                            {factTypes.map(t => (
+                                                <Button key={t} size="sm"
+                                                    variant={factTypeFilter === t ? 'default' : 'outline'}
+                                                    onClick={() => setFactTypeFilter(t)}>{factTypeLabel(t)}</Button>
+                                            ))}
+                                        </div>
                                         <div className="space-y-2">
-                                            {facts.map(f => (
+                                            {visibleFacts.map(f => (
                                                 <div key={f.id} className="rounded-md border border-border/70 bg-background/20 px-3 py-2">
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         <Badge variant={factBadgeVariant(f.type)} title={f.type || 'fact'}>{factTypeLabel(f.type)}</Badge>
@@ -1030,7 +1055,11 @@ export default function GraphPanel({ baseURL, authHeader }: GraphPanelProps) {
                                                     ) : null}
                                                 </div>
                                             ))}
-                                            {facts.length === 0 ? <div className="text-xs text-muted-foreground">暂无事实</div> : null}
+                                            {visibleFacts.length === 0 ? (
+                                                <div className="text-xs text-muted-foreground">
+                                                    {factTypeFilter ? '暂无该类型事实' : '暂无事实'}
+                                                </div>
+                                            ) : null}
                                         </div>
                                         <div className="mt-4 space-y-2 rounded-md border border-border/70 bg-background/20 p-3">
                                             <FieldLabel>写入提示（Hint）</FieldLabel>
