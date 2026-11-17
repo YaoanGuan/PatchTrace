@@ -544,3 +544,21 @@ DONE：
 - 启动 Go 服务 + HTTP 模式前端，6 条路由 headless 渲染仍通过。
 - curl 抽查：发布任务后列表 +1、接单后状态 `ACCEPTED`、签署返回 `sha256:` 哈希。
 - 提交并推送分支。
+
+### T10 · SQLite 持久化
+
+目标：重启服务后任务、接单、评分不丢失。
+
+设计决策：
+
+- 复用既有依赖 `modernc.org/sqlite`，不新增依赖。
+- 采用**整状态快照**而非关系表：表 `marketplace_state(id INTEGER PRIMARY KEY CHECK(id=1), payload BLOB NOT NULL, updated_at TEXT NOT NULL)`；启动时读取并反序列化，首次启动写种子数据；每次变更在锁内事务 upsert。
+- 理由：当前领域对象嵌套深（pipeline/trace/reputation），关系表会引入大量 join 与迁移；快照在演示规模下足够，且不影响后续换关系表。
+- 连接约定：`sql.Open("sqlite", path)`、`SetMaxOpenConns(1)`、`PRAGMA journal_mode=WAL`、`busy_timeout=5000`。
+- API：新增 `OpenStore(path string) (*Store, error)` 与 `Close() error`；保留 `NewStore()` 为纯内存（既有测试与无 DB 场景）。
+- 入口：`cmd/marketplace` 新增 `-db` 参数，默认 `data/marketplace.db`，目录不存在则创建。
+
+DONE：
+- `go test ./marketplace/... -race` 全绿，新增重启持久化用例（发布/接单/评分）。
+- `go vet` 干净，`CGO_ENABLED=0 go build ./...` exit 0。
+- 实机验证：发布任务 → 停止服务 → 重启 → 列表中仍有该任务。

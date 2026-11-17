@@ -2,8 +2,10 @@ package marketplace
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -37,9 +39,13 @@ type taskRecord struct {
 	validationScore int
 }
 
-// Store is the thread-safe in-memory marketplace state.
+// Store is the thread-safe marketplace state. When db is nil the store is
+// memory-only (NewStore); OpenStore attaches a SQLite handle and persists every
+// mutation.
 type Store struct {
 	mu sync.RWMutex
+
+	db *sql.DB
 
 	me          User
 	users       map[string]UserSummary
@@ -687,6 +693,10 @@ func (s *Store) PublishTask(input PublishTaskInput) (TaskDetail, error) {
 	s.nextTxID++
 	s.wallet.Transactions = append([]WalletTransaction{transaction}, s.wallet.Transactions...)
 
+	if err := s.persistLocked(); err != nil {
+		return TaskDetail{}, newError(http.StatusInternalServerError, "persist task: %v", err)
+	}
+
 	return cloneTaskDetail(detail), nil
 }
 
@@ -709,6 +719,11 @@ func (s *Store) AcceptTask(id string) (AcceptTaskResponse, error) {
 	record.acceptCount++
 
 	leaseExpiresAt := time.Now().UTC().Add(2 * time.Hour).Format(time.RFC3339)
+
+	if err := s.persistLocked(); err != nil {
+		return AcceptTaskResponse{}, newError(http.StatusInternalServerError, "persist task acceptance: %v", err)
+	}
+
 	return AcceptTaskResponse{TaskID: id, Status: StatusAccepted, LeaseExpiresAt: leaseExpiresAt}, nil
 }
 
@@ -783,6 +798,10 @@ func (s *Store) SubmitRating(input SubmitRatingInput) (Rating, error) {
 	summary.Ratings = append([]Rating{rating}, summary.Ratings...)
 	s.reputations[s.me.ID] = summary
 
+	if err := s.persistLocked(); err != nil {
+		return Rating{}, newError(http.StatusInternalServerError, "persist rating: %v", err)
+	}
+
 	return cloneRating(rating), nil
 }
 
@@ -795,6 +814,13 @@ func (s *Store) RegisterChannel(channel Channel, evidence RegisterEvidence) (Reg
 	if evidence.hasAny() {
 		status = "VERIFIED"
 	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.persistLocked(); err != nil {
+		return RegisterChannelResponse{}, newError(http.StatusInternalServerError, "persist channel registration: %v", err)
+	}
+
 	return RegisterChannelResponse{Channel: channel, Status: status}, nil
 }
 
@@ -807,11 +833,14 @@ func (s *Store) SignContract(input SignContractInput) (SignContractResponse, err
 		return SignContractResponse{}, newError(400, "invalid signerRole")
 	}
 
-	s.mu.RLock()
-	exists := s.findTaskLocked(input.TaskID) != nil
-	s.mu.RUnlock()
-	if !exists {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.findTaskLocked(input.TaskID) == nil {
 		return SignContractResponse{}, newError(404, "task not found")
+	}
+	if err := s.persistLocked(); err != nil {
+		return SignContractResponse{}, newError(http.StatusInternalServerError, "persist contract signing: %v", err)
 	}
 
 	clauses := input.ClausesAccepted

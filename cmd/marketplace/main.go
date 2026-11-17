@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -17,11 +18,23 @@ import (
 
 func main() {
 	port := flag.Int("port", 8081, "HTTP listen port")
+	dbPath := flag.String("db", "data/marketplace.db", "SQLite database path")
 	flag.Parse()
+
+	if dir := filepath.Dir(*dbPath); dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			log.Fatalf("create marketplace db directory %s: %v", dir, err)
+		}
+	}
+	store, err := marketplace.OpenStore(*dbPath)
+	if err != nil {
+		log.Fatalf("open marketplace store: %v", err)
+	}
+	defer func() { _ = store.Close() }()
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf("0.0.0.0:%d", *port),
-		Handler:           marketplace.NewRouter(marketplace.NewStore()),
+		Handler:           marketplace.NewRouter(store),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

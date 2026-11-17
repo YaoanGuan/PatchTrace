@@ -8,10 +8,10 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> T0–T9 全部完成：设计、地基、4 个业务模块、Go API 契约、前端 HTTP 接入、端到端联调。
-> 证据：`go test ./marketplace/... -race` ok；`tsc` exit 0；`npm run build` exit 0；HTTP 模式渲染出 curl 新建任务。
+> T0–T10 全部完成：设计、地基、4 个业务模块、Go API 契约、前端 HTTP 接入、端到端联调、SQLite 持久化。
+> 证据：`go test ./marketplace/... -race` ok；`tsc` exit 0；`npm run build` exit 0；HTTP 模式渲染出 curl 新建任务；重启后任务仍在。
 > 下一动作：两个终端分别执行 `go run ./cmd/marketplace -port 8081` 与 `cd webui-marketplace && VITE_API_MODE=http npm run dev`，浏览器走查。
-> 注意：memory 存储重启即重置；默认 mock 模式仍可单独运行前端。
+> 注意：数据默认落 `data/marketplace.db`（gitignored）；默认 mock 模式仍可单独运行前端。
 
 ---
 
@@ -29,6 +29,7 @@
 | T7 | Go API 服务 | — | 完成 | go test + curl | `go test -race` ok；11 接口 curl 矩阵通过 |
 | T8 | 前端 HTTP 客户端 | — | 完成 | tsc + build | tsc/build/HTTP 模式构建均 exit 0 |
 | T9 | 前后端联调 | — | 完成 | 渲染 + curl | HTTP 模式渲染 9 任务（含 curl 新建）；证据链完整 |
+| T10 | SQLite 持久化 | — | 完成 | go test + 重启验证 | `go test -race` ok；重启后 curl 查回发布任务 |
 
 ---
 
@@ -123,6 +124,18 @@
   - 证据：publish 201 → task_1008；accept 200 lease `+2h`；sign 200 两次哈希一致
 - [x] 提交并推送
   - 证据：见 `git log feat/ai-marketplace-frontend` 最新提交
+
+### T10 · SQLite 持久化（P8-backend-db）
+
+- [x] `OpenStore(path)` / `Close()`，WAL + busy_timeout + 单连接
+- [x] 快照表 `marketplace_state`，首次写种子，变更时锁内事务 upsert
+- [x] PublishTask / AcceptTask / SubmitRating / RegisterChannel / SignContract 落盘
+- [x] `cmd/marketplace` 新增 `-db`（默认 `data/marketplace.db`），自动建目录
+- [x] 测试：重启后发布/接单/评分仍在；并发 -race
+  - 用例：`TestOpenStoreSeedsData`、`TestOpenStorePersistsAcrossRestart`、`TestOpenStoreRejectsUnsupportedVersion`、`TestOpenStoreRejectsCorruptPayload`、`TestOpenStoreConcurrentWrites`
+- [x] 验证：`go test`、`go vet`、`build`、实机重启 curl
+  - 证据：`go test ./marketplace/... -race -count=1` → `ok AIxVuln/marketplace 1.471s`；`go vet` 无输出；`gofmt -l marketplace cmd/marketplace` 无输出；`CGO_ENABLED=0 go build ./...` exit 0
+  - 实机：`/tmp/mkt-server -port 8083 -db /tmp/mkt-verify.db` 发布 `P9重启验证-1794887498` → 201，`total=1`；SIGTERM 停止后同库重启 → `healthz_after_restart 200`、`total=1`、标题一致；DB 文件 40960 bytes
 
 ---
 
