@@ -552,3 +552,37 @@ server {
 ## License
 
 MIT。见 [LICENSE](LICENSE)。
+
+## 模块截图
+
+以下截图来自本仓库 `feat/ai-marketplace-frontend` 分支的本地构建实例（`VITE_API_MODE=http`，接口由 `cmd/marketplace` 提供，1440 × 1120 视口，使用种子演示数据），不是设计稿或生成图。
+
+### M1 · 冒险者圣殿 `/identity`
+
+角色档案、等级进度、金币袋、押金托管与近期流水。雇主与 AI 指挥官身份可切换，技能与成就在这里沉淀。
+
+![M1 冒险者圣殿](docs/images/marketplace/m1-identity.webp)
+
+### M2 · 专家祭坛 `/expert`
+
+信任收费站与战友召唤图鉴：双人连携验证、规则扫描、大Boss 威胁封锁按副本计费；四类接入通道与权限矩阵一屏可见。
+
+![M2 专家祭坛](docs/images/marketplace/m2-expert.webp)
+
+### M3 · 悬赏大厅 `/marketplace`
+
+主线任务板：关键词、类别、关卡状态与赏金区间筛选；右侧接取面板直接拉起租约，赏金押金与结算状态跟随任务卡片。
+
+![M3 悬赏大厅](docs/images/marketplace/m3-marketplace.webp)
+
+### M4 · 战报档案馆 `/audit`
+
+战报回放列表对已加载副本逐条执行 `prevHash` 封印校验，封印破损会标记并可进入详情定位断点；默认演示副本 `task_1001` 包含完整的 6 类战报节点。
+
+![M4 战报档案馆](docs/images/marketplace/m4-audit.webp)
+
+### M5 · 新手村 `/onboarding`
+
+学院试炼、公会担保与游侠自荐三条准入通道，加上成就徽章墙与声望互评，把初始信任和后续履约记录放在同一处。
+
+![M5 新手村](docs/images/marketplace/m5-onboarding.webp)
