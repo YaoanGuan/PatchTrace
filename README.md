@@ -1,390 +1,392 @@
-# AIxVuln
+# ParchTrace | 寻迹 - Autonomous Penetration System
 
-AIxVuln 是一个基于大模型（LLM）+ 工具调用（Function Calling）+ Docker 沙箱的**自动化漏洞挖掘与验证系统**。
+> **Trace the Patch, Uncover the Flaw.**
+> **追补丁，寻漏洞。**
 
-系统通过 Web UI 管理"项目"，为每个项目自动组织多个**数字人**协作完成环境搭建、代码审计、漏洞验证与报告生成，并在隔离的 Docker 环境内完成依赖安装、服务启动、PoC 验证与证据采集，最终产出可下载的漏洞报告。
+ParchTrace 是一个**补丁驱动的自主渗透系统**。它从厂商修复 diff 出发，反演出漏洞成立所需的约束，把事实、意图和证据写成一张可追溯的溯源图，再由 Worker 在隔离沙箱中逐条实证。只有能沿图回溯到项目起点的结论，才会成为 Finding。
 
-目前已通过该项目在真实开源项目中发现数十个漏洞。
+它不把“让 Agent 自由发挥”当成能力，也不把扫描器输出当成结论。每一步都要留下可复核的节点与边。
 
-## 特性
+---
 
-- **首次启动引导** — 首次运行自动进入初始化向导，引导创建管理员账户并一键构建所需 Docker 镜像，开箱即用
-- **单二进制部署** — Dockerfile、前端 UI 等资源全部嵌入可执行文件，无需额外文件即可运行
-- **项目化管理** — 支持从 Git 仓库、压缩包上传、压缩包 URL 三种方式创建项目，一键启动/取消，实时查看漏洞列表、容器、事件日志与报告
-- **数字人协作** — 每个数字人拥有独立人格（姓名、性别、年龄、性格、头像、自定义提示词），绑定特定 Agent 能力类型，以持久化实例运行，跨任务复用记忆
-- **决策大脑（DecisionBrain）** — 全局调度中枢，维护状态面板与记忆体，自动编排数字人、汇聚碎片化利用点（exploitIdea）并组装攻击链（exploitChain）
-- **团队聊天（Team Chat）** — 用户可通过 `@数字人名` 或 `@全体` 与任意数字人 / 决策大脑实时对话，数字人之间也可通过 TeamMessage 机制广播消息
-- **Docker 沙箱与多语言环境** — 内置 `aisandbox` 攻击沙箱，支持 PHP / Java / Node.js / Python / Go 运行环境及 MySQL / Redis 等中间件
-- **双 API 模式** — 支持 OpenAI Chat Completions API 和 Responses API，可按 Agent 类型独立配置
-- **SQLite 配置管理** — 配置存储于 `data/AIxVuln.db`，首次启动自动生成默认值，通过 Web UI 可视化编辑，支持按 Agent 类型独立覆盖
-- **报告模板自定义** — 报告模板存储在 `data/.reportTemplate/`，支持在 Web UI 中直接编辑
-- **Web UI** — 基于 React + Vite 的前端，源码位于 `webui/`，构建后随服务端二进制一同嵌入
+## 为什么从补丁开始
+
+| 补丁提供的信号 | 系统如何利用 |
+|---|---|
+| 厂商修复只触及真实可达的代码路径 | 用 diff 缩小搜索面，而不是从全量代码重新猜漏洞 |
+| 修复前后语义差异暴露缺失的校验条件 | 反演出 `condition / harm / evidence` 三元组，形成可检验约束 |
+| 修复提交带有版本、文件和上下文 | 生成 `patch_profile` Fact，作为整张溯源图的起点 |
+| 约束可以被证实，也可以被证伪 | 在沙箱中执行验证；拒绝、超时、证据不足都落客观结论 |
+
+因此，ParchTrace 的默认路径不是“扫一遍代码然后写报告”，而是：
+
+```text
+patch diff
+  → 修复语义反演
+  → 漏洞约束与利用假设
+  → 溯源图上的信息缺口
+  → 沙箱实证
+  → support / refute 判决
+  → 带完整推导路径的 Finding
+  → 规则回流到下一次反演
+```
+
+---
+
+## 核心闭环
+
+| 阶段 | 做什么 | 主要产出 |
+|---|---|---|
+| **Patch ingest** | 解析 unified diff，提取文件、函数、行为变化 | `patch_profile` Fact |
+| **Semantic inversion** | 反演修复语义，推导漏洞成立条件与危害 | `constraint`、`exploit_idea` Fact |
+| **Bootstrap** | 补丁摄入 + 语义反演，写入首批事实与探索意图 | 初始溯源图 |
+| **Reason** | 读全图，检查目标覆盖、排序证据缺口，声明下一步 Intent | 新 Intent 或 `noop` |
+| **Explore** | 认领 Intent，在 Docker 沙箱执行验证，回写结果 | `observation`、`verdict` Fact |
+| **Complete** | 检查 Finding 是否能沿 `origin → … → finding` 回溯 | `goal` 边、可导出的完成链 |
+| **Rule feedback** | 将确认或反证结果回流规则库 | 新规则版本、置信度与命中计数 |
+
+规则演化是一个闭环：`explore` 的终态经 CE4 回流到 `patchintel` 规则库；下一次 `bootstrap` 读取 top-k 规则，并把它们作为提示注入反演过程。
+
+---
+
+## 系统能力
+
+### 补丁语义反演
+
+- 支持 unified diff 摄入，保留文件、函数、上下文和变更方向。
+- 将“删掉了哪个检查”“换了哪个比较”“新增了哪个边界”翻译成可利用条件。
+- 同时生成漏洞约束和候选利用假设，而不是只生成一段自然语言摘要。
+- 四个补丁工具已挂载到 Agent：补丁摄入、语义反演、规则查询、规则提升。
+
+### 溯源图是唯一知识载体
+
+- **Fact**：已确认的客观事实，只增不改。
+- **Intent**：声明式信息缺口，可被 Worker 认领；生命周期为 `open → claimed → concluded`。
+- **Hint**：图外人工判断，下次读图时被吸收；用于注入约 100 tokens 的经验，而不是注入方法。
+- **Edge**：`produce`、`derive`、`support`、`refute`、`block` 等有向关系构成 DAG。
+- SQLite 持久化，`graph.db` 与配置库分离；支持快照、溯源链和 YAML / timeline 导出。
+
+### 平等 Worker 与租约
+
+- 三类任务：`bootstrap`、`reason`、`explore`。
+- Dispatcher 只负责选任务、选健康 Worker、续租、超时与并发上限；流程分支不写进 prompt。
+- 原子认领：同一 Intent 同时只能有一个 Worker 成功。
+- Lease 超时自动回到 `open`，Worker 崩溃不会永久卡死图。
+- 项目级 `reason` 租约保证同一项目同时只有一个推理者。
+- `block` 边不允许成环；依赖未解决的 Intent 不会被错误推进。
+
+### 沙箱实证，而不是文本判定
+
+- 复用 Docker 沙箱执行验证命令，支持多语言运行环境和 MySQL / Redis 等中间件。
+- `explore` 先写入 `observation`，再由证据源产生 `verdict`。
+- `verdict` 必须是 `support` 或 `refute`，并带 `support` / `refute` 边。
+- 网络错误、命令失败、证据不足不会被当成“验证成功”；失败也写客观 Fact。
+- 没有溯源路径的 Finding 不能完成项目；`reopen` 可以撤销错误完成并写入纠错事实。
+
+### 人类判断可以进入图，但不能绕过闸门
+
+- 通过 Hint 写入人工线索、优先级和后续方向。
+- Hint 会影响下一次 `reason` / `explore` 的读图结果，但不直接伪造 Fact 或 Verdict。
+- 高风险宿主机命令和目标动作仍受审批流程控制；`-auto-mode full` 是显式自动化开关。
+
+### 图驱动 UI 与旧实验室并存
+
+- 首页展示图项目总览、事实/意图/提示/边统计、模块覆盖矩阵和最近项目。
+- 溯源图面板支持新建项目、状态切换、完成/重开、Hint、Intent 声明/领取/心跳/释放/总结、总脑租约、YAML 导出、timeline 和 provenance 追溯。
+- 事实列表支持按类型过滤，模块卡片会带着项目与事实类型直接进入对应视图。
+- 旧实验室入口完整保留：压缩包文件、Git 仓库、压缩包链接、空工作目录四种源码来源，以及启动、停止、删除、进入项目、自动初始化沙箱和执行既有任务流程。
+
+---
+
+## 溯源图数据模型
+
+```text
+Project
+  ├─ origin fact
+  ├─ Fact      patch_profile | exploit_idea | constraint
+  │             observation | verdict | rule_hit
+  ├─ Intent    open | claimed | concluded
+  ├─ Hint      human judgment
+  └─ Edge      produce | derive | support | refute | block
+```
+
+- 项目状态：`active`、`stopped`、`completed`；`completed` 只能通过 `reopen` 撤销。
+- Intent 认领需要 worker 与 lease；超时释放会清空 worker。
+- `complete` 至少需要一个 `from` Fact；每个 Fact 必须能 Provenance 回 `origin`。
+- 图导出支持 YAML 快照和 process timeline，便于审计与回放。
+
+---
+
+## 架构
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│ React Web UI                                                 │
+│ 图总览 · 溯源图面板 · 实验室 · 数字人 · 报告模板 · 设置      │
+└──────────────────────────┬───────────────────────────────────┘
+                           │ /api/graph + Bearer Token
+┌──────────────────────────▼───────────────────────────────────┐
+│ graphserver/  图协议 HTTP 层                                  │
+│ graph/        Fact / Intent / Hint / Edge + SQLite graph.db  │
+└──────────────────────────▲───────────────────────────────────┘
+                           │ 进程内协议客户端
+┌──────────────────────────┴───────────────────────────────────┐
+│ dispatch/     调度核心                                        │
+│  bootstrap · reason · explore · lease · worker · timeout     │
+└───────────────┬──────────────────────────────┬───────────────┘
+                │                              │
+       ┌────────▼────────┐            ┌────────▼──────────────┐
+       │ patchintel/     │            │ dockerManager/        │
+       │ diff / invert / │            │ sandbox / services    │
+       │ rule base       │            │                       │
+       └─────────────────┘            └───────────────────────┘
+
+旧车道（保留兼容）：Web → LabManager 总脑 → 三个研究组 → DecisionBrain
+                    → agents 数字人池 → toolCalling → llm / docker
+```
+
+| 目录 | 职责 |
+|---|---|
+| `patchintel/` | 补丁摄入、语义反演、规则库 |
+| `graph/` | 节点、边、租约、完成闸门、溯源查询、YAML / timeline 导出 |
+| `graphserver/` | `/api/graph` 协议路由与 HTTP client |
+| `dispatch/` | 调度器、三类任务、Worker driver、沙箱 runtime、CE4 回流 |
+| `dockerManager/` | Docker sandbox、语言环境、服务管理 |
+| `Web/` | gin HTTP / WebSocket、认证、项目启动队列、图路由挂载 |
+| `agents/` | 旧车道的持久化 Agent 能力与数字人构造 |
+| `toolCalling/` | 工具注册、参数校验、审批、MCP |
+| `llm/` | Chat Completions / Responses / Anthropic Messages 客户端 |
+| `webui/` | React + Vite 前端，构建后嵌入单二进制 |
+| `docs/runbooks/` | 端到端演示与验收手册 |
+
+---
 
 ## 快速开始
 
-### 运行（二进制，推荐）
+### 前置条件
 
-从 [GitHub Releases](https://github.com/m4xxxxx/AIxVuln/releases) 下载对应平台的可执行文件：
+- Go 1.24.1+
+- Node.js / npm
+- 可用的 Docker daemon
+- 一个兼容 OpenAI Chat Completions、OpenAI Responses 或 Anthropic Messages 的模型服务
 
-| 版本 | 说明 |
-|------|------|
-| `AIxVuln-web-*` | Web-only 版本，适合服务器部署 |
+### 构建与启动
 
-```bash
-# Web 版本 — 直接运行，默认监听 9999 端口
-chmod +x AIxVuln-web-linux-amd64
-./AIxVuln-web-linux-amd64
-
-# 自定义端口
-./AIxVuln-web-linux-amd64 -port 8080
-
-# 同时指定 Agent Tools 对外可访问 IP 和端口
-./AIxVuln-web-linux-amd64 -ip 192.168.1.10 -port 8080
-
-# 开启全自动模式
-./AIxVuln-web-linux-amd64 -auto-mode full
-
-# Web 安全研究组改为综合模式（仅白盒分析 + 组链 + 报告，不做环境搭建/组内验证）
-./AIxVuln-web-linux-amd64 -web-mode comprehensive
-
-```
-
-### 启动参数
-
-适用于 `AIxVuln-web-*` 二进制，以及项目根目录 `go run .` / `go build .` 产物。
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `-port` | `9999` | Web 服务监听端口 |
-| `-ip` | 空 | 生成 `agent_tools download_url` 时使用的对外可访问 IP；未传时会在启动时提示选择本机 IP 或手动输入 |
-| `-auto-mode` | 空 | 全局自动化模式，可选 `off` 或 `full` |
-| `-full-auto` | `false` | `-auto-mode full` 的简写；优先级高于 `-auto-mode` |
-| `-mcp-config` | 空 | 指定 MCP 配置文件存储路径；若文件已存在则启动时加载，Web UI 中的 MCP 保存也会写回该文件。格式支持 `{"configs":[...]}` 或直接传数组 `[...]` |
-| `-web-mode` | `audit` | Web 安全研究组运行模式，可选 `audit` 或 `comprehensive`。`audit` 为完整白盒审计工作流；`comprehensive` 仅保留分析/组链/报告，不在组内搭建环境或验证 |
-
-**首次启动流程：**
-
-1. 打开浏览器访问 `http://IP:9999`
-2. 进入初始化向导 → 创建管理员账户
-3. 向导自动检测 Docker 镜像 → 一键构建 `aisandbox` 和 `java_env`（Dockerfile 已嵌入二进制，无需额外文件）
-4. 完成初始化 → 登录系统
-5. 在「设置」中填写 `BASE_URL`、`OPENAI_API_KEY`、`MODEL` 三个必填项
-6. 创建项目，开始漏洞挖掘
-
-### API 兼容说明
-
-系统支持所有兼容 OpenAI API 格式的模型服务，包括但不限于：**GPT**、**GLM（智谱）**、**Qwen（通义千问）**、**DeepSeek** 等；同时也已支持 **Claude 官方 Anthropic Messages API** 直连。
-
-Claude 官方 API 配置示例：
-
-- `BASE_URL=https://api.anthropic.com`
-- `OPENAI_API_KEY=你的 Claude / Anthropic Key`
-- `MODEL=你账户里可用的 Claude 模型名`
-- `API_MODE=anthropic`（也兼容 `claude`）
-
-如需接入 Gemini 等其他非 OpenAI 兼容 API，仍建议配合 [CLI Proxy](https://github.com/linux-do/override) 等工具转换后使用。
-
-### LLM 配置建议
-
-系统支持按 Agent 类型独立配置不同的模型，推荐采用**分层配置**策略：
-
-- **`main_setting`（全局默认）** — 使用 Coding 套餐模型（如 **GLM**、**DeepSeek-Coder**、**Qwen-Coder** 等），性价比高，适合代码审计、环境搭建、报告生成等高频任务
-- **`decision`（决策大脑）** — 使用更擅长决策与指导的模型（如 **GPT-5**、**Codex** 等），决策大脑负责全局调度与攻击链组装，对推理能力要求更高
-
-> 未单独配置的 Agent 类型会自动 fallback 到 `main_setting`，因此只需额外配置 `decision` 段即可实现分层。
-
-### 运行（源码）
-
-```bash
-# 前置条件：Go 1.24+、Docker 已安装并启动
-go run .
-
-# 自定义监听端口
-go run . -port 8080
-
-# 指定 Agent Tools download_url 对外 IP
-go run . -ip 192.168.1.10
-
-# 开启全自动模式（当前会自动批准宿主机命令，后续其它自动化能力也复用这套框架）
-go run . -auto-mode full
-
-# 切到 Web 安全研究组综合模式
-go run . -web-mode comprehensive
-
-# 等价写法
-go run . -full-auto
-```
-
-默认监听 `0.0.0.0:9999`，首次启动同样进入初始化向导。
-
-#### 源码入口参数
-
-适用于项目根目录源码入口 `go run .` 或根目录 `main.go` 构建出的二进制。
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `-port` | `9999` | Web 服务监听端口 |
-| `-ip` | 空 | 生成 `agent_tools download_url` 时使用的对外可访问 IP；未传时会在启动时提示选择本机 IP 或手动输入 |
-| `-auto-mode` | 空 | 全局自动化模式，可选 `off` 或 `full` |
-| `-full-auto` | `false` | `-auto-mode full` 的简写；优先级高于 `-auto-mode` |
-| `-mcp-config` | 空 | 启动时加载 MCP 配置 JSON 文件，支持直接为各 Agent 绑定 MCP |
-| `-web-mode` | `audit` | Web 安全研究组运行模式，可选 `audit` 或 `comprehensive` |
-
-### 构建发布版
-
-```bash
-# 一键交叉编译全部 WEB 版本
-./build_all.sh
-
-# 显式指定 WEB 模式（效果相同）
-./build_all.sh web
-
-# 指定平台
-./build_all.sh web linux
-```
-
-产出在 `dist/` 目录，命名格式为 `AIxVuln-web-{os}-{arch}`。
-
-### Web UI 开发
+前端必须先构建，`main.go` 通过 `//go:embed all:webui/dist` 把 UI 打进二进制：
 
 ```bash
 cd webui
 npm install
-npm run dev    # 前端开发模式
-npm run build  # 构建 dist
+npm run build
+cd ..
+
+CGO_ENABLED=0 go build -o ParchTrace .
+./ParchTrace -port 9999
 ```
 
-## 架构概览
+常用启动方式：
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  Web UI                                                 │
-│  (React + TailwindCSS + shadcn/ui)                      │
-├─────────────────────────────────────────────────────────┤
-│  Web/          HTTP API + WebSocket 推送                 │
-├─────────────────────────────────────────────────────────┤
-│  ProjectManager/   项目编排、并发与生命周期管理            │
-├──────────────┬──────────────────────────────────────────┤
-│ DecisionBrain│  决策大脑：全局调度 · 状态面板 · 记忆体     │
-│              │  exploitIdea/Chain 汇聚 · Team Chat       │
-├──────────────┴──────────────────────────────────────────┤
-│  agents/       持久化 Agent 实例（6 类能力）              │
-│  数字人         绑定 Agent 能力的独立人格实例              │
-│  toolCalling/  工具调用框架与工具实现                      │
-├─────────────────────────────────────────────────────────┤
-│  llm/          LLM 客户端 · 上下文管理 · 记忆体压缩/重置  │
-│  dockerManager/  Docker 操作 · ServiceManager            │
-│  taskManager/    Task · Sandbox · VulnManager            │
-│  misc/           SQLite 配置 · 工具函数 · 任务模板        │
-└─────────────────────────────────────────────────────────┘
+```bash
+# 指定端口
+./ParchTrace -port 8080
+
+# 指定 Agent Tools 对外可访问 IP
+./ParchTrace -port 9999 -ip 192.168.1.10
+
+# 显式开启全自动模式
+./ParchTrace -port 9999 -auto-mode full
+# 等价写法
+./ParchTrace -port 9999 -full-auto
+
+# 指定 MCP 配置文件
+./ParchTrace -port 9999 -mcp-config /path/to/mcp.json
 ```
 
-## Agent 与数字人
-
-AIxVuln 中 **Agent** 和 **数字人（Digital Human）** 是两个不同层次的概念：
-
-- **Agent** — 底层**能力类型**，定义了一类任务的执行逻辑、可用工具和系统提示词。共 7 类。
-- **数字人** — 绑定到某类 Agent 能力的**独立人格实例**。每个数字人拥有姓名、性别、年龄、性格、头像和自定义提示词，以持久化实例运行，跨任务复用记忆。
-
-简单来说：**Agent 是能力，数字人是角色**。同一类 Agent 能力可以有多个不同人格的数字人。
+首次启动：
 
-### Agent 能力类型
-
-| Agent 类型 | 职责 |
-|------------|------|
-| **GeneralCommonAgent** | 通用杂项任务处理（跨域排障、脚本执行、仓库协作；支持 GitHub Copilot MCP） |
-| **OpsCommonAgent** | 多语言环境搭建与运维（识别技术栈、安装依赖、启动服务、获取登录凭证） |
-| **OpsEnvScoutAgent** | 远程环境侦察（从运行环境中获取 EnvInfo 与源码信息） |
-| **AnalyzeCommonAgent** | 代码审计与候选漏洞挖掘（多路并发） |
-| **VerifierCommonAgent** | 在真实环境中验证候选漏洞、生成 PoC/证据（任务间自动重置记忆） |
-| **ReportCommonAgent** | 对验证结果生成可下载报告（任务间自动重置记忆） |
-| **ProjectOverviewAgent** | 项目概览与信息汇总 |
+1. 打开 `http://<host>:9999`，进入初始化向导。
+2. 创建管理员账户，按提示构建 `aisandbox` 与 `java_env` 镜像。
+3. 在「设置」中填写 `main_setting.BASE_URL`、`main_setting.OPENAI_API_KEY`、`main_setting.MODEL`。
+4. 进入首页创建实验室，或启用图车道后创建图项目。
 
-### 默认数字人团队
+`BASE_URL` 兼容 OpenAI 格式服务；设置 `API_MODE=anthropic`（或 `claude`）可直连 Anthropic Messages API。
 
-系统首次启动时自动创建一组默认数字人（名字是AI起的，不涉及真人名字），用户可在 Web UI 的「数字人管理」中增删改：
+---
 
-| 数字人 | Agent 能力 | 人格特点 |
-|--------|-----------|----------|
-| 沈墨白 | General | 全能协调、实用主义、执行高效 |
-| 温舒然 | Ops | 温柔细腻、有条不紊 |
-| 陈景明 | OpsEnvScout | 干练利落、言简意赅 |
-| 林辰宇 | Analyze | 一丝不苟、逻辑缜密 |
-| 张泽远 | Analyze | 跳脱活泼、脑洞大开 |
-| 苏晚晴 | Analyze | 沉静从容、全局视野 |
-| 江亦琛 | Verifier | 雷厉风行、结果导向 |
-| 陆星驰 | Verifier | 沉稳踏实、韧性十足 |
-| 许知予 | Verifier | 反应敏捷、条理分明 |
-| 周书瑶 | Report | 文字考究、结构严谨 |
+## 启用图车道
 
-### 记忆体系统
+图车道是显式 opt-in，默认关闭；关闭时仍是原有 TotalBrain 闭环，行为不变。
 
-- **ContextManager** — 单数字人对话上下文管理，支持 BPE Token 精确计数、自动压缩、关键消息注入
-- **SharedContext** — 多数字人共享上下文容器，用于并发审计/验证时的信息聚合
-- **ResetMemoryWithSummary** — Verifier / Report 类数字人在新任务开始前，将历史记忆压缩为摘要后重置，保留关键信息同时释放上下文空间
-- **KeyMessage / EnvMessage** — 环境信息、候选漏洞、验证证据等以关键消息形式在数字人间共享
+### 1. 打开开关
 
-### 团队聊天（Team Chat）
+可在 Web「设置」的 `[misc]` 分组修改，或在服务停止时直接写配置库：
 
-用户可通过聊天面板与数字人实时交互：
-- `@数字人名`（如 `@林辰宇`）— 发送消息给指定数字人
-- `@全体` / `@all` — 广播给所有数字人 + 决策大脑
-- 无 `@` 前缀 — 直接发送给决策大脑
-- 数字人之间可通过 `TeamMessage:` 机制自动广播消息
+```bash
+sqlite3 data/AIxVuln.db "
+INSERT INTO config(section,key,value) VALUES('misc','graph_lane_enabled','true')
+ON CONFLICT(section,key) DO UPDATE SET value=excluded.value;"
 
-## DecisionBrain（决策大脑）
+sqlite3 data/AIxVuln.db "
+INSERT INTO config(section,key,value) VALUES('misc','graph_lane_config','dispatch.yaml')
+ON CONFLICT(section,key) DO UPDATE SET value=excluded.value;"
+```
 
-DecisionBrain 是面向全局目标的调度与记忆中枢：
+只有 `true` / `1` / `yes` / `on`（大小写不敏感）会启用车道。
 
-- **状态面板** — 维护环境信息、容器信息、exploitIdea 列表、exploitChain 列表等全局状态
-- **数字人调度** — 根据当前状态与任务目标，决定调度哪些数字人，从持久化数字人池中获取空闲实例
-- **Tool Calling** — 组合 exploitIdea 为 exploitChain、搜索/读取 exploitIdea、发送消息等
-- **记忆体压缩** — 历史消息超限时自动摘要，压缩后 exploitIdea 列表只展示精简字段，需要细节时通过工具按 ID 读取
-- **SQLite 持久化** — 已确认可利用的 exploitIdea / exploitChain 持久化到项目级数据库
+### 2. 准备 `dispatch.yaml`
 
-## 碎片化利用点（exploitIdea）策略
+默认读取仓库根目录的 `dispatch.yaml`：
 
-AIxVuln 将漏洞挖掘拆解为可组合的碎片化利用点，再逐步推进为攻击链：
+```yaml
+server: http://127.0.0.1:9999
+runtime:
+  max_workers: 4
+  max_running_projects: 2
+  max_project_workers: 3
+  interval: 5s
+  healthcheck_timeout: 30s
+  prompt_group: default
+tasks:
+  bootstrap:
+    timeout: 20m
+    conclude_timeout: 5m
+  reason:
+    timeout: 10m
+  explore:
+    timeout: 15m
+    conclude_timeout: 5m
+```
 
-- **并发友好** — Ops 数字人搭建环境的同时，Analyze 数字人并行产出多个候选 exploitIdea，Verifier 数字人逐个验证
-- **符合真实流程** — 先发现可疑点，再补齐条件、危害、payload 思路与运行时证据
-- **持续复用** — exploitIdea 以 ID 管理，持久化到 SQLite，跨轮次可检索复用
-- **上下文鲁棒** — 压缩模式下只展示摘要，按需通过工具读取完整详情
+缺少必填键时车道拒绝启动，并写入警告日志；旧车道不受影响。
 
-## 配置
+### 3. 数据与降级
 
-配置存储于 SQLite 数据库 `data/AIxVuln.db`，首次启动自动创建并插入默认值。可通过 Web UI 设置面板可视化编辑。
+默认数据路径：
 
-### 配置段说明
+```text
+data/AIxVuln.db             配置、数字人、MCP 等
+data/graph.db               溯源图
+data/patchintel/rules.db    补丁规则库
+```
 
-| 配置段 | 说明 |
-|--------|------|
-| `misc` | 全局通用配置（消息长度限制、重试次数、数据目录等） |
-| `main_setting` | 全局默认 LLM 配置（各 Agent 类型未配置时的 fallback） |
-| `decision` | 决策大脑专用配置（可覆盖 main_setting） |
-| `general` / `ops` / `analyze` / `verifier` / `report` / `overview` | 各 Agent 类型专用配置（可覆盖 main_setting） |
+`misc.DATA_DIR` 可以改数据根目录；`AIXVULN_DATA_DIR` 只影响配置库打开位置，且必须在配置单例初始化前设置。
 
-### 主要配置项
+如果模型尚未配置，图车道会退化为 **GraphOnly**：挂载 `/api/graph` 和 UI，不启动调度；配置模型后重启即可开始 bootstrap / reason / explore。
 
-| 配置项 | 所属段 | 说明 | 默认值 |
-|--------|--------|------|--------|
-| `BASE_URL` | main_setting | LLM API 基础地址 | **必填** |
-| `OPENAI_API_KEY` | main_setting | API 密钥（多个用 `\|-\|` 分隔轮询；Claude Key 也填这里） | **必填** |
-| `MODEL` | main_setting | 模型名称 | **必填** |
-| `API_MODE` | main_setting | `chat`（Chat Completions）、`responses`（Responses API）、`anthropic` / `claude`（Claude Messages API） | `chat` |
-| `STREAM` | main_setting | 是否启用流式响应 | `false` |
-| `MaxContext` | main_setting | 最大上下文大小（KB） | `100` |
-| `MaxRequest` | main_setting | 单个 API Key 最大并发请求数 | `5` |
-| `USER_AGENT` | main_setting | HTTP 请求 User-Agent 头 | `AIxVuln` |
-| `MessageMaximum` | misc | 单条消息最大长度（字符） | `10240` |
-| `MaxTryCount` | misc | API 请求最大重试次数 | `5` |
-| `DATA_DIR` | misc | 数据存储目录 | `./data` |
-| `AUTO_MODE` | misc | 全局自动化模式：`off` 或 `full` | `off` |
-| `GITHUB_COPILOT_MCP_AUTHORIZATION` | misc | GitHub Copilot MCP 的 Authorization 请求头值 | 空 |
+### 4. 图项目与沙箱的关系
 
-> 各 Agent 类型配置段（如 `decision`、`ops` 等）支持独立覆盖 `BASE_URL`、`OPENAI_API_KEY`、`MODEL`、`MaxContext`、`MaxRequest`、`USER_AGENT`、`STREAM`、`API_MODE`，未配置时自动 fallback 到 `main_setting`。
-> 若同时设置了启动参数 `-auto-mode` / `-full-auto` 与 `misc.AUTO_MODE`，以启动参数为准。
+`explore` 不自己创建靶标。它复用既有实验室生命周期注册的 sandbox，因此：
 
-### GitHub MCP
+- 图项目 ID 必须与已启动 lab 的 ID 完全一致。
+- 先通过实验室页面或 `/projects` API 创建并启动 lab，等待 `sandboxContainerID` 非空。
+- 如果旧车道的总脑仍在运行，先停止 lab，仅保留 sandbox 注册关系，避免两套调度同时操作同一沙箱。
+- 靶标必须能从 sandbox 内部访问；“宿主机能 curl 通”不等于验收通过。
 
-系统内置 GitHub Copilot MCP 连接，端点固定为 `https://api.githubcopilot.com/mcp/`，工具前缀固定为 `MCP_GitHubCopilot`。  
-设置页只需要配置 `misc.GITHUB_COPILOT_MCP_AUTHORIZATION`。
+完整步骤见 [`docs/runbooks/cve-2025-3248.md`](docs/runbooks/cve-2025-3248.md)。
 
-### 模型列表自动获取
+---
 
-在设置面板中填写 `BASE_URL` 和 `OPENAI_API_KEY` 后，系统会自动调用模型列表接口获取可用模型，支持 OpenAI 兼容 `/models` 和 Claude 官方 `v1/models` 两种格式，以下拉框形式供选择，同时支持自定义输入。
+## 使用流程
 
-## Docker 镜像
+1. **创建实验室**：在首页「实验室与沙箱」选择压缩包文件、Git 仓库、压缩包链接或空工作目录，填写任务目标并创建。
+2. **启动实验室**：等待 Docker sandbox 初始化；在项目详情中确认沙箱容器 ID。
+3. **创建图项目**：在图面板新建项目，`id` 使用 lab ID，`origin` 指向补丁文件，`goal` 写清验收目标，按需开启 bootstrap。
+4. **观察反演**：bootstrap 写入 `patch_profile`、`exploit_idea`，并声明第一批 inversion Intent。
+5. **推进推理**：reason 读取整图，补齐缺口；explore 领取 Intent，在沙箱中执行验证并写回 observation / verdict。
+6. **人工介入**：需要补充经验时写 Hint；需要撤销错误完成时使用 reopen。
+7. **导出与审计**：导出 YAML 或 timeline，检查 Finding 是否具有完整的 `origin → … → goal` 路径。
 
-| 镜像 | 说明 |
-|------|------|
-| `aisandbox` | 通用攻击/验证沙箱，提供常用安全测试工具 |
-| `java_env` | Java 多版本 JDK（8/11/17/21/24，通过 SDKMAN 安装）与 Maven / Gradle 构建工具 |
+### 图协议 API
 
-> Dockerfile 已嵌入二进制文件，首次启动的初始化向导会自动引导构建。也可手动构建：
-> ```bash
-> # 使用项目根目录的一键构建脚本
-> bash dockerfile/build.sh
-> ```
+所有 `/api/graph` 请求使用 Bearer Token 认证：
 
-## 扩展指南
+| 方法与路径 | 用途 |
+|---|---|
+| `POST /api/graph/projects` | 创建图项目 |
+| `GET /api/graph/projects` | 列出项目 |
+| `GET /api/graph/projects/:id` | 读取项目状态 |
+| `PUT /api/graph/projects/:id/status` | 停止 / 恢复项目 |
+| `POST /api/graph/projects/:id/reopen` | 撤销错误完成 |
+| `POST /api/graph/projects/:id/hints` | 写入人工提示 |
+| `POST /api/graph/projects/:id/intents` | 声明 Intent |
+| `POST /api/graph/projects/:id/intents/:iid/{heartbeat,release,conclude}` | 认领生命周期与结论 |
+| `POST /api/graph/projects/:id/reason/{claim,heartbeat,release}` | 项目级推理租约 |
+| `POST /api/graph/projects/:id/complete` | 完成项目（校验溯源路径） |
+| `GET /api/graph/projects/:id/snapshot` | UI 快照 |
+| `GET /api/graph/projects/:id/provenance` | 单节点溯源链 |
+| `GET /api/graph/projects/:id/export?format=yaml\|timeline` | 导出图或时间线 |
 
-- **新增工具** — 在 `toolCalling/` 中实现工具能力，注册到对应 Agent 类型的工具列表
-- **新增 Agent 类型** — 在 `agents/` 中实现 `Agent` 接口，在 `DecisionBrain` 中注册
-- **新增数字人** — 在 Web UI「数字人管理」中添加，选择 Agent 能力类型并设置人格属性
-- **自定义报告模板** — 在 Web UI「报告模板」中编辑 Markdown 模板
-- **新增运行环境** — 在 `dockerManager/ServiceManager` 增加对应 `StartXXXEnv` 封装
+只读查询和 UI 渲染不需要启动调度器；写入与任务执行需要模型配置和可用的 Docker 环境。
 
-## 注意事项
+---
 
-- 本项目会启动并控制 Docker 容器，请在隔离环境中使用
-- 敏感信息（API Key、用户密码等）存储于本地 SQLite 数据库（`data/AIxVuln.db`），`data/` 目录已在 `.gitignore` 中排除
-- 用户认证基于 JWT Token，首次启动通过初始化向导创建管理员账户
+## 旧车道：保留的实验室体验
 
-## 界面预览
+ParchTrace 不是对旧系统的替换式重写。图车道与旧车道并行存在：
 
-### 首页 — 项目管理与创建
+- **多来源建项目**：压缩包文件、Git 仓库、压缩包链接、空工作目录。
+- **项目生命周期**：创建、启动、停止、删除、进入项目。
+- **自动环境准备**：启动后自动初始化 sandbox，执行环境搭建、代码审计、验证和报告流程。
+- **多 Agent 协作**：总脑、三个研究组、决策大脑、数字人池、团队聊天和跨组协作。
+- **既有工具与审批**：MCP、Skills、宿主机命令审批、目标动作审批、报告模板。
+- **共享沙箱**：二进制 / 渗透组通过 runtime alias 使用同一 lab 的 Docker 资源。
 
-支持从 Git 仓库、压缩包上传、压缩包 URL 三种方式创建项目，一键启动漏洞挖掘任务。
+图车道关闭时，以上行为与改造前保持一致。图车道开启时，旧入口仍保留，但不要同时驱动同一个 lab 的 sandbox。
 
-![首页](docs/images/img-1.png)
+---
 
-### 项目详情 — 实时状态总览
+## 开发与测试
 
-运行中的项目详情页，左侧展示数字人工作状态与容器列表，右侧展示环境信息（登录凭证、数据库信息、路由示例等），所有信息实时更新。
+```bash
+# 图车道核心测试（离线，不依赖真实 Docker / LLM）
+go test ./graph/ ./graphserver/ ./dispatch/... -race
 
-![项目详情](docs/images/img-2.png)
+# 全量测试
+go test ./...
 
-### 数字人管理
+# 前端类型检查与构建
+cd webui && npx tsc --noEmit && npm run build && cd ..
 
-管理 Agent 数字人角色，每个数字人拥有独立人格（姓名、性别、年龄、性格、头像）和自定义提示词，绑定特定 Agent 能力类型。支持增删改，修改后重启项目生效。
+# 发布版
+./build_all.sh
+```
 
-![数字人管理](docs/images/img-3.png)
+图相关测试使用 `t.TempDir` 和 fake client / fake driver；配置库是进程单例，隔离测试需在首次配置访问前设置 `AIXVULN_DATA_DIR`。
 
-### 严格审核机制 — 防止 AI 幻觉
+---
 
-ExploitIdea 经过"审核失败 → 正在整改"等多轮状态流转，决策大脑对每个候选漏洞进行严格审核，防止 AI 幻觉导致的误报。ExploitChain 组装后同样需要经过验证流程。
+## 安全边界
 
-![严格审核机制](docs/images/exp-1.png)
+ParchTrace 会启动并控制 Docker 容器，执行目标动作，并调用模型服务。只在**你拥有或获得明确书面授权**的环境中使用。
 
-### 高效的团队沟通机制
+- **授权范围**：不要对公网或第三方目标发起未授权测试。
+- **网络隔离**：不要把 `:9999` 直接暴露到公网；使用防火墙、反向代理或内网访问控制。
+- **Docker 权限**：Docker socket 等价于宿主机高权限，建议在专用主机或隔离网络中运行。
+- **凭据保护**：模型密钥、管理员凭据、MCP 配置和项目数据保存在 `data/`，请限制目录权限。
+- **会话安全**：Bearer Token 使用进程随机密钥签名，服务重启后所有会话失效；请使用强管理员口令。
+- **审批纪律**：高风险宿主机命令和目标动作默认需要人工批准；`-auto-mode full` 只应在可回滚、可隔离的验收环境中使用。
+- **数据外发**：Agent 会把代码与执行上下文发送给你配置的模型服务；请确认数据合规要求。
+- **不保证结果**：系统输出是待复核的安全结论；任何 Finding 都应由人工在授权范围内复核。
 
-数字人之间、数字人与决策大脑之间通过 Team Chat 实时协作。以下展示了一次真实项目中的多轮沟通过程：
+---
 
-**环境搭建阶段** — Ops 数字人汇报编译问题，决策大脑给出修复指令，数字人自主执行修复：
+## 当前状态
 
-![团队沟通-环境搭建](docs/images/chat-1.png)
+- 图车道默认关闭，属于显式灰度能力；旧车道保持可用。
+- 图协议、溯源面板、租约、完成闸门、规则回流和 CVE-2025-3248 runbook 已落地。
+- 真实目标的完整验收需要 Docker 靶标、模型配置和人工执行 runbook；仓库不附带真实漏洞利用结果。
+- Finding 的证据链以溯源图和 timeline 为准；报告模板与旧车道报告仍从既有 Web UI 管理。
 
-**用户实时介入** — 用户通过 @数字人名 直接下达指令（绿色气泡），决策大脑同步协调其他数字人处理环境问题：
+## License
 
-![团队沟通-用户介入](docs/images/chat-2.png)
+MIT，详见 [`LICENSE`](LICENSE)。
 
-**决策大脑指导** — 决策大脑针对 MySQL 连接问题给出详细排查步骤和重建方案，数字人据此自主执行：
+---
 
-![团队沟通-决策指导](docs/images/chat-3.png)
+## 实际界面
 
-**多线并行** — Analyze 数字人广播发现的漏洞线索（@all），Ops 数字人同步处理 Maven 依赖问题，Verifier 数字人等待环境就绪后立即开始验证：
+以下截图来自本仓库本地构建的实际运行实例（演示数据：`probe-*` 图项目），不是设计稿或生成图。
 
-![团队沟通-多线并行](docs/images/chat-4.png)
+![ParchTrace 图驱动首页](docs/images/patchtrace-home.png)
 
-**自主协作** — 多个数字人同时汇报进展、分配剩余配额、用户可随时 @任意数字人 进行干预：
-
-![团队沟通-自主协作](docs/images/chat-5.png)
-
-**定向开源漏洞挖掘** — 支持通过Github MCP自动添加满足条件的开源项目：
-
-![GitHub-Mcp](docs/images/git-mcp.png)
-
-### 漏洞报告示例
-
-系统自动生成结构化漏洞报告，包含完整利用链分析、攻击流程图和验证证据：
-
-**完整利用链分析** — 自动绘制从攻击入口到最终危害的完整调用链路图：
-
-![报告-利用链分析](docs/images/report-1.png)
-
-**验证证据与 PoC** — 包含时间盲注验证、UNION SELECT 探测等详细测试过程和关键证据（HTTP 请求/响应）：
-
-![报告-验证证据](docs/images/report-2.png)
-
-> 完整报告示例：[AUTHBYPASS + SQLI-0.md](docs/Report-Example/AUTHBYPASS%20+%20SQLI-0.md)
+![ParchTrace 溯源图面板](docs/images/patchtrace-provenance.png)
