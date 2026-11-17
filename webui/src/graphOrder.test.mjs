@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { recentProjects } from './graphOrder.ts';
+import { normalizeProjects, recentProjects } from './graphOrder.ts';
 
 const project = (id, createdAt) => ({ id, created_at: createdAt });
 
@@ -50,3 +50,39 @@ test('recentProjects breaks timestamp ties deterministically by descending id', 
 test('recentProjects returns an empty list for a non-positive limit', () => {
     assert.deepEqual(recentProjects([project('p1', '2026-11-01T00:00:00Z')], 0), []);
 });
+
+test('normalizeProjects drops malformed elements instead of crashing the page', () => {
+    const normalized = normalizeProjects([
+        null,
+        42,
+        'project',
+        {},
+        { id: '' },
+        { id: '   ' },
+        { id: ' keep ', title: 'T', origin: 'O', status: 'active', bootstrap_enabled: true,
+          created_at: '2026-11-01T00:00:00Z', reason: { worker: 'w1', trigger: 7 } },
+    ]);
+
+    assert.equal(normalized.length, 1);
+    assert.equal(normalized[0].id, 'keep');
+    assert.equal(normalized[0].title, 'T');
+    assert.equal(normalized[0].origin, 'O');
+    assert.equal(normalized[0].status, 'active');
+    assert.equal(normalized[0].bootstrap_enabled, true);
+    assert.equal(normalized[0].created_at, '2026-11-01T00:00:00Z');
+    assert.equal(normalized[0].reason.worker, 'w1');
+    assert.equal(normalized[0].reason.trigger, undefined);
+});
+
+test('normalizeProjects coerces non-string display fields to undefined', () => {
+    const [p] = normalizeProjects([
+        { id: 'p1', title: { nested: true }, origin: 5, status: [], created_at: 123, reason: 'worker' },
+    ]);
+
+    assert.equal(p.title, undefined);
+    assert.equal(p.origin, undefined);
+    assert.equal(p.status, undefined);
+    assert.equal(p.created_at, undefined);
+    assert.equal(p.reason, null);
+});
+

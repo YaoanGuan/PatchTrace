@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
-import { recentProjects } from './graphOrder';
+import { normalizeProjects, recentProjects, type GraphProject } from './graphOrder';
 
 // GraphOverview is the post-iteration homepage: a read-only, numbered walkthrough
 // of the graph lane (patch inversion -> provenance graph -> reason -> dispatch ->
@@ -16,24 +16,6 @@ type GraphOverviewProps = {
     labRunning: number;
     onOpenGraph: () => void;
     onOpenLabs: () => void;
-};
-
-type GraphReason = {
-    worker?: string;
-    trigger?: string;
-    started_at?: string;
-    last_heartbeat_at?: string;
-};
-
-type GraphProject = {
-    id: string;
-    title?: string;
-    origin?: string;
-    goal?: string;
-    status?: string;
-    bootstrap_enabled?: boolean;
-    created_at?: string;
-    reason?: GraphReason | null;
 };
 
 type GraphNode = {
@@ -193,10 +175,11 @@ export default function GraphOverview({
                     return;
                 }
                 if (cancelled) return;
+                const normalized = normalizeProjects(list);
                 setLaneUnavailable(false);
-                setProjects(list);
+                setProjects(normalized);
 
-                const targets = recentProjects(list, 5);
+                const targets = recentProjects(normalized, 5);
                 const snapshots = await Promise.all(targets.map(async (p: GraphProject): Promise<LoadedProject> => {
                     try {
                         const snapResp = await fetch(
@@ -270,7 +253,7 @@ export default function GraphOverview({
     }, [loaded, projects]);
 
     const metrics: Metric[] = [
-        { label: '图项目', value: projects.length, hint: `${aggregate.activeProjects} 运行中` },
+        { label: '图项目', value: projects.length, hint: `${aggregate.activeProjects} 运行中 · ${aggregate.completedProjects} 已完成 · ${aggregate.stoppedProjects} 已停止` },
         { label: '事实 Fact', value: aggregate.facts.length, hint: `${aggregate.patchProfiles} 补丁档案` },
         { label: '意图 Intent', value: aggregate.intents.length, hint: `${aggregate.openIntents} 待认领` },
         { label: '提示 Hint', value: aggregate.hints.length, hint: '人类判断注入' },
@@ -342,8 +325,8 @@ export default function GraphOverview({
                     </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <Badge variant={laneUnavailable ? 'destructive' : 'success'}>
-                        {laneUnavailable ? '图 API 不可用' : '图 API 可用'}
+                    <Badge variant={loading ? 'secondary' : laneUnavailable ? 'destructive' : 'success'}>
+                        {loading ? '加载中…' : laneUnavailable ? '图 API 不可用' : '图 API 可用'}
                     </Badge>
                     <Badge variant="primary">{projects.length} 个图项目</Badge>
                     <Button size="sm" variant="outline" disabled={loading} onClick={() => setReloadKey(k => k + 1)}>
@@ -355,6 +338,11 @@ export default function GraphOverview({
                 {error ? (
                     <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive break-all">
                         {error}
+                    </div>
+                ) : null}
+                {laneUnavailable ? (
+                    <div className="mb-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning break-words">
+                        图车道未启用或不可达。确认配置 <code>misc.graph_lane_enabled=true</code> 后重启服务；旧实验室入口不受影响。
                     </div>
                 ) : null}
 
@@ -399,7 +387,7 @@ export default function GraphOverview({
                                 <Badge variant="secondary" className="shrink-0">{m.req}</Badge>
                             </div>
                             <div className="mt-2 text-xs text-primary/90 break-words">{m.metric}</div>
-                            <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{m.desc}</div>
+                            <div className="mt-1 break-words text-[11px] leading-relaxed text-muted-foreground">{m.desc}</div>
                             <div className="mt-2 text-[11px] font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
                                 打开溯源图 →
                             </div>
@@ -454,9 +442,10 @@ export default function GraphOverview({
                                 </div>
                             </button>
                         ))}
-                        {projects.length === 0 ? (
-                            <div className="px-3 py-3 text-xs text-muted-foreground">
-                                暂无图项目。进入溯源图新建项目，来源填写补丁 diff 绝对路径并勾选 bootstrap。
+                        {!loading && !laneUnavailable && !error && projects.length === 0 ? (
+                            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 text-xs text-muted-foreground">
+                                <span>暂无图项目。新建时来源填写补丁 diff 绝对路径并勾选 bootstrap。</span>
+                                <Button size="sm" variant="outline" onClick={onOpenGraph}>进入溯源图新建项目 →</Button>
                             </div>
                         ) : null}
                     </div>

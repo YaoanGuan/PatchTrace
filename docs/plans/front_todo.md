@@ -29,12 +29,12 @@ F4 的验收就是逐项检查旧入口是否仍在。
 
 | # | Task | 需求 | 状态 | 证据 |
 |---|---|---|---|---|
-| F1 | 三份 front 文档与入口盘点 | R1–R16 对齐 | 完成 | 3 份文档共 520 行；`grep` 四来源与操作入口均命中 |
+| F1 | 三份 front 文档与入口盘点 | R1–R16 对齐 | 完成 | 3 份文档共 523 行；`grep` 四来源与操作入口均命中 |
 | F2 | 品牌标题与 slogan | R13 | 完成 | `index.html` 1 处、`App.tsx` 标题 1 处、slogan 3 处 |
 | F3 | 首页图驱动总览组件 | R3–R12, R15 | 完成 | `GraphOverview.tsx`；01–07 模块 + R1–R16 矩阵；`tsc` exit 0 |
 | F4 | 首页集成 + 旧入口保留 | 旧能力红线 | 完成 | `<GraphOverview>` 下方保留 `#legacy-labs`；四个 `*Project` handler 均在 |
 | F5 | 图面板能力说明 | R3–R13 | 完成 | 语义标签 10 处调用 + 能力图例 1 处；`tsc` exit 0 |
-| F6 | 构建、重启与真实页面验证 | 验收 | 完成 | `tsc`/`npm run build`/`go build` exit 0；9999 重启后 `/` 200、图 API 401；首页与图面板断言全绿 |
+| F6 | 构建、重启与真实页面验证 | 验收 | 完成 | `tsc`/`npm run build`/`go build` exit 0；9999 重启后 `/` 200、图 API 401；首页 21/22（`enter_lab` 因隔离实例无实验室）、图面板 8/8；排序/空态/降级/归一化 7/7 单测 |
 | F7 | 提交与推送 | 交付 | 完成 | `f94a941` + `5810293` + `e008d0f`；`git push origin HEAD:main` exit 0 |
 
 状态取值：`未开始` / `进行中` / `阻塞` / `完成`。
@@ -128,6 +128,9 @@ F4 的验收就是逐项检查旧入口是否仍在。
   - 证据（2026-11-17，隔离 9997 实例、同一二进制）：`title/slogan/modules/legacy_heading/create_lab/src_file/src_git/src_url/src_empty/start_lab/graph_nav` 全为 True；`module_01/module_07` True。`enter_lab` 为 False 是因为隔离实例无实验室；`App.tsx` 中 `enterProject(p.projectID)` 绑定仍在。
 - [x] **F6.6** 图面板回归：导出、提示、意图领取/总结、总脑租约
   - 证据（2026-11-17）：`panel/legend/export_yaml/export_timeline/hint/intent/reason/capability/projects_loaded` 全部 True；快照显示 52 事实 / 48 意图 / 2 提示 / 106 边，导出与租约控件可见。
+- [x] **F6.7** 完成态收口：最新项目排序、空态/降级提示、元素归一化、状态计数
+  - 修复：`recentProjects` 按 `created_at` 倒序取数（快照 5 个、速览 4 个）；`normalizeProjects` 丢弃非法元素并清洗字段；加载中显示“加载中…”；401/403 或非 JSON 显示 `misc.graph_lane_enabled=true` 提示且不显示空态；图项目指标显示运行中/已完成/已停止；长 origin 换行。
+  - 证据（2026-11-17）：`graphOrder.test.mjs` 7/7 通过（排序 5 + 归一化 2）；`tsc` exit 0；隔离实例 seed 6 个项目后 `quick_list_order = probe-6, probe-5, probe-4, probe-3`，`newest_first/quick_list_total/status_counts/lane_ok/lane_hint_hidden/empty_hidden/no_page_overflow/module_no_overflow` 均 True；首页 21/22，仅 `enter_lab` 因隔离库无实验室为 False（源码绑定保留）。
 
 ---
 
