@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
+import { recentProjects } from './graphOrder';
 
 // GraphOverview is the post-iteration homepage: a read-only, numbered walkthrough
 // of the graph lane (patch inversion -> provenance graph -> reason -> dispatch ->
@@ -195,7 +196,7 @@ export default function GraphOverview({
                 setLaneUnavailable(false);
                 setProjects(list);
 
-                const targets = list.slice(0, 5);
+                const targets = recentProjects(list, 5);
                 const snapshots = await Promise.all(targets.map(async (p: GraphProject): Promise<LoadedProject> => {
                     try {
                         const snapResp = await fetch(
@@ -337,7 +338,7 @@ export default function GraphOverview({
                     <CardTitle className="text-base">图驱动总览</CardTitle>
                     <div className="mt-1 text-xs text-muted-foreground">
                         补丁是起点，溯源图是唯一知识与推理载体；按 01 → 07 顺序展开，每个模块都能进入溯源图查看细节。
-                        指标取前 5 个图项目的快照聚合。
+                        指标取最近 5 个图项目的快照聚合。
                     </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -435,7 +436,7 @@ export default function GraphOverview({
                         <Button size="sm" variant="ghost" onClick={onOpenGraph}>全部项目 →</Button>
                     </div>
                     <div className="divide-y divide-border/60">
-                        {projects.slice(0, 4).map(p => (
+                        {recentProjects(projects, 4).map(p => (
                             <button
                                 key={p.id}
                                 type="button"
