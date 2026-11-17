@@ -98,6 +98,68 @@ function intentBadgeVariant(state: string): BadgeVariant {
     }
 }
 
+// Human-readable labels for protocol enums. The raw value stays in the title
+// attribute so operators can still copy the exact term from the API.
+const FACT_TYPE_LABELS: Record<string, string> = {
+    patch_profile: '补丁档案',
+    exploit_idea: '利用思路',
+    constraint: '约束',
+    observation: '验证观测',
+    verdict: '判决',
+    rule_hit: '规则命中',
+    finding: '发现',
+    gap: '信息缺口',
+    human_intent: '人类意图',
+    scene_template: '场景模板',
+    origin: '项目起点',
+    external_feedback: '外部反馈',
+};
+
+const EDGE_KIND_LABELS: Record<string, string> = {
+    derive: '推导',
+    support: '支持',
+    refute: '反证',
+    block: '阻塞',
+    produce: '产出',
+};
+
+const INTENT_TYPE_LABELS: Record<string, string> = {
+    gap: '缺口',
+    exploit_idea: '利用思路',
+    constraint: '约束验证',
+    explore: '探索',
+    external_feedback: '外部反馈',
+};
+
+const NODE_STATE_LABELS: Record<string, string> = {
+    open: '待领取',
+    claimed: '已领取',
+    running: '执行中',
+    resolved: '已结论',
+    concluded: '已结论',
+    refuted: '已反驳',
+};
+
+function factTypeLabel(type?: string): string {
+    const raw = String(type || '').trim();
+    return FACT_TYPE_LABELS[raw] || raw || '事实';
+}
+
+function edgeKindLabel(kind?: string): string {
+    const raw = String(kind || '').trim();
+    return EDGE_KIND_LABELS[raw] || raw || '边';
+}
+
+function intentTypeLabel(type?: string): string {
+    const raw = String(type || '').trim();
+    return INTENT_TYPE_LABELS[raw] || raw || '意图';
+}
+
+function nodeStateLabel(state?: string): string {
+    const raw = String(state || '').trim().toLowerCase();
+    return NODE_STATE_LABELS[raw] || raw || 'unknown';
+}
+
 function formatTime(value?: string | null): string {
     if (!value) return '';
     const date = new Date(value);
@@ -189,7 +251,7 @@ function FactPicker({
                         onChange={() => onToggle(f.id)}
                     />
                     <span className="font-mono text-muted-foreground">{f.id}</span>
-                    <span className="truncate" title={f.content}>{f.type} · {f.content}</span>
+                    <span className="truncate" title={`${f.type}\n${f.content}`}>{factTypeLabel(f.type)} · {f.content}</span>
                 </label>
             ))}
         </div>
@@ -819,7 +881,7 @@ export default function GraphPanel({ baseURL, authHeader }: GraphPanelProps) {
                                                     <div key={`${n.id}-${idx}`} className="text-xs">
                                                         <span className="font-mono text-muted-foreground">{n.id}</span>
                                                         {' '}
-                                                        <Badge variant={n.kind === 'hint' ? 'secondary' : factBadgeVariant(n.type)}>{n.type || n.kind}</Badge>
+                                                        <Badge variant={n.kind === 'hint' ? 'secondary' : factBadgeVariant(n.type)} title={n.type || n.kind}>{factTypeLabel(n.type || n.kind)}</Badge>
                                                         {' '}
                                                         <span className="break-all">{n.content}</span>
                                                     </div>
@@ -945,7 +1007,7 @@ export default function GraphPanel({ baseURL, authHeader }: GraphPanelProps) {
                                             {facts.map(f => (
                                                 <div key={f.id} className="rounded-md border border-border/70 bg-background/20 px-3 py-2">
                                                     <div className="flex items-center gap-2 flex-wrap">
-                                                        <Badge variant={factBadgeVariant(f.type)}>{f.type || 'fact'}</Badge>
+                                                        <Badge variant={factBadgeVariant(f.type)} title={f.type || 'fact'}>{factTypeLabel(f.type)}</Badge>
                                                         <span className="text-[11px] font-mono text-muted-foreground break-all">{f.id}</span>
                                                         <span className="text-[11px] text-muted-foreground">{formatTime(f.created_at)}</span>
                                                         <Button size="sm" variant="ghost" className="ml-auto"
@@ -981,8 +1043,8 @@ export default function GraphPanel({ baseURL, authHeader }: GraphPanelProps) {
                                                 return (
                                                     <div key={it.id} className="rounded-md border border-border/70 bg-background/20 px-3 py-2">
                                                         <div className="flex items-center gap-2 flex-wrap">
-                                                            <Badge variant={intentBadgeVariant(it.state || '')}>{it.state || 'unknown'}</Badge>
-                                                            <Badge>{it.type || 'intent'}</Badge>
+                                                            <Badge variant={intentBadgeVariant(it.state || '')} title={it.state || 'unknown'}>{nodeStateLabel(it.state)}</Badge>
+                                                            <Badge title={it.type || 'intent'}>{intentTypeLabel(it.type)}</Badge>
                                                             <span className="text-[11px] font-mono text-muted-foreground break-all">{it.id}</span>
                                                             {it.worker ? <span className="text-[11px] text-muted-foreground">worker: {it.worker}</span> : null}
                                                             {it.lease_until ? <span className="text-[11px] text-muted-foreground">租约至 {formatTime(it.lease_until)}</span> : null}
@@ -1092,7 +1154,7 @@ export default function GraphPanel({ baseURL, authHeader }: GraphPanelProps) {
                                         <div className="space-y-1">
                                             {edges.map((e, idx) => (
                                                 <div key={`${e.from}-${e.to}-${e.kind}-${idx}`} className="text-xs font-mono break-all text-muted-foreground">
-                                                    {e.from} → {e.to} <span className="text-foreground">({e.kind})</span>
+                                                    {e.from} → {e.to} <span className="text-foreground" title={e.kind}>({edgeKindLabel(e.kind)})</span>
                                                 </div>
                                             ))}
                                             {edges.length === 0 ? <div className="text-xs text-muted-foreground">暂无边</div> : null}
