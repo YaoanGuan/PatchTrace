@@ -7,6 +7,7 @@ import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
 import { ScrollArea } from './components/ui/scroll-area';
 import GraphPanel from './GraphPanel';
+import GraphOverview from './GraphOverview';
 import { Input } from './components/ui/input';
 import { Textarea } from './components/ui/textarea';
 import ReactMarkdown from 'react-markdown';
@@ -403,180 +404,6 @@ function appendUniqueChatMessage(list: LabChatMessage[], msg: LabChatMessage): L
     return [...list, msg];
 }
 
-// Home page models the post-iteration, graph-driven paradigm. Each entry maps
-// one backend iteration component (R*) to the surface that displays it.
-type GraphHomeProject = {
-    id: string;
-    title: string;
-    status: string;
-    bootstrap_enabled?: boolean;
-    created_at?: string;
-};
-
-type GraphHomeCounts = {
-    facts: number;
-    intents: number;
-    hints: number;
-    edges: number;
-    evidenceEdges: number;
-    patchProfiles: number;
-    exploitIdeas: number;
-    constraints: number;
-    observations: number;
-    verdicts: number;
-    ruleHits: number;
-    findings: number;
-};
-
-type GraphHomeState = {
-    loading: boolean;
-    available: boolean;
-    error: string;
-    projects: GraphHomeProject[];
-    counts: GraphHomeCounts;
-    timeline: string;
-};
-
-function emptyGraphCounts(): GraphHomeCounts {
-    return {
-        facts: 0, intents: 0, hints: 0, edges: 0, evidenceEdges: 0,
-        patchProfiles: 0, exploitIdeas: 0, constraints: 0, observations: 0,
-        verdicts: 0, ruleHits: 0, findings: 0,
-    };
-}
-
-const emptyGraphHome = (): GraphHomeState => ({
-    loading: false,
-    available: false,
-    error: '',
-    projects: [],
-    counts: emptyGraphCounts(),
-    timeline: '',
-});
-
-const GRAPH_DEMO_STEPS = [
-    {
-        title: '导入补丁',
-        req: 'R7 · bootstrap',
-        desc: '新建图项目，origin 指向真实 diff/commit；bootstrap 把修复语义写成 patch_profile 事实，并派生反演意图。',
-        action: '打开溯源图',
-    },
-    {
-        title: '读图找缺口',
-        req: 'R8 · reason',
-        desc: 'total-brain 不再分派任务：reason 读取整图，做目标覆盖检查与缺口排序，必要时声明新意图。',
-        action: '查看意图列表',
-    },
-    {
-        title: '认领意图',
-        req: 'R3/R4 · lease',
-        desc: '意图以原子 CAS 认领，领取后显示 worker 与心跳；超时自动回收，不会永久卡死。',
-        action: '领取 / 释放',
-    },
-    {
-        title: '沙箱实证',
-        req: 'R9 · explore',
-        desc: 'Worker 在沙箱执行验证命令，结论（含失败）都回写为 observation 事实，不写空响应。',
-        action: '查看事实',
-    },
-    {
-        title: '证据判决',
-        req: 'R10 · verdict',
-        desc: 'verdict 必须带 support / refute 边；无溯源路径的 finding 不能 complete，错误完成可 reopen 纠错。',
-        action: '查看边与完成',
-    },
-    {
-        title: '导出与回放',
-        req: 'R15 · audit',
-        desc: 'provenance 给出补丁→证据的完整推导链；YAML 供 prompt 渲染，timeline 供审计与回放。',
-        action: '导出 YAML / 时间线',
-    },
-] as const;
-
-const GRAPH_MODULES = [
-    {
-        id: 'M1',
-        title: '补丁摄入与语义反演',
-        req: 'R7',
-        surface: '项目来源 + bootstrap 事实',
-        status: '已展示',
-        tone: 'success',
-        detail: 'patch_profile / exploit_idea / constraint 事实与项目来源同一屏呈现。',
-    },
-    {
-        id: 'M2',
-        title: '溯源图协议与租约',
-        req: 'R3 / R4',
-        surface: '事实 / 意图 / 提示 / 边',
-        status: '已展示',
-        tone: 'success',
-        detail: 'Fact、Intent、Hint 与五类边全部可读；意图支持领取、心跳、释放、总结。',
-    },
-    {
-        id: 'M3',
-        title: '调度车道',
-        req: 'R5 / R6',
-        surface: '图 API 徽标 + 时间线',
-        status: '部分展示',
-        tone: 'warning',
-        detail: '可确认图 API 是否挂载；bootstrap/reason/explore 的执行以事实与时间线体现。调度器运行态目前只在服务日志。',
-    },
-    {
-        id: 'M4',
-        title: '沙箱实证',
-        req: 'R9',
-        surface: 'observation 事实',
-        status: '已展示',
-        tone: 'success',
-        detail: 'explore 的结论（成功或失败）以事实落图，可在事实列表查看证据原文。',
-    },
-    {
-        id: 'M5',
-        title: '证据闸门与反证',
-        req: 'R10',
-        surface: 'support / refute 边 + 完成/重开',
-        status: '已展示',
-        tone: 'success',
-        detail: '边列表展示证据方向；完成项目要求选择依据事实，重开会写入纠错事实。',
-    },
-    {
-        id: 'M6',
-        title: '规则回流',
-        req: 'R11',
-        surface: 'rule_hit 事实',
-        status: '部分展示',
-        tone: 'warning',
-        detail: 'rule_hit 事实可读；规则库版本、置信度与 hit/confirm 计数尚无只读 API。',
-    },
-    {
-        id: 'M7',
-        title: '人类意图注入',
-        req: 'R12',
-        surface: '写入提示（Hint）',
-        status: '已展示',
-        tone: 'success',
-        detail: 'Hint 写入后以提示节点呈现，下一次 read-graph 由车道吸收。',
-    },
-    {
-        id: 'M8',
-        title: '审计与导出',
-        req: 'R15',
-        surface: '溯源链 + YAML / timeline',
-        status: '已展示',
-        tone: 'success',
-        detail: '任一节点可展开 provenance 链；导出保留 project / hints / facts / intents 与时间顺序。',
-    },
-    {
-        id: 'M9',
-        title: '对照评测',
-        req: 'R14',
-        surface: 'patcheval JSON',
-        status: '待接入',
-        tone: 'secondary',
-        detail: 'eval 包已能输出双条件指标；前端尚无指标读取端点，暂以命令产物为准。',
-    },
-] as const;
-
 function App() {
     const [baseURL, setBaseURL] = useState<string>('');
     const [auth, setAuth] = useState<{ user: string; pass: string } | null>(null);
@@ -597,9 +424,6 @@ function App() {
     const [projectIsRunning, setProjectIsRunning] = useState<boolean>(false);
     const [brainFinished, setBrainFinished] = useState<boolean>(false);
     const [view, setView] = useState<'home' | 'detail' | 'settings' | 'mcp' | 'skills' | 'digital_humans' | 'report_templates' | 'graph'>('home');
-    const [graphHome, setGraphHome] = useState<GraphHomeState>(emptyGraphHome);
-    const [graphHomeReload, setGraphHomeReload] = useState<number>(0);
-    const [legacyLaneOpen, setLegacyLaneOpen] = useState<boolean>(false);
     const [detailProject, setDetailProject] = useState<string>('');
     const [detailProjectName, setDetailProjectName] = useState<string>('');
     const [detailOpen, setDetailOpen] = useState<boolean>(false);
@@ -1020,105 +844,6 @@ function App() {
         if (view === 'report_templates') fetchReportTemplates();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [view, authHeader, initChecked]);
-
-    // Home overview: read the graph project list and the latest snapshot so the
-    // module tiles show live counts instead of static marketing copy.
-    useEffect(() => {
-        if (!authHeader || !initChecked || view !== 'home') return;
-        const controller = new AbortController();
-        let cancelled = false;
-
-        (async () => {
-            setGraphHome(prev => ({ ...prev, loading: true, error: '' }));
-            try {
-                const resp = await fetch(`${baseURL}/api/graph/projects`, {
-                    headers: { Authorization: authHeader },
-                    signal: controller.signal,
-                });
-                const contentType = (resp.headers.get('content-type') || '').toLowerCase();
-                if (!contentType.includes('application/json')) {
-                    throw new Error('图 API 未挂载（请确认 graph_lane_enabled 并重启服务）');
-                }
-                const payload: any = await resp.json();
-                const list = Array.isArray(payload)
-                    ? payload
-                    : payload?.success === true && Array.isArray(payload.result)
-                        ? payload.result
-                        : null;
-                if (!list) throw new Error(payload?.error || '图 API 响应格式异常');
-                const projects: GraphHomeProject[] = list.map((p: any) => ({
-                    id: String(p?.id || ''),
-                    title: String(p?.title || p?.id || '未命名项目'),
-                    status: String(p?.status || ''),
-                    bootstrap_enabled: !!p?.bootstrap_enabled,
-                    created_at: p?.created_at ? String(p.created_at) : undefined,
-                })).filter((p: GraphHomeProject) => !!p.id);
-                // The protocol does not guarantee list order; the overview must
-                // follow the newest project so "最近图项目" is literal.
-                projects.sort((a, b) => {
-                    const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-                    const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-                    return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta);
-                });
-
-                const counts = emptyGraphCounts();
-                let timeline = '';
-                let latestId = projects[0]?.id || '';
-                if (latestId) {
-                    const snapResp = await fetch(
-                        `${baseURL}/api/graph/projects/${encodeURIComponent(latestId)}/snapshot`,
-                        { headers: { Authorization: authHeader }, signal: controller.signal },
-                    );
-                    if (snapResp.ok) {
-                        const snapPayload: any = await snapResp.json();
-                        const snap = snapPayload?.result;
-                        if (snap) {
-                            const nodes: any[] = Array.isArray(snap.nodes) ? snap.nodes : [];
-                            const edges: any[] = Array.isArray(snap.edges) ? snap.edges : [];
-                            const facts = nodes.filter(n => n?.kind === 'fact');
-                            counts.facts = facts.length;
-                            counts.intents = nodes.filter(n => n?.kind === 'intent').length;
-                            counts.hints = nodes.filter(n => n?.kind === 'hint').length;
-                            counts.edges = edges.length;
-                            counts.evidenceEdges = edges.filter(e => e?.kind === 'support' || e?.kind === 'refute').length;
-                            counts.patchProfiles = facts.filter(n => n?.type === 'patch_profile').length;
-                            counts.exploitIdeas = facts.filter(n => n?.type === 'exploit_idea').length;
-                            counts.constraints = facts.filter(n => n?.type === 'constraint').length;
-                            counts.observations = facts.filter(n => n?.type === 'observation').length;
-                            counts.verdicts = facts.filter(n => n?.type === 'verdict').length;
-                            counts.ruleHits = facts.filter(n => n?.type === 'rule_hit').length;
-                            counts.findings = facts.filter(n => n?.type === 'finding').length;
-                            timeline = String(snap.timeline || '');
-                        }
-                    }
-                }
-
-                if (!cancelled) {
-                    setGraphHome({
-                        loading: false,
-                        available: true,
-                        error: '',
-                        projects,
-                        counts,
-                        timeline,
-                    });
-                }
-            } catch (e: any) {
-                if (e?.name === 'AbortError' || cancelled) return;
-                setGraphHome({
-                    ...emptyGraphHome(),
-                    loading: false,
-                    available: false,
-                    error: String(e?.message || e),
-                });
-            }
-        })();
-
-        return () => {
-            cancelled = true;
-            controller.abort();
-        };
-    }, [authHeader, initChecked, view, baseURL, graphHomeReload]);
 
     useEffect(() => {
         (async () => {
@@ -3367,7 +3092,7 @@ function App() {
         return (
             <div className="aix-shell cyber-bg" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
                 <div style={{ textAlign: 'center', opacity: 0.5 }}>
-                    <div style={{ fontSize: 18, fontWeight: 600 }}>AIxVuln</div>
+                    <div style={{ fontSize: 18, fontWeight: 600 }}>ParchTrace | 寻迹</div>
                     <div style={{ fontSize: 13, marginTop: 8 }}>正在初始化…</div>
                 </div>
             </div>
@@ -3487,7 +3212,8 @@ function App() {
             <div className="aix-shell cyber-bg" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
                 <Card className="w-full max-w-[560px] mx-4">
                     <CardHeader className="text-center">
-                        <CardTitle className="text-2xl">AIxVuln 初始化设置</CardTitle>
+                        <CardTitle className="text-2xl">ParchTrace | 寻迹 初始化设置</CardTitle>
+                        <div className="aix-slogan mt-1">Trace the Patch, Uncover the Flaw.</div>
                         <div className="text-sm text-muted-foreground mt-1">
                             {initStep === 'user' ? '首次启动，请设置管理员账户' : 'Docker 镜像引导'}
                         </div>
@@ -3576,7 +3302,8 @@ function App() {
             <div className="aix-shell cyber-bg" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
                 <Card className="w-full max-w-[380px] mx-4">
                     <CardHeader className="text-center">
-                        <CardTitle className="text-2xl">AIxVuln</CardTitle>
+                        <CardTitle className="text-2xl">ParchTrace | 寻迹</CardTitle>
+                        <div className="aix-slogan mt-1">Trace the Patch, Uncover the Flaw.</div>
                         <div className="text-sm text-muted-foreground mt-1">登录以继续</div>
                     </CardHeader>
                     <CardContent>
@@ -3644,8 +3371,9 @@ function App() {
             )}
 
             <div className="aix-header">
-                <div>
-                    <div className="aix-title">PatchTrace · 补丁反演与溯源图推理</div>
+                <div className="aix-brand">
+                    <div className="aix-title">ParchTrace | 寻迹 - Autonomous Penetration System</div>
+                    <div className="aix-slogan">Trace the Patch, Uncover the Flaw.</div>
                 </div>
                 <div className="aix-actions">
                     {view === 'detail' ? (
@@ -4644,168 +4372,31 @@ function App() {
                 )
                 : view === 'home' ? (
                 <>
-                <Card className="col-span-full overflow-hidden border-primary/30">
-                    <CardHeader>
-                        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3 w-full">
-                            <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <Badge variant="primary">图驱动范式</Badge>
-                                    <Badge variant={graphHome.available ? 'success' : graphHome.loading ? 'secondary' : 'warning'}>
-                                        {graphHome.loading ? '图 API 检测中…' : graphHome.available ? '图 API 可用' : '图 API 未挂载'}
-                                    </Badge>
-                                    <Badge variant="secondary">{graphHome.projects.length} 个图项目</Badge>
-                                </div>
-                                <CardTitle className="mt-2 text-xl">补丁反演 · 溯源图推理 · 沙箱实证</CardTitle>
-                                <div className="mt-2 max-w-3xl text-sm text-muted-foreground leading-relaxed">
-                                    不再由总脑做中心分派。补丁 diff 被反演为事实，信息缺口以意图挂在图上；
-                                    Worker 领取租约后在沙箱验证，证据与反证以边回写；完成判定、审计与回放都从同一张图导出。
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2 shrink-0">
-                                <Button onClick={() => { window.location.hash = '#/graph'; }}>进入溯源图</Button>
-                                <Button variant="outline" disabled={graphHome.loading} onClick={() => setGraphHomeReload(v => v + 1)}>
-                                    {graphHome.loading ? '刷新中…' : '刷新图状态'}
-                                </Button>
-                                <Button variant="outline" onClick={() => setLegacyLaneOpen(v => !v)}>
-                                    {legacyLaneOpen ? '收起兼容车道' : '兼容车道（旧）'}
-                                </Button>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-2 sm:grid-cols-5 xl:grid-cols-10 gap-2">
-                            {([
-                                ['事实', graphHome.counts.facts],
-                                ['意图', graphHome.counts.intents],
-                                ['提示', graphHome.counts.hints],
-                                ['边', graphHome.counts.edges],
-                                ['证据边', graphHome.counts.evidenceEdges],
-                                ['补丁档案', graphHome.counts.patchProfiles],
-                                ['利用思路', graphHome.counts.exploitIdeas],
-                                ['验证观测', graphHome.counts.observations],
-                                ['判决', graphHome.counts.verdicts],
-                                ['规则命中', graphHome.counts.ruleHits],
-                            ] as const).map(([label, value]) => (
-                                <div key={label} className="rounded-lg border border-border bg-background/30 px-3 py-2">
-                                    <div className="text-[11px] text-muted-foreground">{label}</div>
-                                    <div className="text-lg font-semibold leading-tight">{value}</div>
-                                </div>
-                            ))}
-                        </div>
-                        {graphHome.projects.length > 0 ? (
-                            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                <span>最近图项目：</span>
-                                <span className="font-medium text-foreground">{graphHome.projects[0].title}</span>
-                                <Badge variant={graphHome.projects[0].status === 'completed' ? 'success' : graphHome.projects[0].status === 'stopped' ? 'secondary' : 'primary'}>
-                                    {graphHome.projects[0].status || 'active'}
-                                </Badge>
-                                {graphHome.projects[0].bootstrap_enabled ? <Badge variant="secondary">bootstrap 开启</Badge> : null}
-                                <button className="underline underline-offset-2 hover:text-foreground" onClick={() => { window.location.hash = '#/graph'; }}>
-                                    查看图谱
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="mt-3 text-xs text-muted-foreground">
-                                尚无图项目。打开溯源图，以补丁 diff 作为来源创建第一个项目。
-                            </div>
-                        )}
-                        {graphHome.timeline ? (
-                            <details className="mt-3 rounded-lg border border-border bg-background/20 px-3 py-2">
-                                <summary className="cursor-pointer text-xs font-medium text-muted-foreground">最近图项目时间线（审计回放入口）</summary>
-                                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed text-muted-foreground">{graphHome.timeline.slice(-1600)}</pre>
-                            </details>
-                        ) : null}
-                        {graphHome.error ? (
-                            <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-200 break-all">
-                                {graphHome.error}
-                            </div>
-                        ) : null}
-                    </CardContent>
-                </Card>
+                <GraphOverview
+                    baseURL={baseURL}
+                    authHeader={authHeader}
+                    labTotal={projects.length}
+                    labRunning={projects.filter(p => p.isRunning || p.isStarting).length}
+                    onOpenGraph={() => { window.location.hash = '#/graph'; }}
+                    onOpenLabs={() => {
+                        document.getElementById('legacy-labs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                />
 
-                <Card className="col-span-full">
-                    <CardHeader>
-                        <div>
-                            <CardTitle>图驱动演示路径</CardTitle>
-                            <div className="mt-1 text-xs text-muted-foreground">按模块顺序逐个展示：补丁 → 缺口 → 租约 → 实证 → 判决 → 审计</div>
+                <div id="legacy-labs" className="col-span-full mt-2 flex flex-wrap items-end justify-between gap-2">
+                    <div>
+                        <div className="text-sm font-semibold">实验室与沙箱（保留入口）</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                            旧车道与图车道并存；创建或启动实验室后，后端自动初始化 sandbox 并执行既有任务流程。
                         </div>
-                        <Badge variant="primary">{GRAPH_DEMO_STEPS.length} 步</Badge>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                            {GRAPH_DEMO_STEPS.map((step, idx) => (
-                                <div key={step.title} className="rounded-xl border border-border bg-background/30 p-3 flex flex-col">
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-semibold text-primary">
-                                                {String(idx + 1).padStart(2, '0')}
-                                            </span>
-                                            <div className="font-semibold text-sm">{step.title}</div>
-                                        </div>
-                                        <Badge variant="secondary" className="shrink-0">{step.req}</Badge>
-                                    </div>
-                                    <div className="mt-2 flex-1 text-xs text-muted-foreground leading-relaxed">{step.desc}</div>
-                                    <Button size="sm" variant="outline" className="mt-3 self-start" onClick={() => { window.location.hash = '#/graph'; }}>
-                                        {step.action}
-                                    </Button>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
+                    </div>
+                    <Badge variant="secondary">旧入口保留 · 4 种源码来源</Badge>
+                </div>
 
-                <Card className="col-span-full">
-                    <CardHeader>
-                        <div>
-                            <CardTitle>迭代组件 → 前端展示</CardTitle>
-                            <div className="mt-1 text-xs text-muted-foreground">R1–R16 逐项对照；标注“部分展示 / 待接入”的模块需要后端只读端点才能补齐</div>
-                        </div>
-                        <Badge variant="secondary">R1–R16</Badge>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                            {GRAPH_MODULES.map((m) => (
-                                <div key={m.id} className="rounded-xl border border-border bg-background/30 p-3">
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            <span className="text-[11px] font-mono text-muted-foreground">{m.id}</span>
-                                            <div className="font-semibold text-sm">{m.title}</div>
-                                        </div>
-                                        <Badge variant={m.tone}>{m.status}</Badge>
-                                    </div>
-                                    <div className="mt-1 text-[11px] text-muted-foreground">需求 {m.req} · 展示位：{m.surface}</div>
-                                    <div className="mt-2 text-xs text-muted-foreground leading-relaxed">{m.detail}</div>
-                                    <Button size="sm" variant="ghost" className="mt-2 -ml-2 h-7 px-2 text-xs" onClick={() => { window.location.hash = '#/graph'; }}>
-                                        前往查看
-                                    </Button>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="col-span-full border-dashed">
-                    <CardHeader>
-                        <div>
-                            <CardTitle>兼容车道（旧总脑 / 研究组）</CardTitle>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                                旧模型仍作为后端兼容路径保留，但不再是首页主编排叙事；新的补丁反演与证据链请使用图项目。
-                            </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary">{projects.length} 个实验室</Badge>
-                            <Button size="sm" variant="outline" onClick={() => setLegacyLaneOpen(v => !v)}>
-                                {legacyLaneOpen ? '收起' : '展开兼容入口'}
-                            </Button>
-                        </div>
-                    </CardHeader>
-                </Card>
-
-                {legacyLaneOpen ? (<>
                 <Card>
                     <CardHeader>
                         <CardTitle>实验室</CardTitle>
-                        <Badge variant="secondary">兼容车道</Badge>
+                        <Badge variant="primary">实验室列表</Badge>
                     </CardHeader>
                     <CardContent>
                         <ScrollArea className="h-[50vh] rounded-lg border border-border bg-background/20">
@@ -4836,7 +4427,7 @@ function App() {
                         </ScrollArea>
 
                         <div className="mt-3 text-xs text-muted-foreground">
-                            兼容说明：旧实验室仍走总脑 + 研究组车道；补丁反演、证据判决与审计请使用上方的图项目。
+                            说明：该入口保留旧车道能力（Web / 二进制研究组）；启动后由后端自动创建并执行 sandbox。
                         </div>
                     </CardContent>
                 </Card>
@@ -4844,7 +4435,7 @@ function App() {
                 <Card>
                     <CardHeader>
                         <CardTitle>创建实验室</CardTitle>
-                        <Badge>源码/空工作目录 + 总任务</Badge>
+                        <Badge>旧车道兼容 · 源码/空工作目录 + 总任务</Badge>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-3">
@@ -4854,7 +4445,7 @@ function App() {
                                 onChange={(e) => setProjectName(e.target.value)}
                             />
                             <Textarea
-                                placeholder="兼容车道总任务（旧总脑模式，仅用于存量实验室）"
+                                placeholder="实验室总任务（旧车道；图驱动请在溯源图导入补丁 diff）"
                                 value={taskContent}
                                 onChange={(e) => setTaskContent(e.target.value)}
                             />
@@ -4904,7 +4495,6 @@ function App() {
                         <div style={{ display: 'none' }}>{initError}{baseURL}{events.length}</div>
                     </CardContent>
                 </Card>
-                </>) : null}
 
                 </>
                 ) : (
@@ -4913,7 +4503,7 @@ function App() {
         <CardHeader>
             <div>
                 <CardTitle>实验室详情</CardTitle>
-                <div className="mt-1 text-xs text-muted-foreground">兼容车道：旧总脑调度与研究组协同面板</div>
+                <div className="mt-1 text-xs text-muted-foreground">总脑调度与研究组协同面板</div>
             </div>
             <div className="flex items-center gap-2">
 	                <Badge variant="primary">{detailProjectName || detailProject || '-'}</Badge>
