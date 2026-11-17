@@ -1,4 +1,4 @@
-# ParchTrace | 寻迹 - Autonomous Penetration System
+# ParchTrace | 寻迹 - 自主渗透系统
 
 > **Trace the Patch, Uncover the Flaw.**
 > **寻迹补丁，洞见漏洞。**
