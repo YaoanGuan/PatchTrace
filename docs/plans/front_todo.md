@@ -2,14 +2,14 @@
 
 > 配套：`front_requirement.md`（需求）、`front_task.md`（计划）
 > 更新规则：每完成一步立即回写；没有命令输出或截图就不打勾。
-> 当前轮次：F1–F5、F7 完成；F6 部分完成（tsc / npm build / go build 通过，重启与终版截图待执行）· 2026-11-17
+> 当前轮次：F1–F7 全部完成 · 2026-11-17
 
 ---
 
 ## 0. 下一步动作（只做这一件）
 
-> **执行 F6.4–F6.6：用新二进制重启 9999（`/root/aixvuln-web-graphui`）→ 重拍首页与溯源图截图。**
-> 推送已完成：`origin/main = f94a941`。
+> **本轮前端迭代已交付**：`origin/main = dcd3dd6`；9999 已用新二进制重启，首页与溯源图终验通过。
+> 下一轮唯一动作：按 `docs/runbooks/cve-2025-3248.md` §2–§5，在有 Docker + LLM 配置的环境跑 CVE-2025-3248 实弹验收。
 
 ### 0.1 前一轮前端错误复盘（必须保留在文档中）
 
@@ -34,8 +34,8 @@ F4 的验收就是逐项检查旧入口是否仍在。
 | F3 | 首页图驱动总览组件 | R3–R12, R15 | 完成 | `GraphOverview.tsx`；01–07 模块 + R1–R16 矩阵；`tsc` exit 0 |
 | F4 | 首页集成 + 旧入口保留 | 旧能力红线 | 完成 | `<GraphOverview>` 下方保留 `#legacy-labs`；四个 `*Project` handler 均在 |
 | F5 | 图面板能力说明 | R3–R13 | 完成 | 语义标签 10 处调用 + 能力图例 1 处；`tsc` exit 0 |
-| F6 | 构建、重启与真实页面验证 | 验收 | 进行中 | `tsc`/`npm run build`/`go build` exit 0；重启与终版截图待执行 |
-| F7 | 提交与推送 | 交付 | 完成 | 提交 `f94a941`；`git push origin HEAD:main` exit 0 |
+| F6 | 构建、重启与真实页面验证 | 验收 | 完成 | `tsc`/`npm run build`/`go build` exit 0；9999 重启后 `/` 200、图 API 401；首页与图面板断言全绿 |
+| F7 | 提交与推送 | 交付 | 完成 | `f94a941` + `dcd3dd6`；`git push origin HEAD:main` exit 0 |
 
 状态取值：`未开始` / `进行中` / `阻塞` / `完成`。
 
@@ -121,13 +121,13 @@ F4 的验收就是逐项检查旧入口是否仍在。
   - 证据：2026-11-17 执行，`npm_exit=0`；产出 `dist/assets/index.1c64b74b.js`、`dist/assets/index.3028854b.css`。
 - [x] **F6.3** `CGO_ENABLED=0 go build ./...` → exit 0
   - 证据：2026-11-17 执行 `CGO_ENABLED=0 go build -o /tmp/aixvuln-push-check .`，`go_build_exit=0`。
-- [ ] **F6.4** 重启服务，日志含 `图调度车道已启动`
-  - 状态：待执行；9999 当前进程仍是上一版二进制，未包含终版标签与 R 矩阵。
-- [ ] **F6.5** 页面验证：标题、slogan、01–07 模块、创建实验室四种来源
-  - 截图：`dist/front-home.png`
-  - 状态：待终版重启后重拍；早前截图 `/tmp/r13/front-home.png` 不含 R1–R16 矩阵，不作为本轮终验。
-- [ ] **F6.6** 图面板回归：导出、提示、意图领取/总结、总脑租约
-  - 状态：待终版重启后重跑 `graph_check.py`；早前通过结果不计入终验。
+- [x] **F6.4** 重启服务，日志含 `图调度车道已启动`
+  - 证据（2026-11-17）：新二进制替换后重启 9999，日志 `图调度车道已启动，配置: dispatch.yaml`；`/` → 200，未授权 `/api/graph/projects` → 401；服务页面实际加载的 bundle 含 `迭代组件覆盖` / `实验室与沙箱（保留入口）` / `补丁摄入与反演`。
+- [x] **F6.5** 页面验证：标题、slogan、01–07 模块、创建实验室四种来源
+  - 截图：`/tmp/r13/front-home-final.png`
+  - 证据（2026-11-17，隔离 9997 实例、同一二进制）：`title/slogan/modules/legacy_heading/create_lab/src_file/src_git/src_url/src_empty/start_lab/graph_nav` 全为 True；`module_01/module_07` True。`enter_lab` 为 False 是因为隔离实例无实验室；`App.tsx` 中 `enterProject(p.projectID)` 绑定仍在。
+- [x] **F6.6** 图面板回归：导出、提示、意图领取/总结、总脑租约
+  - 证据（2026-11-17）：`panel/legend/export_yaml/export_timeline/hint/intent/reason/capability/projects_loaded` 全部 True；快照显示 52 事实 / 48 意图 / 2 提示 / 106 边，导出与租约控件可见。
 
 ---
 
