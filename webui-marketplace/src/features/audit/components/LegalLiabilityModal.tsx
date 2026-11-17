@@ -25,14 +25,14 @@ export const LIABILITY_CLAUSES: LiabilityClause[] = [
     party: 'EMPLOYER',
     title: '验收与争议依据',
     detail:
-      '雇主同意以本页哈希链证据与平台仲裁结论作为验收与争议责任划分依据，不得要求超出授权范围的操作。',
+      '雇主同意以本页封印链战报与平台仲裁结论作为验收与争议责任划分依据，不得要求超出授权范围的操作。',
   },
   {
     id: 'clause_commander_evidence',
     party: 'COMMANDER',
     title: '执行过程与证据真实性',
     detail:
-      'AI 指挥官对 Agent 编排、工具调用与产出证据的真实性负责，承诺全程留存可审计的证据链节点。',
+      'AI 指挥官对 Agent 编排、工具调用与产出证据的真实性负责，承诺全程留存可回放的战报节点。',
   },
   {
     id: 'clause_commander_approval',
@@ -46,14 +46,14 @@ export const LIABILITY_CLAUSES: LiabilityClause[] = [
     party: 'PLATFORM',
     title: '平台角色边界',
     detail:
-      '平台仅提供任务封装、撮合、资金托管、哈希链审计与争议仲裁流程，不参与任务执行，不对执行结果作实质背书。',
+      '平台仅提供任务封装、撮合、资金托管、封印链审计与争议仲裁流程，不参与任务执行，不对执行结果作实质背书。',
   },
   {
     id: 'clause_platform_audit',
     party: 'PLATFORM',
     title: '审计与仲裁职责',
     detail:
-      '平台负责维护证据链完整性、校验签名回执并组织争议仲裁；平台不对不可归因于平台的第三方行为承担责任。',
+      '平台负责维护战报封印链完整性、校验签名回执并组织争议仲裁；平台不对不可归因于平台的第三方行为承担责任。',
   },
 ];
 
@@ -115,7 +115,7 @@ export function LegalLiabilityModal({
 
   const handleSign = async () => {
     if (!hasTrace) {
-      setError('该任务暂无证据链节点，无法签署免责契约。');
+      setError('该副本暂无战报节点，无法签署战报契约。');
       return;
     }
     if (!allAccepted || signing || signed) {
@@ -136,7 +136,7 @@ export function LegalLiabilityModal({
       setSigned({ ...response, signatureHash: demoHash });
       pushToast({
         id: `contract-sign-${taskId}-${Date.now()}`,
-        title: '免责契约已签署',
+        title: '战报契约已签署',
         description: '签名哈希已生成（演示环境，不具备真实法律效力）。',
         variant: 'success',
       });
@@ -160,8 +160,8 @@ export function LegalLiabilityModal({
       open={open}
       onClose={onClose}
       size="lg"
-      title="免责与三方责任边界契约"
-      description={`任务 ${taskId} · 雇主 / AI 指挥官 / 平台`}
+      title="战报契约 · 三方责任边界"
+      description={`副本 ${taskId} · 雇主 / AI 指挥官 / 平台`}
       footer={
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-[11px] text-slate-400">
@@ -175,19 +175,19 @@ export function LegalLiabilityModal({
     >
       <div className="space-y-4">
         {!hasTrace && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-700">
+          <div className="flex items-start gap-2 rounded-lg border border-boss/30 bg-boss/10 px-3 py-2.5 text-xs text-boss">
             <AlertTriangle
               className="mt-0.5 h-4 w-4 shrink-0"
               aria-hidden="true"
             />
             <span>
-              该任务暂无证据链节点，签署入口已禁用。请先产生可审计执行记录后再签署免责契约。
+              该副本暂无战报节点，签署入口已禁用。请先产生可回放的执行记录后再签署战报契约。
             </span>
           </div>
         )}
 
         {error && (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          <div className="rounded-lg border border-boss/30 bg-boss/10 px-3 py-2 text-xs text-boss">
             {error}
           </div>
         )}
@@ -206,7 +206,7 @@ export function LegalLiabilityModal({
           totalClauses={LIABILITY_CLAUSES.length}
           allAccepted={allAccepted}
           disabled={!hasTrace}
-          disabledReason="暂无证据链，无法生成可验证的签名回执。"
+          disabledReason="暂无战报，无法生成可验证的签名回执。"
           signing={signing}
           signed={signed}
           onSignerRoleChange={setSignerRole}
@@ -217,9 +217,9 @@ export function LegalLiabilityModal({
 
         {signed && (
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs font-medium text-emerald-700">
+            <div className="flex items-center gap-2 text-xs font-medium text-clear">
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              契约签署完成，以下为签名回执
+              战报契约签署完成，以下为签名回执
             </div>
             <SignatureHash
               hash={signed.signatureHash}

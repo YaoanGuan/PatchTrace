@@ -37,7 +37,7 @@ export function TaskCard({ task, className }: TaskCardProps) {
               {task.title}
             </h3>
           </div>
-          <p className="shrink-0 text-right text-base font-semibold text-indigo-600">
+          <p className="shrink-0 text-right font-mono text-base font-semibold text-gold">
             {formatMoney(task.reward.amount)}
           </p>
         </div>

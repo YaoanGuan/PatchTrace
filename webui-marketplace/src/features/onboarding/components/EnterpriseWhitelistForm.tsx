@@ -47,12 +47,12 @@ export function EnterpriseWhitelistForm({
 
     const nextErrors: ChannelFormErrors<EnterpriseFormValues> = {};
     if (!values.companyName.trim()) {
-      nextErrors.companyName = '请填写企业名称。';
+      nextErrors.companyName = '请填写公会 / 企业名称。';
     }
     if (!values.workEmail.trim()) {
-      nextErrors.workEmail = '请填写企业邮箱。';
+      nextErrors.workEmail = '请填写公会邮箱。';
     } else if (!EMAIL_PATTERN.test(values.workEmail.trim())) {
-      nextErrors.workEmail = '请输入有效的企业邮箱地址。';
+      nextErrors.workEmail = '请输入有效的公会邮箱地址。';
     }
     if (!values.credential.trim()) {
       nextErrors.credential = '请填写工牌号或统一社会信用代码。';
@@ -77,7 +77,7 @@ export function EnterpriseWhitelistForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField
           id="enterprise-company"
-          label="企业名称"
+          label="公会 / 企业名称"
           required
           error={errors.companyName}
           className="sm:col-span-2"
@@ -97,10 +97,10 @@ export function EnterpriseWhitelistForm({
 
         <FormField
           id="enterprise-email"
-          label="企业邮箱"
+          label="公会邮箱"
           required
           error={errors.workEmail}
-          hint="需为企业域名邮箱，平台将核验域名与白名单记录。"
+          hint="需为企业域名邮箱，平台将核验域名与公会白名单记录。"
         >
           <input
             id="enterprise-email"
@@ -140,10 +140,10 @@ export function EnterpriseWhitelistForm({
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={submitting}>
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-          {submitting ? '提交中…' : '提交企业白名单申请'}
+          {submitting ? '递交中…' : '递交公会担保'}
         </Button>
-        <span className="text-xs text-slate-400">
-          企业名称与工牌号用于审核展示，接口当前提交企业邮箱作为核验证据。
+        <span className="text-xs text-ink-dim">
+          公会与企业信息用于审核展示，接口当前提交企业邮箱作为核验证据。
         </span>
       </div>
     </form>

@@ -7,23 +7,23 @@ const CONFIG: Record<
   { label: string; variant: BadgeVariant; icon: typeof ShieldCheck; spin?: boolean }
 > = {
   PENDING: {
-    label: '待交叉验证',
+    label: '待定',
     variant: 'outline',
     icon: Clock,
   },
   RUNNING: {
-    label: '交叉复核中',
+    label: '裁判复核中',
     variant: 'info',
     icon: Loader2,
     spin: true,
   },
   DONE: {
-    label: 'AI 交叉验证通过',
+    label: '通关',
     variant: 'success',
     icon: ShieldCheck,
   },
   FAILED: {
-    label: '交叉复核存在争议',
+    label: '挑战失败',
     variant: 'danger',
     icon: AlertTriangle,
   },

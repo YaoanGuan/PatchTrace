@@ -31,9 +31,9 @@ type VipLevel = 'PRO' | 'ENTERPRISE';
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 const VIP_LABELS: Record<WalletVip['level'], string> = {
-  FREE: '免费版',
-  PRO: 'PRO',
-  ENTERPRISE: 'ENTERPRISE',
+  FREE: '免费玩家',
+  PRO: 'PRO 月卡',
+  ENTERPRISE: 'ENTERPRISE 月卡',
 };
 
 const VIP_TIER_OPTIONS: {
@@ -45,22 +45,22 @@ const VIP_TIER_OPTIONS: {
   {
     level: 'PRO',
     feeRate: 0.1,
-    summary: '适合个人指挥官与高频接单',
-    perks: ['平台服务费 10%', '优先任务匹配', 'API 中转站标准配额'],
+    summary: '适合独行冒险者与高频接取副本',
+    perks: ['平台服务费 10%', '优先副本匹配', '技能补给站标准配额'],
   },
   {
     level: 'ENTERPRISE',
     feeRate: 0.05,
-    summary: '适合团队与企业级交付',
-    perks: ['平台服务费 5%', '专属任务池', 'API 中转站高配额与优先路由'],
+    summary: '适合公会与团队级委托',
+    perks: ['平台服务费 5%', '专属副本池', '技能补给站高配额与优先通道'],
   },
 ];
 
 const TRANSACTION_TYPE_LABELS: Record<WalletTransactionType, string> = {
-  ESCROW_FREEZE: '托管冻结',
-  ESCROW_RELEASE: '托管释放',
-  REFUND: '退款入账',
-  DEPOSIT: '充值',
+  ESCROW_FREEZE: '押金冻结',
+  ESCROW_RELEASE: '赏金释放',
+  REFUND: '赏金退回',
+  DEPOSIT: '充值金币',
   WITHDRAW: '提现',
   FEE: '平台服务费',
 };
@@ -151,15 +151,15 @@ function TransactionRow({ transaction }: { transaction: WalletTransaction }) {
           )}
         </span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-slate-800">
+          <p className="truncate text-sm font-medium text-ink">
             {TRANSACTION_TYPE_LABELS[transaction.type] ?? transaction.type}
             {transaction.taskId && (
-              <span className="ml-1.5 text-xs font-normal text-slate-400">
+              <span className="ml-1.5 font-mono text-xs font-normal text-ink-dim">
                 {transaction.taskId}
               </span>
             )}
           </p>
-          <p className="text-[11px] text-slate-400">
+          <p className="font-mono text-[11px] text-ink-dim">
             {formatDateTime(transaction.at)}
           </p>
         </div>
@@ -170,8 +170,8 @@ function TransactionRow({ transaction }: { transaction: WalletTransaction }) {
         </Badge>
         <span
           className={cn(
-            'text-sm font-semibold tabular-nums',
-            income ? 'text-emerald-600' : 'text-rose-600',
+            'font-mono text-sm font-semibold tabular-nums',
+            income ? 'text-emerald-300' : 'text-rose-300',
           )}
         >
           {income ? '+' : '-'}
@@ -183,8 +183,8 @@ function TransactionRow({ transaction }: { transaction: WalletTransaction }) {
 }
 
 /**
- * 个人钱包：余额 / VIP、三条资金流说明、近 10 笔流水，
- * 以及充值、订阅 VIP 两个弹窗。数据来自 walletStore（mock / HTTP 同构）。
+ * 金币袋：可用金币 / 月卡、三条金币流说明、近 10 笔金币流水，
+ * 以及充值金币、购买月卡两个弹窗。数据来自 walletStore（mock / HTTP 同构）。
  */
 export function WalletPanel() {
   const balance = useWalletStore((state) => state.balance);
@@ -251,8 +251,8 @@ export function WalletPanel() {
     if (!amountValid) {
       pushToast({
         id: `wallet-recharge-invalid-${Date.now()}`,
-        title: '充值金额不合法',
-        description: `请输入 0 到 ${MAX_RECHARGE_AMOUNT.toLocaleString('zh-CN')} 之间的金额，最多两位小数。`,
+        title: '金币金额不合法',
+        description: `请输入 0 到 ${MAX_RECHARGE_AMOUNT.toLocaleString('zh-CN')} 之间的金币数量，最多两位小数。`,
         variant: 'warning',
       });
       return;
@@ -262,15 +262,15 @@ export function WalletPanel() {
       await recharge(amount);
       pushToast({
         id: `wallet-recharge-success-${Date.now()}`,
-        title: '充值成功',
-        description: `已充值 ${formatCurrency(amount)}，可用余额已更新。`,
+        title: '金币已入袋',
+        description: `已充值 ${formatCurrency(amount)}，可用金币已更新。`,
         variant: 'success',
       });
       closeRecharge();
     } catch (error) {
       pushToast({
         id: `wallet-recharge-error-${Date.now()}`,
-        title: '充值失败',
+        title: '充值金币失败',
         description:
           error instanceof Error && error.message
             ? error.message
@@ -289,8 +289,8 @@ export function WalletPanel() {
       const tier = VIP_TIER_OPTIONS.find((option) => option.level === vipLevel);
       pushToast({
         id: `wallet-vip-success-${Date.now()}`,
-        title: '订阅成功',
-        description: `已升级至 ${VIP_LABELS[vipLevel]}${
+        title: '月卡已激活',
+        description: `已购买 ${VIP_LABELS[vipLevel]}${
           tier ? `，平台服务费 ${formatFeeRate(tier.feeRate)}` : ''
         }。`,
         variant: 'success',
@@ -299,7 +299,7 @@ export function WalletPanel() {
     } catch (error) {
       pushToast({
         id: `wallet-vip-error-${Date.now()}`,
-        title: '订阅失败',
+        title: '购买月卡失败',
         description:
           error instanceof Error && error.message
             ? error.message
@@ -315,12 +315,12 @@ export function WalletPanel() {
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="space-y-1">
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-            <Wallet className="h-4 w-4 text-indigo-600" aria-hidden="true" />
-            钱包
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+            <Wallet className="h-4 w-4 text-gold" aria-hidden="true" />
+            金币袋
           </h2>
-          <p className="text-xs text-slate-500">
-            托管、结算与 VIP 服务费一屏掌握
+          <p className="text-xs text-ink-muted">
+            押金托管、赏金结算与月卡服务费一屏掌握
           </p>
         </div>
         {status === 'ready' && (
@@ -335,8 +335,8 @@ export function WalletPanel() {
         <Card className="p-5">
           <EmptyState
             icon={<AlertCircle className="h-8 w-8 text-rose-400" />}
-            title="钱包数据加载失败"
-            description="无法读取余额与流水，请检查网络或稍后重试。"
+            title="金币袋数据加载失败"
+            description="无法读取金币余额与金币流水，请检查网络或稍后重试。"
             action={
               <Button variant="outline" size="sm" onClick={() => void load()}>
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
@@ -346,139 +346,139 @@ export function WalletPanel() {
           />
         </Card>
       ) : status === 'loading' && transactions.length === 0 ? (
-        <Card className="flex items-center justify-center gap-2 p-10 text-sm text-slate-500">
+        <Card className="flex items-center justify-center gap-2 p-10 text-sm text-ink-muted">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          正在读取钱包数据…
+          正在读取金币袋数据…
         </Card>
       ) : (
         <Card className="overflow-hidden">
-          {/* 支付宝风格余额卡 */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-500 to-sky-500 p-6 text-white">
+          {/* 金币袋余额卡 */}
+          <div className="relative overflow-hidden border-b border-panel-line bg-gradient-to-br from-panel-soft via-panel to-abyss p-6">
             <div
-              className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-white/10"
+              className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-gold/10 blur-2xl"
               aria-hidden="true"
             />
             <div
-              className="pointer-events-none absolute -bottom-20 right-16 h-40 w-40 rounded-full bg-white/5"
+              className="pointer-events-none absolute -bottom-20 right-16 h-40 w-40 rounded-full bg-neon/5 blur-2xl"
               aria-hidden="true"
             />
 
             <div className="relative flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-1">
-                <p className="text-xs font-medium uppercase tracking-wide text-white/70">
-                  可用余额（CNY）
+                <p className="text-xs font-medium uppercase tracking-wide text-ink-dim">
+                  可用金币（CNY）
                 </p>
-                <p className="text-4xl font-semibold tabular-nums tracking-tight">
+                <p className="font-mono text-4xl font-semibold tabular-nums tracking-tight text-gold">
                   {formatCurrency(balance.available)}
                 </p>
-                <p className="text-xs text-white/70">
-                  冻结金额{' '}
-                  <span className="font-medium text-white">
+                <p className="text-xs text-ink-muted">
+                  押金冻结{' '}
+                  <span className="font-mono font-medium text-ink">
                     {formatCurrency(balance.frozen)}
                   </span>
                 </p>
               </div>
 
               <div className="space-y-2 text-right">
-                <Badge className="bg-white/15 text-white ring-1 ring-inset ring-white/25">
+                <Badge className="border-gold/40 bg-gold/10 text-gold">
                   <Crown className="h-3.5 w-3.5" aria-hidden="true" />
                   {vipLevelLabel}
                 </Badge>
-                <p className="text-[11px] text-white/70">
+                <p className="text-[11px] text-ink-muted">
                   {currentVip && currentVip.level !== 'FREE'
-                    ? `到期时间 ${formatDateTime(currentVip.expiresAt)}`
-                    : '尚未订阅 VIP'}
+                    ? `月卡到期 ${formatDateTime(currentVip.expiresAt)}`
+                    : '尚未购买月卡'}
                 </p>
                 {currentVip && currentVip.level !== 'FREE' && (
-                  <p className="text-[11px] text-white/70">
-                    平台服务费 {currentFeeLabel}
+                  <p className="text-[11px] text-ink-muted">
+                    平台服务费{' '}
+                    <span className="font-mono">{currentFeeLabel}</span>
                   </p>
                 )}
                 <div className="flex flex-wrap justify-end gap-2 pt-1">
                   <Button
                     size="sm"
-                    variant="secondary"
-                    className="bg-white/15 text-white hover:bg-white/25"
+                    variant="primary"
                     onClick={() => setRechargeOpen(true)}
                   >
-                    充值
+                    充值金币
                   </Button>
                   <Button
                     size="sm"
                     variant="secondary"
-                    className="bg-white text-indigo-700 hover:bg-white/90"
+                    className="border-arcane/40 text-arcane hover:border-arcane/70 hover:text-arcane"
                     onClick={() => setVipOpen(true)}
                   >
                     <Crown className="h-3.5 w-3.5" aria-hidden="true" />
-                    订阅 VIP
+                    购买月卡
                   </Button>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* 三条资金流说明 */}
-          <div className="grid gap-3 border-b border-slate-100 p-5 md:grid-cols-3">
-            <div className="rounded-lg bg-slate-50 p-3">
-              <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                <Landmark className="h-4 w-4 text-indigo-600" aria-hidden="true" />
-                雇主托管支付
+          {/* 三条金币流说明 */}
+          <div className="grid gap-3 border-b border-panel-line p-5 md:grid-cols-3">
+            <div className="rounded-lg bg-panel-soft p-3">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-ink">
+                <Landmark className="h-4 w-4 text-gold" aria-hidden="true" />
+                雇主押金托管
               </p>
-              <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                任务发布时冻结至托管账户，验收通过后按里程碑释放给指挥官。
+              <p className="mt-1 text-[11px] leading-5 text-ink-muted">
+                副本发布时冻结押金至托管账户，裁判验收通过后按里程碑释放给冒险者。
               </p>
             </div>
-            <div className="rounded-lg bg-slate-50 p-3">
-              <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+            <div className="rounded-lg bg-panel-soft p-3">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-ink">
                 <TrendingUp
-                  className="h-4 w-4 text-emerald-600"
+                  className="h-4 w-4 text-clear"
                   aria-hidden="true"
                 />
-                指挥官任务收入
+                冒险者副本赏金
               </p>
-              <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                任务完成并通过 AI 审核 / 合规扫描后，托管金额计入可用余额。
+              <p className="mt-1 text-[11px] leading-5 text-ink-muted">
+                副本通关并通过 AI 裁判 / 规则扫描后，赏金计入可用金币。
               </p>
             </div>
-            <div className="rounded-lg bg-slate-50 p-3">
-              <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                <Percent className="h-4 w-4 text-amber-600" aria-hidden="true" />
+            <div className="rounded-lg bg-panel-soft p-3">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-ink">
+                <Percent className="h-4 w-4 text-arcane" aria-hidden="true" />
                 平台 AI 增值服务费
               </p>
-              <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                按任务金额抽成，当前费率{' '}
-                <span className="font-semibold text-slate-700">
+              <p className="mt-1 text-[11px] leading-5 text-ink-muted">
+                按副本赏金抽成，当前费率{' '}
+                <span className="font-mono font-semibold text-gold">
                   {currentFeeLabel}
                 </span>
                 {currentVip?.level === 'ENTERPRISE'
-                  ? '（企业版）'
+                  ? '（ENTERPRISE 月卡）'
                   : currentVip?.level === 'PRO'
-                    ? '（PRO）'
-                    : '（免费版）'}
+                    ? '（PRO 月卡）'
+                    : '（免费玩家）'}
                 。
               </p>
             </div>
           </div>
 
-          {/* 近 10 笔流水 */}
+          {/* 近 10 笔金币流水 */}
           <div className="p-5">
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-slate-700">
-                近 10 笔资金流水
+              <h3 className="text-xs font-semibold text-ink">
+                近 10 笔金币流水
               </h3>
-              <span className="text-[11px] text-slate-400">
+              <span className="font-mono text-[11px] text-ink-dim">
                 共 {transactions.length} 笔
               </span>
             </div>
             {recentTransactions.length === 0 ? (
               <EmptyState
                 className="py-8"
-                icon={<Sparkles className="h-7 w-7 text-slate-300" />}
-                title="暂无资金流水"
-                description="发布或完成首个任务后，这里会显示托管与结算记录。"
+                icon={<Sparkles className="h-7 w-7 text-gold/60" />}
+                title="暂无金币流水"
+                description="发布或通关首个副本后，这里会显示押金与结算记录。"
               />
             ) : (
-              <ul className="divide-y divide-slate-100">
+              <ul className="divide-y divide-panel-line">
                 {recentTransactions.map((transaction) => (
                   <TransactionRow
                     key={transaction.id}
@@ -491,12 +491,12 @@ export function WalletPanel() {
         </Card>
       )}
 
-      {/* 充值弹窗 */}
+      {/* 充值金币弹窗 */}
       <Modal
         open={rechargeOpen}
         onClose={closeRecharge}
-        title="充值"
-        description="充值金额将进入可用余额，可用于托管任务。"
+        title="充值金币"
+        description="充值金币将进入金币袋，可用于副本押金托管。"
         footer={
           <div className="flex items-center justify-end gap-2">
             <Button variant="secondary" onClick={closeRecharge}>
@@ -509,14 +509,14 @@ export function WalletPanel() {
               {submittingRecharge && (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               )}
-              确认充值
+              确认充值金币
             </Button>
           </div>
         }
       >
         <div className="space-y-4">
           <div>
-            <p className="mb-2 text-xs font-medium text-slate-600">快捷金额</p>
+            <p className="mb-2 text-xs font-medium text-ink-muted">快捷金币</p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {RECHARGE_PRESETS.map((value) => {
                 const active = preset === value;
@@ -530,10 +530,10 @@ export function WalletPanel() {
                       setCustomAmount('');
                     }}
                     className={cn(
-                      'rounded-lg border px-3 py-2 text-sm font-semibold tabular-nums transition-colors',
+                      'rounded-lg border px-3 py-2 font-mono text-sm font-semibold tabular-nums transition-colors',
                       active
-                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50',
+                        ? 'border-gold/60 bg-gold/10 text-gold'
+                        : 'border-panel-line bg-panel text-ink-muted hover:border-gold/40 hover:bg-panel-soft',
                     )}
                   >
                     ¥{value.toLocaleString('zh-CN')}
@@ -546,12 +546,12 @@ export function WalletPanel() {
           <div>
             <label
               htmlFor="wallet-recharge-custom"
-              className="mb-1.5 block text-xs font-medium text-slate-600"
+              className="mb-1.5 block text-xs font-medium text-ink-muted"
             >
-              自定义金额
+              自定义金币
             </label>
             <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm text-gold">
                 ¥
               </span>
               <input
@@ -560,36 +560,36 @@ export function WalletPanel() {
                 min="0.01"
                 step="0.01"
                 inputMode="decimal"
-                placeholder="输入充值金额"
+                placeholder="输入充值金币数量"
                 value={customAmount}
                 onChange={(event) => {
                   setPreset(null);
                   setCustomAmount(event.target.value);
                 }}
-                className="h-10 w-full rounded-lg border border-slate-300 pl-7 pr-3 text-sm text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                className="h-10 w-full rounded-lg border border-panel-line bg-panel-soft pl-7 pr-3 font-mono text-sm text-ink outline-none transition-colors focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
               />
             </div>
             {showAmountError ? (
-              <p className="mt-1 text-[11px] text-rose-600">
+              <p className="mt-1 text-[11px] text-rose-300">
                 请输入大于 0 且不超过{' '}
                 {MAX_RECHARGE_AMOUNT.toLocaleString('zh-CN')}{' '}
-                的金额，最多两位小数。
+                的金币数量，最多两位小数。
               </p>
             ) : (
-              <p className="mt-1 text-[11px] text-slate-400">
-                当前充值金额：{amountValid ? formatCurrency(amount) : '—'}
+              <p className="mt-1 font-mono text-[11px] text-ink-dim">
+                当前充值金币：{amountValid ? formatCurrency(amount) : '—'}
               </p>
             )}
           </div>
         </div>
       </Modal>
 
-      {/* VIP 弹窗 */}
+      {/* 月卡弹窗 */}
       <Modal
         open={vipOpen}
         onClose={closeVip}
-        title="订阅 VIP"
-        description="升级后立即生效，平台服务费按新费率结算。"
+        title="购买月卡"
+        description="购买后立即生效，平台服务费按新月卡费率结算。"
         footer={
           <div className="flex items-center justify-end gap-2">
             <Button variant="secondary" onClick={closeVip}>
@@ -602,7 +602,7 @@ export function WalletPanel() {
               {submittingVip && (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               )}
-              确认订阅 {VIP_LABELS[vipLevel]}
+              确认购买 {VIP_LABELS[vipLevel]}
             </Button>
           </div>
         }
@@ -620,38 +620,38 @@ export function WalletPanel() {
                 className={cn(
                   'w-full rounded-xl border p-4 text-left transition-colors',
                   active
-                    ? 'border-indigo-500 bg-indigo-50/60'
-                    : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50',
+                    ? 'border-arcane/60 bg-arcane/10'
+                    : 'border-panel-line bg-panel hover:border-arcane/40 hover:bg-panel-soft',
                 )}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-ink">
                     <Crown
                       className={cn(
                         'h-4 w-4',
-                        active ? 'text-indigo-600' : 'text-slate-400',
+                        active ? 'text-arcane' : 'text-ink-dim',
                       )}
                       aria-hidden="true"
                     />
                     {VIP_LABELS[option.level]}
-                    {isCurrent && <Badge variant="success">当前</Badge>}
+                    {isCurrent && <Badge variant="success">当前月卡</Badge>}
                   </span>
-                  <span className="text-lg font-semibold tabular-nums text-indigo-700">
+                  <span className="font-mono text-lg font-semibold tabular-nums text-gold">
                     {formatFeeRate(option.feeRate)}
-                    <span className="ml-1 text-[11px] font-normal text-slate-500">
+                    <span className="ml-1 text-[11px] font-normal text-ink-muted">
                       服务费
                     </span>
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">{option.summary}</p>
+                <p className="mt-1 text-xs text-ink-muted">{option.summary}</p>
                 <ul className="mt-2 space-y-1">
                   {option.perks.map((perk) => (
                     <li
                       key={perk}
-                      className="flex items-center gap-1.5 text-[11px] text-slate-600"
+                      className="flex items-center gap-1.5 text-[11px] text-ink-muted"
                     >
                       <Sparkles
-                        className="h-3 w-3 text-indigo-500"
+                        className="h-3 w-3 text-arcane"
                         aria-hidden="true"
                       />
                       {perk}
@@ -662,8 +662,8 @@ export function WalletPanel() {
             );
           })}
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">
-            当前费率：{currentFeeLabel}（{vipLevelLabel}）。升级为{' '}
-            {VIP_LABELS[vipLevel]} 后，新任务的平台服务费按{' '}
+            当前费率：{currentFeeLabel}（{vipLevelLabel}）。购买{' '}
+            {VIP_LABELS[vipLevel]} 后，新副本的平台服务费按{' '}
             {formatFeeRate(
               VIP_TIER_OPTIONS.find((option) => option.level === vipLevel)
                 ?.feeRate ?? 0,

@@ -18,10 +18,10 @@ import {
 } from '../utils';
 
 const ESCROW_LABEL: Record<EscrowStatus, string> = {
-  NONE: '未托管',
-  FROZEN: '赏金已冻结',
-  RELEASED: '赏金已释放',
-  REFUNDED: '赏金已退款',
+  NONE: '未缴纳赏金押金',
+  FROZEN: '赏金押金已冻结',
+  RELEASED: '赏金押金已释放',
+  REFUNDED: '赏金押金已退回',
 };
 
 export interface TaskSummaryProps {
@@ -51,9 +51,9 @@ export function TaskSummary({ task, className }: TaskSummaryProps) {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg bg-indigo-50/70 p-3">
-            <p className="text-xs text-indigo-500">任务赏金</p>
-            <p className="mt-0.5 text-lg font-semibold text-indigo-700">
+          <div className="rounded-lg border border-gold/25 bg-gold/5 p-3">
+            <p className="text-xs text-gold/80">金币赏金</p>
+            <p className="mt-0.5 font-mono text-lg font-semibold text-gold">
               {formatMoney(task.reward.amount)}
             </p>
           </div>
@@ -84,7 +84,7 @@ export function TaskSummary({ task, className }: TaskSummaryProps) {
             <p className="mt-0.5 truncate text-sm font-medium text-slate-800">
               {task.assignee
                 ? `${task.assignee.displayName} · ${task.assignee.reputationScore.toFixed(1)}`
-                : '待接单'}
+                : '待接受挑战'}
             </p>
           </div>
         </div>
@@ -92,11 +92,11 @@ export function TaskSummary({ task, className }: TaskSummaryProps) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              验收标准
+              通关条件
             </h2>
             <ul className="space-y-1">
               {task.acceptanceCriteria.length === 0 && (
-                <li className="text-xs text-slate-400">未填写验收标准</li>
+                <li className="text-xs text-slate-400">未填写通关条件</li>
               )}
               {task.acceptanceCriteria.map((item) => (
                 <li
@@ -111,7 +111,7 @@ export function TaskSummary({ task, className }: TaskSummaryProps) {
           </div>
           <div className="space-y-1.5">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              所需技能
+              出战技能
             </h2>
             <div className="flex flex-wrap gap-1">
               {task.requiredSkills.length === 0 && (
@@ -124,7 +124,7 @@ export function TaskSummary({ task, className }: TaskSummaryProps) {
               ))}
             </div>
             <p className="pt-2 text-xs text-slate-400">
-              任务编号 {task.id} · 发布于 {formatDateTime(task.createdAt)}
+              副本编号 {task.id} · 发布于 {formatDateTime(task.createdAt)}
             </p>
           </div>
         </div>

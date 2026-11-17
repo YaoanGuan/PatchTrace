@@ -52,13 +52,13 @@ export function RatingForm({
 
     const nextErrors: RatingFormErrors = {};
     if (!resolvedTaskId) {
-      nextErrors.taskId = '请填写关联任务 ID。';
+      nextErrors.taskId = '请填写关联副本 ID。';
     }
     if (score < 1) {
-      nextErrors.score = '请选择 1–5 星评分。';
+      nextErrors.score = '请选择 1–5 星战绩评分。';
     }
     if (tags.length === 0) {
-      nextErrors.tags = '请至少选择一个评价标签。';
+      nextErrors.tags = '请至少选择一个战报标签。';
     }
 
     setErrors(nextErrors);
@@ -82,7 +82,7 @@ export function RatingForm({
 
       pushToast({
         id: `rating-${rating.id}-${Date.now()}`,
-        title: '评分已提交',
+        title: '战绩评分已提交',
         description: `${RATING_DIRECTION_LABELS[direction]} · ${score} 星`,
         variant: 'success',
       });
@@ -98,7 +98,7 @@ export function RatingForm({
     } catch (error) {
       pushToast({
         id: `rating-error-${direction}-${Date.now()}`,
-        title: '评分提交失败',
+        title: '战绩评分提交失败',
         description:
           error instanceof Error ? error.message : '网络异常，请稍后重试。',
         variant: 'error',
@@ -113,10 +113,10 @@ export function RatingForm({
     <Card className={cn('p-5', className)}>
       <form noValidate onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1">
-          <h3 className="text-sm font-semibold text-slate-900">
+          <h3 className="text-sm font-semibold text-ink">
             {RATING_DIRECTION_LABELS[direction]}
           </h3>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-ink-muted">
             {RATING_DIRECTION_HINTS[direction]}
           </p>
         </div>
@@ -124,10 +124,10 @@ export function RatingForm({
         {!taskId && (
           <FormField
             id={`rating-task-${direction}`}
-            label="关联任务 ID"
+            label="关联副本 ID"
             required
             error={errors.taskId}
-            hint="评分会绑定到已完成任务，用于防止刷分。"
+            hint="战绩评分会绑定到已通关副本，用于防止刷分。"
           >
             <input
               id={`rating-task-${direction}`}
@@ -147,46 +147,46 @@ export function RatingForm({
         )}
 
         <div className="space-y-1.5">
-          <span className="text-sm font-medium text-slate-700">
-            星级评分 <span className="text-rose-500">*</span>
+          <span className="text-sm font-medium text-ink">
+            战绩星级 <span className="text-gold">*</span>
           </span>
           <div className="flex flex-wrap items-center gap-1">
             {[1, 2, 3, 4, 5].map((value) => (
               <button
                 key={value}
                 type="button"
-                aria-label={`评分 ${value} 星`}
+                aria-label={`战绩评分 ${value} 星`}
                 aria-pressed={score === value}
                 onClick={() => {
                   setScore(value);
                   setErrors((prev) => ({ ...prev, score: undefined }));
                 }}
-                className="rounded p-1 transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40"
+                className="rounded p-1 transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-neon/40"
               >
                 <Star
                   className={cn(
                     'h-7 w-7',
                     value <= score
-                      ? 'fill-amber-400 text-amber-400'
-                      : 'text-slate-300',
+                      ? 'fill-gold text-gold'
+                      : 'text-ink-dim/50',
                   )}
                 />
               </button>
             ))}
-            <span className="ml-2 text-sm text-slate-500">
-              {score > 0 ? `${score}.0 星` : '未评分'}
+            <span className="ml-2 font-mono text-sm text-ink-muted">
+              {score > 0 ? `${score}.0 星` : '未评战绩'}
             </span>
           </div>
           {errors.score && (
-            <p role="alert" className="text-xs text-rose-600">
+            <p role="alert" className="text-xs text-boss">
               {errors.score}
             </p>
           )}
         </div>
 
         <div className="space-y-1.5">
-          <span className="text-sm font-medium text-slate-700">
-            评价标签 <span className="text-rose-500">*</span>
+          <span className="text-sm font-medium text-ink">
+            战报标签 <span className="text-gold">*</span>
           </span>
           <div className="flex flex-wrap gap-2">
             {availableTags.map((tag) => {
@@ -198,10 +198,10 @@ export function RatingForm({
                   aria-pressed={selected}
                   onClick={() => toggleTag(tag)}
                   className={cn(
-                    'rounded-full px-3 py-1 text-xs font-medium ring-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40',
+                    'rounded-full px-3 py-1 text-xs font-medium ring-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-neon/40',
                     selected
-                      ? 'bg-indigo-50 text-indigo-700 ring-indigo-300'
-                      : 'bg-white text-slate-500 ring-slate-200 hover:text-slate-800',
+                      ? 'bg-gold/10 text-gold ring-gold/40'
+                      : 'bg-panel text-ink-muted ring-panel-line hover:text-ink',
                   )}
                 >
                   {tag}
@@ -210,7 +210,7 @@ export function RatingForm({
             })}
           </div>
           {errors.tags && (
-            <p role="alert" className="text-xs text-rose-600">
+            <p role="alert" className="text-xs text-boss">
               {errors.tags}
             </p>
           )}
@@ -218,7 +218,7 @@ export function RatingForm({
 
         <FormField
           id={`rating-comment-${direction}`}
-          label="评语"
+          label="战报点评"
           hint="可填写具体事实与改进建议，最多 300 字。"
         >
           <textarea
@@ -231,13 +231,13 @@ export function RatingForm({
             placeholder="例如：PoC 可复现，证据链完整，沟通响应及时。"
           />
         </FormField>
-        <p className="-mt-2 text-right text-[11px] text-slate-400">
+        <p className="-mt-2 text-right font-mono text-[11px] text-ink-dim">
           {comment.length}/300
         </p>
 
         <Button type="submit" disabled={submitting} className="w-full">
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-          {submitting ? '提交中…' : '提交评分'}
+          {submitting ? '提交中…' : '提交战绩评分'}
         </Button>
       </form>
     </Card>

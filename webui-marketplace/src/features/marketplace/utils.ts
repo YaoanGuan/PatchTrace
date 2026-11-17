@@ -17,24 +17,31 @@ import type { CategoryOption, EscrowRowModel, SkillOption } from './types';
 export { STATUS_LABEL, STATUS_BADGE_VARIANT };
 
 export const STAGE_LABEL: Record<PipelineStageKey, string> = {
-  AI_GENERATION: 'AI 生成',
-  AI_REVIEW: 'AI 复核',
-  COMPLIANCE_SCAN: '合规扫描',
-  SETTLEMENT: '结算',
+  AI_GENERATION: 'AI 出招',
+  AI_REVIEW: '裁判复核',
+  COMPLIANCE_SCAN: '规则扫描',
+  SETTLEMENT: '掉落结算',
 };
 
 export const STAGE_DESCRIPTION: Record<PipelineStageKey, string> = {
-  AI_GENERATION: '指挥官调度 Agent 产出可复现的交付物与执行证据。',
-  AI_REVIEW: '平台审核 AI 独立交叉复核，不直接采信执行方的结论。',
+  AI_GENERATION: '指挥官调度 Agent 出招，产出可复现的战利品与执行证据。',
+  AI_REVIEW: '平台裁判 AI 独立复核，不直接采信挑战方的自证结论。',
   COMPLIANCE_SCAN: '校验授权边界、敏感数据与法律责任条款。',
-  SETTLEMENT: '托管资金释放，结果写入可追溯哈希链。',
+  SETTLEMENT: '赏金押金释放，掉落结果写入可追溯战报链。',
 };
 
 export const STAGE_STATUS_LABEL: Record<PipelineStageStatus, string> = {
-  PENDING: '待执行',
+  PENDING: '待定',
   RUNNING: '进行中',
-  DONE: '已完成',
-  FAILED: '未通过',
+  DONE: '通关',
+  FAILED: '挑战失败',
+};
+
+/** 裁判判定口径：PASS/FAIL/PENDING 统一展示为 通关/挑战失败/待定。 */
+export const VERDICT_LABEL: Record<'PASS' | 'FAIL' | 'PENDING', string> = {
+  PASS: '通关',
+  FAIL: '挑战失败',
+  PENDING: '待定',
 };
 
 export const STAGE_STATUS_VARIANT: Record<PipelineStageStatus, BadgeVariant> = {
@@ -52,11 +59,11 @@ export const STAGE_ORDER: PipelineStageKey[] = [
 ];
 
 export const CATEGORY_OPTIONS: CategoryOption[] = [
-  { value: 'ALL', label: '全部类别' },
-  { value: 'SECURITY', label: '安全审计' },
-  { value: 'DATA', label: '数据智能' },
-  { value: 'DEVELOPMENT', label: '研发交付' },
-  { value: 'RESEARCH', label: '安全研究' },
+  { value: 'ALL', label: '全部副本' },
+  { value: 'SECURITY', label: '安全副本' },
+  { value: 'DATA', label: '数据副本' },
+  { value: 'DEVELOPMENT', label: '研发副本' },
+  { value: 'RESEARCH', label: '研究副本' },
 ];
 
 export const SKILL_OPTIONS: SkillOption[] = [
@@ -77,11 +84,11 @@ export const SKILL_OPTIONS: SkillOption[] = [
 ];
 
 export const TRANSACTION_TYPE_LABEL: Record<WalletTransactionType, string> = {
-  ESCROW_FREEZE: '托管冻结',
-  ESCROW_RELEASE: '托管释放',
-  REFUND: '退款',
-  DEPOSIT: '充值',
-  WITHDRAW: '提现',
+  ESCROW_FREEZE: '赏金押金冻结',
+  ESCROW_RELEASE: '赏金押金释放',
+  REFUND: '赏金退回',
+  DEPOSIT: '金币充值',
+  WITHDRAW: '金币提取',
   FEE: '平台服务费',
 };
 
@@ -120,7 +127,7 @@ export function transactionSign(type: WalletTransactionType): '+' | '-' {
 }
 
 export function transactionTone(type: WalletTransactionType): string {
-  return DEBIT_TRANSACTIONS.includes(type) ? 'text-rose-600' : 'text-emerald-600';
+  return DEBIT_TRANSACTIONS.includes(type) ? 'text-boss' : 'text-clear';
 }
 
 export function errorMessage(error: unknown): string {

@@ -9,6 +9,8 @@ import type { User } from '../../../types/domain';
 import { useSessionStore } from '../../../app/store/sessionStore';
 import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
+import { LevelBadge } from '../../../components/game/LevelBadge';
+import { XpBar } from '../../../components/game/XpBar';
 import { cn } from '../../../lib/cn';
 import {
   CHANNEL_LABELS,
@@ -21,7 +23,7 @@ export interface ReputationPillProps {
   className?: string;
 }
 
-/** 信誉分胶囊：按分数区间换色，缺失时按 0 分降级展示。 */
+/** 声望胶囊：按分数区间换色，缺失时按 0 分降级展示。 */
 export function ReputationPill({ score, className }: ReputationPillProps) {
   const normalized =
     typeof score === 'number' && Number.isFinite(score)
@@ -30,12 +32,12 @@ export function ReputationPill({ score, className }: ReputationPillProps) {
 
   const tone =
     normalized >= 4.7
-      ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+      ? 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/30'
       : normalized >= 4.2
-        ? 'bg-indigo-50 text-indigo-700 ring-indigo-600/20'
+        ? 'bg-neon/10 text-neon ring-neon/30'
         : normalized >= 3.5
-          ? 'bg-amber-50 text-amber-700 ring-amber-600/20'
-          : 'bg-rose-50 text-rose-700 ring-rose-600/20';
+          ? 'bg-amber-500/10 text-amber-300 ring-amber-500/30'
+          : 'bg-rose-500/10 text-rose-300 ring-rose-500/30';
 
   return (
     <span
@@ -44,11 +46,11 @@ export function ReputationPill({ score, className }: ReputationPillProps) {
         tone,
         className,
       )}
-      title="综合信誉分（满分 5.0）"
+      title="综合声望（满分 5.0）"
     >
       <Star className="h-4 w-4 fill-current" aria-hidden="true" />
-      {normalized.toFixed(1)}
-      <span className="text-[11px] font-normal opacity-70">/ 5.0 信誉分</span>
+      <span className="font-mono">{normalized.toFixed(1)}</span>
+      <span className="text-[11px] font-normal opacity-70">/ 5.0 声望</span>
     </span>
   );
 }
@@ -59,7 +61,7 @@ export interface ProfileHeaderProps {
 }
 
 /**
- * 个人档案头部：头像、昵称、等级、信誉分与关键履约指标。
+ * 角色档案头部：头像、昵称、等级、声望与关键战绩指标。
  * 数据优先使用传入的 user，否则订阅 sessionStore.currentUser。
  */
 export function ProfileHeader({ user, className }: ProfileHeaderProps) {
@@ -70,8 +72,8 @@ export function ProfileHeader({ user, className }: ProfileHeaderProps) {
     return (
       <EmptyState
         className={className}
-        title="个人信息加载中"
-        description="正在读取账号档案；若长时间未加载，请稍后刷新页面。"
+        title="角色档案加载中"
+        description="正在读取冒险者档案；若长时间未加载，请稍后刷新页面。"
       />
     );
   }
@@ -99,11 +101,14 @@ export function ProfileHeader({ user, className }: ProfileHeaderProps) {
 
   return (
     <div
-      className={cn(
-        'overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm',
-        className,
-      )}
+      className={cn('game-panel overflow-hidden', className)}
     >
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-panel-line bg-panel-soft/60 px-5 py-2.5">
+        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-neon">
+          CHARACTER SHEET
+        </p>
+        <span className="text-[11px] text-ink-dim">角色档案 · 真实副本战绩</span>
+      </div>
       <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center">
         <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-sky-500 text-2xl font-semibold text-white shadow-inner">
           <span aria-hidden="true">{initial}</span>
@@ -121,12 +126,10 @@ export function ProfileHeader({ user, className }: ProfileHeaderProps) {
 
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="truncate text-xl font-semibold tracking-tight text-slate-900">
-              {profile.displayName || '未命名用户'}
+            <h2 className="truncate text-xl font-semibold tracking-tight text-ink">
+              {profile.displayName || '未命名冒险者'}
             </h2>
-            <Badge variant="info">
-              {level.code} · {level.title}
-            </Badge>
+            <LevelBadge code={level.code} title={level.title} />
             <Badge variant="outline">
               <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />
               {channelLabel}
@@ -145,42 +148,36 @@ export function ProfileHeader({ user, className }: ProfileHeaderProps) {
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
             <span className="inline-flex items-center gap-1">
               <CalendarCheck2 className="h-3.5 w-3.5" aria-hidden="true" />
-              完成任务 {completedTasks}
+              通关副本{' '}
+              <span className="font-mono font-semibold text-ink">
+                {completedTasks}
+              </span>
             </span>
             <span className="inline-flex items-center gap-1">
               <Handshake className="h-3.5 w-3.5" aria-hidden="true" />
-              准时率 {Math.round(onTimeRate * 100)}%
+              连击率{' '}
+              <span className="font-mono font-semibold text-ink">
+                {Math.round(onTimeRate * 100)}%
+              </span>
             </span>
             <span className="inline-flex items-center gap-1">
               <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
-              争议 {disputes}
+              翻车次数{' '}
+              <span className="font-mono font-semibold text-ink">
+                {disputes}
+              </span>
             </span>
           </div>
         </div>
 
         <div className="w-full space-y-1.5 sm:w-48">
-          <div className="flex items-center justify-between text-[11px] text-slate-500">
-            <span>等级进度</span>
-            <span>{level.progress}%</span>
-          </div>
-          <div
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={level.progress}
-            className="h-2 w-full overflow-hidden rounded-full bg-slate-100"
-          >
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-sky-500 transition-all"
-              style={{ width: `${level.progress}%` }}
-            />
-          </div>
-          <p className="text-[11px] text-slate-400">
+          <XpBar value={level.progress} label="升级进度" />
+          <p className="text-[11px] text-ink-dim">
             {level.nextCode
-              ? `距离 ${level.nextCode} 还需完成 ${level.remaining} 个任务`
+              ? `距离 ${level.nextCode} 还需通关 ${level.remaining} 个副本`
               : '已达到当前最高等级'}
           </p>
         </div>

@@ -21,7 +21,7 @@ export default function MarketplacePage() {
     fetchTasks().catch((error) => {
       pushToast({
         id: `tasks-load-error-${Date.now()}`,
-        title: '任务列表加载失败',
+        title: '悬赏列表加载失败',
         description: errorMessage(error),
         variant: 'error',
       });

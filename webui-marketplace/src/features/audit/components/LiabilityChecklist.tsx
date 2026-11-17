@@ -29,14 +29,14 @@ const PARTY_META: Record<
   },
   COMMANDER: {
     label: 'AI 指挥官',
-    description: '任务执行方 · 对 Agent 编排与证据真实性负责',
+    description: '任务执行方 · 对 Agent 编排与战报真实性负责',
     icon: UserCog,
     accent: 'border-violet-100 bg-violet-50/40',
     iconTone: 'bg-violet-100 text-violet-600',
   },
   PLATFORM: {
     label: '平台',
-    description: '撮合与仲裁方 · 对托管、审计与争议流程负责',
+    description: '撮合与仲裁方 · 对托管、封印审计与争议流程负责',
     icon: Shield,
     accent: 'border-teal-100 bg-teal-50/40',
     iconTone: 'bg-teal-100 text-teal-600',
@@ -57,8 +57,8 @@ export function LiabilityChecklist({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">三方责任边界</h3>
-          <p className="text-xs text-slate-500">
+          <h3 className="text-sm font-semibold text-ink">三方责任边界</h3>
+          <p className="text-xs text-ink-muted">
             请逐条阅读并勾选，全部勾选后方可生成签名。
           </p>
         </div>
@@ -109,7 +109,7 @@ export function LiabilityChecklist({
                 <li key={clause.id}>
                   <label
                     className={cn(
-                      'flex cursor-pointer items-start gap-2.5 rounded-md border bg-white px-3 py-2.5 transition-colors',
+                      'flex cursor-pointer items-start gap-2.5 rounded-md border bg-panel px-3 py-2.5 transition-colors',
                       accepted[index]
                         ? 'border-emerald-200 ring-1 ring-emerald-100'
                         : 'border-slate-200 hover:border-slate-300',

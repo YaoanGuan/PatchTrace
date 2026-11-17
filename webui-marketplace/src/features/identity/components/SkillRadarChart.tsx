@@ -11,10 +11,10 @@ export interface SkillRadarChartProps {
 
 const DIMENSION_ORDER: { key: SkillDimension; label: string }[] = [
   { key: 'INSTRUCTION_PRECISION', label: 'AI指令精准度' },
-  { key: 'TASK_CLOSURE', label: '任务闭环能力' },
-  { key: 'COST_EFFICIENCY', label: '成本控制' },
-  { key: 'RISK_CONTROL', label: '风险控制' },
-  { key: 'EVIDENCE_QUALITY', label: '证据质量' },
+  { key: 'TASK_CLOSURE', label: '副本闭环能力' },
+  { key: 'COST_EFFICIENCY', label: '魔力效率' },
+  { key: 'RISK_CONTROL', label: '风险预判' },
+  { key: 'EVIDENCE_QUALITY', label: '战利品质量' },
 ];
 
 interface ResolvedSkill {
@@ -80,8 +80,8 @@ export function SkillRadarChart({
     return (
       <EmptyState
         className={className}
-        title="暂无能力雷达数据"
-        description="完成真实任务并通过平台复核后，这里会聚合出五维 AI 调度能力评分。"
+        title="暂无技能树雷达数据"
+        description="通关真实副本并通过平台复核后，这里会聚合出五维技能评分。"
       />
     );
   }
@@ -91,7 +91,7 @@ export function SkillRadarChart({
       <svg
         viewBox={`0 0 ${VIEW_SIZE} ${VIEW_SIZE}`}
         role="img"
-        aria-label="AI 调度能力五维雷达图"
+        aria-label="冒险者五维技能树雷达图"
         className="h-auto w-full max-w-[360px]"
       >
         {/* 同心五边形网格 */}
@@ -100,7 +100,7 @@ export function SkillRadarChart({
             key={`ring-${ring}`}
             points={toPolygon(DIMENSION_ORDER.map(() => ring))}
             fill="none"
-            stroke="#e2e8f0"
+            stroke="#1e2a48"
             strokeWidth={1}
           />
         ))}
@@ -115,7 +115,7 @@ export function SkillRadarChart({
               y1={CENTER.y}
               x2={outer.x}
               y2={outer.y}
-              stroke="#e2e8f0"
+              stroke="#1e2a48"
               strokeWidth={1}
             />
           );
@@ -124,8 +124,8 @@ export function SkillRadarChart({
         {/* 数据区域 */}
         <polygon
           points={toPolygon(resolved.map((item) => item.score / 100))}
-          fill="rgba(79, 70, 229, 0.16)"
-          stroke="#4f46e5"
+          fill="rgba(167, 139, 250, 0.18)"
+          stroke="#a78bfa"
           strokeWidth={2}
           strokeLinejoin="round"
         />
@@ -139,7 +139,7 @@ export function SkillRadarChart({
               cx={point.x}
               cy={point.y}
               r={3}
-              fill="#4f46e5"
+              fill="#a78bfa"
             />
           );
         })}
@@ -153,7 +153,7 @@ export function SkillRadarChart({
                 x={labelPoint.x}
                 y={labelPoint.y}
                 textAnchor="middle"
-                className="fill-slate-500"
+                className="fill-ink-muted"
                 fontSize={11}
               >
                 {item.label}
@@ -162,7 +162,7 @@ export function SkillRadarChart({
                 x={labelPoint.x}
                 y={labelPoint.y + 13}
                 textAnchor="middle"
-                className="fill-indigo-600"
+                className="fill-arcane font-mono"
                 fontSize={11}
                 fontWeight={600}
               >
@@ -189,8 +189,8 @@ export function SkillLegend({ skills, className }: SkillLegendProps) {
 
   if (!source || source.length === 0) {
     return (
-      <p className={cn('text-xs text-slate-400', className)}>
-        暂无能力维度数据。
+      <p className={cn('text-xs text-ink-dim', className)}>
+        暂无技能树维度数据。
       </p>
     );
   }
@@ -200,8 +200,8 @@ export function SkillLegend({ skills, className }: SkillLegendProps) {
       {resolved.map((item) => (
         <li key={item.key} className="space-y-1">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-600">{item.label}</span>
-            <span className="font-semibold text-slate-900">
+            <span className="text-ink-muted">{item.label}</span>
+            <span className="font-mono font-semibold text-arcane">
               {Math.round(item.score)}
             </span>
           </div>

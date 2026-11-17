@@ -26,7 +26,7 @@ function resolveLevel(level: RiskLevel | undefined, score: number): RiskLevel {
 }
 
 /**
- * 风险定级仪表：0–100 分、四级配色、阈值线、阻断状态与触发原因。
+ * 大Boss 威胁值仪表：0–100 分、四级配色、阈值线、关卡封锁状态与威胁来源。
  * 使用分段条绘制，避免 canvas / 图表依赖。
  */
 export function RiskGauge({ risk, compact = false, className }: RiskGaugeProps) {
@@ -34,8 +34,8 @@ export function RiskGauge({ risk, compact = false, className }: RiskGaugeProps) 
     return (
       <EmptyState
         className={className}
-        title="暂无风险定级数据"
-        description="任务通过交叉验证与合规扫描后，会在这里生成风险评分与阻断结论。"
+        title="暂无大Boss 威胁数据"
+        description="任务通关双人连携与副本规则扫描后，会在这里生成威胁评分与关卡封锁结论。"
       />
     );
   }
@@ -50,20 +50,20 @@ export function RiskGauge({ risk, compact = false, className }: RiskGaugeProps) 
     <Card className={cn('p-4', className)}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-            <Gauge className="h-4 w-4 text-indigo-600" />
-            风险定级与阻断
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+            <Gauge className="h-4 w-4 text-boss" />
+            大Boss 威胁值
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            综合交叉验证与合规命中，超过阈值即触发阻断。
+          <p className="mt-0.5 text-xs text-ink-muted">
+            综合双人连携与副本规则命中，超过阈值即触发关卡封锁。
           </p>
         </div>
         <span
           className={cn(
             'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
             blocked
-              ? 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20'
-              : 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20',
+              ? 'bg-boss/15 text-boss ring-1 ring-inset ring-boss/40'
+              : 'bg-clear/10 text-clear ring-1 ring-inset ring-clear/30',
           )}
         >
           {blocked ? (
@@ -71,7 +71,7 @@ export function RiskGauge({ risk, compact = false, className }: RiskGaugeProps) 
           ) : (
             <ShieldCheck className="h-3 w-3" />
           )}
-          {blocked ? '已阻断' : '未阻断'}
+          {blocked ? '关卡封锁' : '未封锁'}
         </span>
       </div>
 
@@ -79,14 +79,14 @@ export function RiskGauge({ risk, compact = false, className }: RiskGaugeProps) 
         <div className="flex items-baseline gap-1">
           <span
             className={cn(
-              'font-bold tabular-nums',
+              'font-mono font-bold tabular-nums',
               compact ? 'text-3xl' : 'text-4xl',
               RISK_LEVEL_TEXT_CLASS[level],
             )}
           >
             {score}
           </span>
-          <span className="text-xs text-slate-400">/ 100 分</span>
+          <span className="font-mono text-xs text-ink-dim">/ 100 分</span>
         </div>
         <span
           className={cn(
@@ -94,12 +94,12 @@ export function RiskGauge({ risk, compact = false, className }: RiskGaugeProps) 
             RISK_LEVEL_BADGE_CLASS[level],
           )}
         >
-          {RISK_LEVEL_LABEL[level]}
+          大Boss 威胁：{RISK_LEVEL_LABEL[level]}
         </span>
       </div>
 
       <div className="mt-3">
-        <div className="mb-1 flex justify-between text-[10px] text-slate-400">
+        <div className="mb-1 flex justify-between font-mono text-[10px] text-ink-dim">
           <span>0</span>
           <span>25</span>
           <span>50</span>
@@ -118,18 +118,18 @@ export function RiskGauge({ risk, compact = false, className }: RiskGaugeProps) 
           </div>
           {/* 阈值线 */}
           <div
-            className="absolute top-0 h-3 w-0.5 -translate-x-1/2 bg-slate-900/70"
+            className="absolute top-0 h-3 w-0.5 -translate-x-1/2 bg-gold/80"
             style={{ left: `${threshold}%` }}
-            title={`风险阈值 ${threshold} 分`}
+            title={`大Boss 威胁阈值 ${threshold} 分`}
           />
           {/* 当前分数指针 */}
           <div
-            className="absolute top-0 h-5 w-1.5 -translate-x-1/2 rounded-sm border border-white bg-slate-900 shadow"
+            className="absolute top-0 h-5 w-1.5 -translate-x-1/2 rounded-sm border border-abyss bg-gold shadow"
             style={{ left: `${score}%` }}
-            title={`当前风险 ${score} 分`}
+            title={`当前大Boss 威胁 ${score} 分`}
           />
         </div>
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500">
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[10px] text-ink-muted">
           <div className="flex flex-wrap items-center gap-2">
             {RISK_LEVEL_ORDER.map((segment) => (
               <span key={segment} className="inline-flex items-center gap-1">
@@ -144,27 +144,27 @@ export function RiskGauge({ risk, compact = false, className }: RiskGaugeProps) 
             ))}
           </div>
           <span className="inline-flex items-center gap-1">
-            <span className="h-3 w-0.5 bg-slate-900/70" />
-            阈值 {threshold} 分
+            <span className="h-3 w-0.5 bg-gold/80" />
+            阈值 <span className="font-mono">{threshold}</span> 分
           </span>
         </div>
       </div>
 
-      <div className="mt-3 border-t border-slate-100 pt-3">
-        <p className="mb-1.5 text-[11px] font-semibold text-slate-500">
-          触发原因
+      <div className="mt-3 border-t border-panel-line pt-3">
+        <p className="mb-1.5 text-[11px] font-semibold text-ink-muted">
+          威胁来源
         </p>
         {reasons.length === 0 ? (
-          <p className="text-xs text-slate-400">当前未触发风险规则。</p>
+          <p className="text-xs text-ink-dim">当前未触发大Boss 威胁规则。</p>
         ) : (
           <ul className="space-y-1">
             {reasons.map((reason, index) => (
               <li
                 key={`${reason}-${index}`}
-                className="flex items-start gap-1.5 text-xs leading-5 text-slate-600"
+                className="flex items-start gap-1.5 text-xs leading-5 text-ink-muted"
               >
-                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" />
-                <span>{reason || '未命名风险原因'}</span>
+                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-boss" />
+                <span>{reason || '未命名威胁原因'}</span>
               </li>
             ))}
           </ul>

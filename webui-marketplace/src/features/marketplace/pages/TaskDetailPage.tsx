@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FileQuestion } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
+import { Card } from '../../../components/ui/Card';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { useSessionStore } from '../../../app/store/sessionStore';
 import { useTaskStore } from '../../../app/store/taskStore';
@@ -34,10 +35,10 @@ function DetailSkeleton() {
   return (
     <div className="space-y-4">
       <div className="h-4 w-40 animate-pulse rounded bg-slate-100" />
-      <div className="h-64 animate-pulse rounded-xl border border-slate-200 bg-white" />
+      <div className="h-64 animate-pulse rounded-xl border border-slate-200 bg-panel" />
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="h-56 animate-pulse rounded-xl border border-slate-200 bg-white" />
-        <div className="h-56 animate-pulse rounded-xl border border-slate-200 bg-white" />
+        <div className="h-56 animate-pulse rounded-xl border border-slate-200 bg-panel" />
+        <div className="h-56 animate-pulse rounded-xl border border-slate-200 bg-panel" />
       </div>
     </div>
   );
@@ -82,13 +83,13 @@ export default function TaskDetailPage() {
     return (
       <EmptyState
         icon={<FileQuestion className="h-8 w-8 text-slate-400" />}
-        title="任务不存在或已下线"
-        description={`未找到任务 ${taskId ?? ''}，可能已被取消或链接有误。`}
+        title="副本不存在或已下线"
+        description={`未找到副本 ${taskId ?? ''}，可能已被撤销或链接有误。`}
         action={
           <Link to="/marketplace">
             <Button variant="outline" size="sm">
               <ArrowLeft className="h-4 w-4" />
-              返回任务大厅
+              返回悬赏大厅
             </Button>
           </Link>
         }
@@ -107,7 +108,7 @@ export default function TaskDetailPage() {
           className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 transition-colors hover:bg-slate-100 hover:text-slate-800"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          任务大厅
+          悬赏大厅
         </Link>
         <span>/</span>
         <span className="font-medium text-slate-700">{task.id}</span>
@@ -134,10 +135,10 @@ export default function TaskDetailPage() {
             <SubmitWorkPanel task={task} />
           )}
           {activeRole === 'EMPLOYER' && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs leading-5 text-slate-500 shadow-sm">
-              雇主视角：赏金已进入平台托管，任务验收由平台审核 AI 独立交叉复核，
-              复核通过后自动进入合规扫描与结算；争议可前往审计模块查看完整证据链。
-            </div>
+            <Card className="p-4 text-xs leading-5 text-ink-muted">
+              雇主视角：金币赏金已进入赏金押金，通关判定由平台裁判 AI 独立复核，
+              通关后自动进入规则扫描与掉落结算；仲裁可前往战报回放查看完整战斗记录。
+            </Card>
           )}
         </div>
         <AuditLinkCard taskId={task.id} />

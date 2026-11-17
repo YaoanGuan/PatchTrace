@@ -12,11 +12,22 @@ import { cn } from '../../lib/cn';
 import type { ToastVariant } from '../../types/domain';
 
 const toastTone: Record<ToastVariant, string> = {
-  info: 'border-indigo-200 bg-indigo-50 text-indigo-800',
-  success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-  warning: 'border-amber-200 bg-amber-50 text-amber-800',
-  error: 'border-rose-200 bg-rose-50 text-rose-800',
+  info: 'border-neon/30 bg-panel text-ink shadow-glow',
+  success: 'border-emerald-500/30 bg-panel text-emerald-200',
+  warning: 'border-amber-500/30 bg-panel text-amber-200',
+  error: 'border-rose-500/30 bg-panel text-rose-200',
 };
+
+/** 固定背景：深空光晕 + 细网格 + 顶部扫描线。 */
+function GameBackdrop() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10">
+      <div className="absolute inset-0 bg-quest-radial" />
+      <div className="absolute inset-0 bg-grid bg-grid-size opacity-50 [mask-image:radial-gradient(ellipse_at_top,black,transparent_78%)]" />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-neon/60 to-transparent" />
+    </div>
+  );
+}
 
 /**
  * 全局免责与责任边界弹窗。
@@ -32,7 +43,7 @@ function LegalLiabilityModal() {
       onClose={closeLegalModal}
       title="免责与责任边界"
       description={
-        legalModal.taskId ? `任务 ${legalModal.taskId}` : undefined
+        legalModal.taskId ? `副本 ${legalModal.taskId}` : undefined
       }
       footer={
         <div className="flex justify-end">
@@ -40,7 +51,7 @@ function LegalLiabilityModal() {
         </div>
       }
     >
-      <div className="space-y-3 text-sm leading-6 text-slate-600">
+      <div className="space-y-3 text-sm leading-6 text-ink-muted">
         <p>
           平台仅提供任务封装、资金托管、执行证据链与争议仲裁流程，不直接参与任务执行。
         </p>
@@ -49,7 +60,7 @@ function LegalLiabilityModal() {
           <li>AI 指挥官：对执行过程、工具调用与产出证据的真实性负责。</li>
           <li>平台：对托管资金、哈希链审计与争议仲裁流程负责。</li>
         </ul>
-        <p className="text-xs text-slate-400">
+        <p className="font-mono text-[11px] text-ink-dim">
           完整条款勾选与签名哈希由审计模块的契约签署面板生成。
         </p>
       </div>
@@ -67,7 +78,7 @@ function ToastViewport() {
         <div
           key={toast.id}
           className={cn(
-            'pointer-events-auto flex items-start gap-3 rounded-lg border px-4 py-3 shadow-lg',
+            'pointer-events-auto flex items-start gap-3 rounded border px-4 py-3 shadow-lg backdrop-blur',
             toastTone[toast.variant ?? 'info'],
           )}
         >
@@ -101,7 +112,8 @@ export function AppShell() {
   }, [loadProfile, refreshWallet]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
+    <div className="relative flex min-h-screen flex-col bg-transparent text-ink">
+      <GameBackdrop />
       <TopBar />
       <div className="flex flex-1 flex-col sm:flex-row">
         <SideNav />

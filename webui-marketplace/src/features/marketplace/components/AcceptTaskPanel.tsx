@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Bot, CalendarClock, CheckCircle2, Handshake, Star } from 'lucide-react';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
+import { Card } from '../../../components/ui/Card';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { useTaskStore } from '../../../app/store/taskStore';
 import { useUiStore } from '../../../app/store/uiStore';
@@ -77,7 +78,7 @@ export function AcceptTaskPanel({
       setLease({ taskId: selected.id, expiresAt });
       pushToast({
         id: `accept-${selected.id}`,
-        title: '接单成功',
+        title: '已接受挑战',
         description: `${selected.title} · 租约到期 ${formatDateTime(expiresAt)}`,
         variant: 'success',
       });
@@ -85,7 +86,7 @@ export function AcceptTaskPanel({
     } catch (error) {
       pushToast({
         id: `accept-error-${selected.id}-${Date.now()}`,
-        title: '接单失败',
+        title: '接受挑战失败',
         description: errorMessage(error),
         variant: 'error',
       });
@@ -97,33 +98,33 @@ export function AcceptTaskPanel({
 
   return (
     <div className={className}>
-      <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <Card className="space-y-3 p-4">
         <div>
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-            <Handshake className="h-4 w-4 text-indigo-600" />
-            接单面板
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+            <Handshake className="h-4 w-4 text-neon" />
+            接受挑战面板
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            AI 指挥官视角：接单后获得限时租约，需在到期前提交可验证的交付物。
+          <p className="mt-0.5 text-xs text-ink-muted">
+            AI 指挥官视角：接受挑战后获得限时租约，需在到期前提交可验证的战利品。
           </p>
         </div>
 
         {options.length === 0 ? (
           <EmptyState
-            title="暂无可接任务"
-            description="当前筛选条件下没有任务，等待雇主发布新任务。"
+            title="暂无可挑战副本"
+            description="当前筛选条件下没有悬赏，等待雇主发布新悬赏。"
           />
         ) : (
           <>
             {options.length > 1 && (
               <label className="block space-y-1">
                 <span className="text-xs font-medium text-slate-600">
-                  选择任务
+                  选择副本
                 </span>
                 <select
                   value={selectedId}
                   onChange={(event) => setSelectedId(event.target.value)}
-                  className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="h-9 w-full rounded-lg border border-slate-300 bg-panel px-3 text-sm text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                 >
                   {options.map((item) => (
                     <option key={item.id} value={item.id}>
@@ -135,20 +136,20 @@ export function AcceptTaskPanel({
             )}
 
             {selected && (
-              <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="space-y-2 rounded-lg border border-panel-line bg-panel-soft p-3">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="line-clamp-2 text-sm font-medium text-slate-900">
+                  <p className="line-clamp-2 text-sm font-medium text-ink">
                     {selected.title}
                   </p>
                   <Badge
                     variant={STATUS_BADGE_VARIANT[selected.status]}
-                    className="shrink-0 whitespace-nowrap"
+                    className="shrink-0 whitespace-normal text-right"
                   >
                     {STATUS_LABEL[selected.status]}
                   </Badge>
                 </div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                  <span className="font-semibold text-indigo-600">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted">
+                  <span className="font-mono font-semibold text-gold">
                     {formatMoney(selected.reward.amount)}
                   </span>
                   <span className="inline-flex items-center gap-1">
@@ -174,12 +175,12 @@ export function AcceptTaskPanel({
             )}
 
             {leaseShown && lease ? (
-              <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+              <div className="flex items-start gap-2 rounded-lg border border-clear/30 bg-clear/10 p-3 text-xs text-clear">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
-                  <span className="block font-medium">已接单，租约生效</span>
+                  <span className="block font-medium">已接受挑战，租约生效</span>
                   租约到期时间：{formatDateTime(lease.expiresAt)}
-                  ，到期未提交将释放任务。
+                  ，到期未提交将释放副本。
                 </span>
               </div>
             ) : isOpen ? (
@@ -189,17 +190,17 @@ export function AcceptTaskPanel({
                 disabled={accepting}
               >
                 <Bot className="h-4 w-4" />
-                {accepting ? '接单中…' : '接单并领取租约'}
+                {accepting ? '接受挑战中…' : '接受挑战并领取租约'}
               </Button>
             ) : (
-              <p className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-500">
-                该任务当前状态为「{selected ? STATUS_LABEL[selected.status] : '未知'}」，
-                不可接单。请选择状态为「招募中」的任务。
+              <p className="rounded-lg border border-panel-line bg-panel-soft p-3 text-xs text-ink-muted">
+                该副本当前状态为「{selected ? STATUS_LABEL[selected.status] : '未知'}」，
+                不可接受挑战。请选择状态为「悬赏中」的副本。
               </p>
             )}
           </>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

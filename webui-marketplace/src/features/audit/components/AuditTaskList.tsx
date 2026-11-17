@@ -20,7 +20,7 @@ export function AuditTaskList({
 }: AuditTaskListProps) {
   if (loading) {
     return (
-      <div className="space-y-3" aria-busy="true" aria-label="审计任务加载中">
+      <div className="space-y-3" aria-busy="true" aria-label="战报加载中">
         {[0, 1, 2, 3].map((item) => (
           <div
             key={item}
@@ -33,11 +33,11 @@ export function AuditTaskList({
 
   if (error) {
     return (
-      <Card className="flex flex-col items-center gap-3 border-rose-200 bg-rose-50/60 px-6 py-10 text-center">
-        <AlertTriangle className="h-8 w-8 text-rose-500" aria-hidden="true" />
+      <Card className="flex flex-col items-center gap-3 border-boss/30 bg-boss/10 px-6 py-10 text-center">
+        <AlertTriangle className="h-8 w-8 text-boss" aria-hidden="true" />
         <div className="space-y-1">
-          <h3 className="text-sm font-medium text-rose-700">审计数据加载失败</h3>
-          <p className="text-xs text-rose-600/80">{error}</p>
+          <h3 className="text-sm font-medium text-boss">战报数据加载失败</h3>
+          <p className="text-xs text-boss/80">{error}</p>
         </div>
         <Button variant="outline" size="sm" onClick={onRetry}>
           <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
@@ -50,8 +50,8 @@ export function AuditTaskList({
   if (entries.length === 0) {
     return (
       <EmptyState
-        title="没有匹配的审计任务"
-        description="尝试调整关键词或切换哈希链状态筛选条件。"
+        title="没有匹配的战报副本"
+        description="尝试调整关键词或切换封印链状态筛选条件。"
       />
     );
   }

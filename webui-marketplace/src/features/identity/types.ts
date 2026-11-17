@@ -1,6 +1,6 @@
 import type { Channel, ExpertiseKind, UserRole } from '../../types/domain';
 
-/** 专家库 Tab：直接复用领域层的 ExpertiseKind，但只暴露三个可展示分类。 */
+/** 技能图鉴 Tab：直接复用领域层的 ExpertiseKind，但只暴露三个可展示分类。 */
 export type ExpertiseTabKey = Extract<
   ExpertiseKind,
   'AGENT' | 'DATA_ASSET' | 'PROMPT_TEMPLATE'
@@ -12,9 +12,9 @@ export interface ExpertiseTabItem {
 }
 
 export const EXPERTISE_TABS: ExpertiseTabItem[] = [
-  { key: 'AGENT', label: 'Agent 能力' },
-  { key: 'DATA_ASSET', label: '数据资产' },
-  { key: 'PROMPT_TEMPLATE', label: '提示词模板' },
+  { key: 'AGENT', label: '战友技能' },
+  { key: 'DATA_ASSET', label: '战利品档案' },
+  { key: 'PROMPT_TEMPLATE', label: '咒语模板' },
 ];
 
 /** 凭证上传弹窗中的本地凭证类型（不接真实后端）。 */
@@ -34,29 +34,29 @@ export const CREDENTIAL_TYPE_OPTIONS: CredentialTypeOption[] = [
   {
     value: 'STUDENT_ID',
     label: '学籍 / 学生证',
-    hint: '高校通道 · 学籍号或学生证照片',
+    hint: '学院试炼 · 学籍号或学生证照片',
   },
   {
     value: 'SCHOOL_EMAIL',
     label: '学校邮箱',
-    hint: '高校通道 · 使用 .edu 域名邮箱认证',
+    hint: '学院试炼 · 使用 .edu 域名邮箱认证',
   },
   {
     value: 'WORK_BADGE',
     label: '企业工牌',
-    hint: '企业白名单 · 工牌或在职证明',
+    hint: '公会担保 · 工牌或在职证明',
   },
   {
     value: 'ENTERPRISE_LICENSE',
     label: '企业资质',
-    hint: '企业白名单 · 统一社会信用代码等材料',
+    hint: '公会担保 · 统一社会信用代码等材料',
   },
 ];
 
 export const CHANNEL_LABELS: Record<Channel, string> = {
-  UNIVERSITY: '高校通道',
-  ENTERPRISE: '企业白名单',
-  FREELANCER: '自由职业',
+  UNIVERSITY: '学院试炼',
+  ENTERPRISE: '公会担保',
+  FREELANCER: '游侠自荐',
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -69,7 +69,7 @@ export interface LevelInfo {
   title: string;
   /** 当前等级内的进度，0–100 */
   progress: number;
-  /** 距离下一等级还需完成的任务数；已满级为 0 */
+  /** 距离下一等级还需通关的副本数；已满级为 0 */
   remaining: number;
   nextCode: string | null;
 }
@@ -89,7 +89,7 @@ const LEVEL_THRESHOLDS: LevelThreshold[] = [
 ];
 
 /**
- * 由真实完成任务数推导指挥官等级。
+ * 由真实通关副本数推导指挥官等级。
  * 缺失或非法输入按 0 处理，保证页面不崩溃。
  */
 export function deriveLevel(

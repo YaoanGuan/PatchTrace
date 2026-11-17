@@ -47,8 +47,8 @@ export function AIValidationPipeline({
     return (
       <EmptyState
         className={className}
-        title="暂无可展示的 AI 流水线"
-        description="选择一个任务后，可查看 AI 生成、AI 复核、合规扫描与结算四个阶段。"
+        title="暂无可展示的关卡进度"
+        description="选择一个副本后，可查看 AI 出招、裁判复核、规则扫描与掉落结算四个关卡。"
       />
     );
   }
@@ -80,12 +80,12 @@ export function AIValidationPipeline({
         <div className="space-y-4 p-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-                <GitBranch className="h-4 w-4 text-indigo-600" />
-                AI 验证流水线
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+                <GitBranch className="h-4 w-4 text-neon" />
+                关卡进度
               </h2>
-              <p className="mt-0.5 text-xs text-slate-500">
-                当前阶段：{STAGE_LABEL[currentStageKey]} · 任务状态随阶段推进同步更新
+              <p className="mt-0.5 text-xs text-ink-muted">
+                当前关卡：{STAGE_LABEL[currentStageKey]} · 副本状态随关卡推进同步更新
               </p>
             </div>
             <CrossCheckBadge status={derived.AI_REVIEW} />
@@ -106,9 +106,9 @@ export function AIValidationPipeline({
             ))}
           </div>
 
-          <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
-            平台不直接信任单个 AI：执行 AI 与平台审核 AI 相互隔离，
-            交付结论需交叉验证一致后，才进入合规扫描与资金结算。
+          <p className="rounded-lg border border-panel-line bg-panel-soft px-3 py-2 text-xs leading-5 text-ink-muted">
+            平台不直接信任单个 AI：出招 AI 与平台裁判 AI 相互隔离，
+            战利品结论需连携验证一致后，才进入规则扫描与掉落结算。
           </p>
         </div>
       </Card>

@@ -22,7 +22,7 @@ export function TaskMarketplace() {
     void fetchTasks(next).catch((error) => {
       pushToast({
         id: `filters-error-${Date.now()}`,
-        title: '筛选任务失败',
+        title: '筛选悬赏失败',
         description: errorMessage(error),
         variant: 'error',
       });

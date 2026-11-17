@@ -1,9 +1,9 @@
 import type { RegistrationChannel } from '../../types/domain';
 
-/** 注册提交后服务端返回的审核状态。 */
+/** 创建角色递交后服务端返回的试炼状态。 */
 export type RegistrationReviewStatus = 'PENDING' | 'VERIFIED';
 
-/** 页面级注册回执：通道 + 审核状态 + 本地提交时间。 */
+/** 页面级创建角色回执：通道 + 试炼状态 + 本地递交时间。 */
 export interface RegistrationStatus {
   channel: RegistrationChannel;
   status: RegistrationReviewStatus;

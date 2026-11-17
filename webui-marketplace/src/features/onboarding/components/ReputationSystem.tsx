@@ -47,7 +47,7 @@ export function ReputationSystem({ className }: ReputationSystemProps) {
           setRatings(reputation.ratings);
           setUsedFallback(reputation.dimensions.length === 0);
         } catch {
-          // 实时信誉不可用时，用 getMe() 的 reputation 概览兜底。
+          // 实时声望不可用时，用 getMe() 的 reputation 概览兜底。
           if (cancelled) {
             return;
           }
@@ -60,7 +60,7 @@ export function ReputationSystem({ className }: ReputationSystemProps) {
           return;
         }
         setError(
-          loadError instanceof Error ? loadError.message : '信誉数据加载失败。',
+          loadError instanceof Error ? loadError.message : '声望数据加载失败。',
         );
       } finally {
         if (!cancelled) {
@@ -86,7 +86,7 @@ export function ReputationSystem({ className }: ReputationSystemProps) {
     return (
       <EmptyState
         className={className}
-        title="信誉数据加载失败"
+        title="声望数据加载失败"
         description={error}
         action={
           <Button

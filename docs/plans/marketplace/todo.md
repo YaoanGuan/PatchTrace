@@ -8,10 +8,10 @@
 
 ## 0. 下一步动作（只做这一件）
 
-> T0–T14 全部完成：设计、4+1 个业务模块、Go API、前端 HTTP 接入、SQLite 持久化、品牌升级、M2 AI 专家、钱包、API 中转站。
-> 证据：`go test ./marketplace/... -race` → `ok 1.950s`；`tsc` exit 0（0 error）；mock/HTTP 双模式 build exit 0；三路由 headless 渲染无错误；信任口径不变量全部为 true。
-> 下一动作：浏览器打开 http://localhost:5174/expert 与 /identity 人工验收。
-> 注意：数据默认落 `data/marketplace.db`（gitignored）；默认 mock 模式仍可单独运行前端。
+> T0–T20 已完成。本轮迭代：游戏化皮肤（赛博地牢 HUD）。
+> 方案：`docs/plans/marketplace/game-theme-plan.md`；执行计划：`docs/superpowers/plans/2026-11-17-game-theme-ui.md`。
+> 下一动作：审阅 §2.15 验收证据；确认后提交（当前未 commit / 未 push）。
+> 注意：只改前端表现层；API 契约、类型字段、状态机、风险口径保持不变。
 
 ---
 
@@ -34,6 +34,12 @@
 | T12 | M2 AI 专家（信任收费站） | M2 | 完成 | tsc + 渲染 | 7 工具四类、82/高风险/已阻断 |
 | T13 | 个人中枢钱包 + API 中转站 | M1 | 完成 | tsc + 渲染 | 余额 3300、8 模型、Key 管理 |
 | T14 | 后端扩展与联调 | — | 完成 | go test + 三路由 | 8 接口、迁移、重启持久化 |
+| T15 | 游戏化主题基座 | — | 完成 | tsc + 截图 | 调色板反转、HUD、game 组件；tsc/双构建 exit 0 |
+| T16 | M1 角色圣殿 | M1 | 完成 | tsc + 渲染 | DOM 155,525B；六标记全中 |
+| T17 | M2 专家祭坛 | M2 | 完成 | tsc + 渲染 | DOM 142,703B；五标记全中；82/HIGH/blocked |
+| T18 | M3 悬赏大厅 | M3 | 完成 | tsc + 渲染 | DOM 147,698B；六标记全中；task_1003 BLOCK/PENDING |
+| T19 | M4/M5 战报与新手村 | M4/M5 | 完成 | tsc + 渲染 | audit 114,342B / detail 128,814B / onboarding 125,206B；标记全中 |
+| T20 | 游戏化验收 | — | 完成 | 截图 + build | 10 路由非空；5 词齐全；双构建 0；12 张截图 |
 
 ---
 
@@ -187,6 +193,62 @@
   - 接口：overview 82/HIGH/blocked=true；task_1001 PENDING/58/MEDIUM/未阻断；task_1003 blocked=true/82/HIGH；task_1006 PASS；未知 trust 404；recharge 0 → 400；非法 VIP → 400；非法 Key → 400
   - 持久化：充值 100 → available 3300；创建 key_002；SIGTERM 重启后 3300、7 条流水、2 个 key 仍在；旧快照 expert 种子被代码种子覆盖（`TestOpenStoreOverwritesStaleExpertSeed`）
   - 前端双模式：`VITE_API_MODE=http npm run build` exit 0；默认 mock build exit 0；mock preview `:4180` 三路由命中新模块；HTTP 模式 `:5174` 三路由数据来自真实 API
+
+### T15 · 游戏化主题基座
+
+- [x] Tailwind 调色板反转 + 赛博地牢令牌（`abyss/panel/ink/neon/gold/arcane/boss/clear`）
+- [x] 全局背景（径向辉光 + 网格 + 扫描线）、`.game-panel/.game-cut/.game-rule`、扫描/辉光动画与 reduced-motion
+- [x] 重绘 Button / Card / Badge / Progress / Tabs / Modal / EmptyState
+- [x] 新增 `QuestHeading`、`XpBar`、`LevelBadge`；重做 TopBar / SideNav / AppShell HUD
+- [x] 验证：`npx tsc --noEmit` → `TSC_EXIT=0`；`npm run build` → `✓ built in 14.84s` `MOCK_EXIT=0`；`VITE_API_MODE=http npm run build` → `✓ built in 12.67s` `HTTP_EXIT=0`
+  - 证据：`/tmp/theme-foundation.png`；HUD 渲染「主线 · 信任收费站 3/5」「QUEST LOG · 5 CHAPTERS」「NEXT BOSS · 大Boss · 未验证交付」
+  - 变更：`tailwind.config.cjs`、`src/index.css`、`src/components/{ui,game,layout,shared}/**`
+
+### T16 · M1 角色圣殿
+
+- [x] `QuestHeading`：`CHARACTER HALL · M1` / 冒险者圣殿
+- [x] 角色档案、升级进度、通关副本、连击率、翻车次数、声望；`LevelBadge` + `XpBar`
+- [x] 金币袋、技能补给站、召唤密钥、技能沉淀、技能图鉴
+- [x] 验证：DOM 155,525 bytes；标记计数 `冒险者圣殿×1、升级进度×1、金币袋×1、技能补给站×1、召唤密钥×5、技能沉淀×4`
+  - 截图：`/tmp/final-desktop-identity.png`、`/tmp/final-mobile-identity.png`
+
+### T17 · M2 专家祭坛
+
+- [x] `QuestHeading`：`EXPERT ALTAR · M2` / 信任收费站 · 副本裁判所
+- [x] 战友召唤图鉴、云座驾/命令行召唤/锻造台/传声筒、传说/史诗/稀有/普通、已缔结契约/待召唤/试炼场
+- [x] 双人连携验证、副本规则扫描、大Boss 威胁值/关卡封锁、副本裁判费、雇主公会/指挥官战队
+- [x] 数据标签归一化：`TrustPricing.normalizeService` 把 API 的「交叉验证/合规扫描/风险阻断」映射为游戏口径
+- [x] 验证：DOM 142,703 bytes；标记计数 `副本裁判所×1、战友召唤图鉴×1、双人连携×6、大Boss×8、关卡封锁×7`
+  - 计价卡：`副本规则扫描×5、双人连携验证×4、大Boss 威胁封锁×2`；旧标签计数 0
+  - API：`score 82 / level HIGH / blocked true`
+  - 截图：`/tmp/final-desktop-expert.png`、`/tmp/final-mobile-expert.png`
+
+### T18 · M3 悬赏大厅
+
+- [x] `QuestHeading`：`QUEST BOARD · M3` / 悬赏大厅 · 主线任务板；描述含「接副本、打怪、升级」
+- [x] `TASK_STATUS_LABELS` 游戏口径；`TASK_STATUS_VARIANTS` 与 `ALLOWED_TRANSITIONS` 未动
+- [x] 流水线 AI 出招 → 裁判复核 → 规则扫描 → 掉落结算；赏金押金、副本详情、提交战利品
+- [x] 验证：`/marketplace` DOM 147,698 bytes；`/marketplace/tasks/task_1001` DOM 122,597 bytes；标记计数 `悬赏大厅×2、打怪×1、副本进行中×3、裁判复核中×3、掉落结算中×3、已通关×3`
+  - API：`task_1003` → `blocked true`、`compliance[0].status BLOCK`、`validation.generatorVerdict PENDING`
+  - 截图：`/tmp/final-desktop-marketplace.png`、`/tmp/final-mobile-marketplace.png`、`/tmp/final-desktop-marketplace-tasks-task_1001.png`、`/tmp/final-mobile-marketplace-tasks-task_1001.png`
+
+### T19 · M4/M5 战报与新手村
+
+- [x] `WAR ARCHIVE · M4` / 战报回放；封印链、封印完好/破损、战斗回放时间线、战报节点、战报契约
+- [x] `verifyTrace`、`prevHash`、`headHash`、INVALID 判定、签名哈希未改
+- [x] `STARTER VILLAGE · M5` / 新手村与转职试炼；学院试炼/公会担保/游侠自荐、成就徽章墙、声望互评、创建角色/递交试炼
+- [x] 验证：`/audit` 114,342 bytes；`/audit/task_1001` 128,814 bytes；标记计数 `战报回放×1、封印完好×9、战斗回放时间线×1、战报节点×16`
+  - `/onboarding` 125,206 bytes；标记计数 `新手村与转职试炼×1、学院试炼×5、公会担保×3、游侠自荐×2、声望互评×2、成就徽章×1`
+  - 截图：`/tmp/final-desktop-audit-task_1001.png`、`/tmp/final-mobile-audit-task_1001.png`、`/tmp/final-desktop-onboarding.png`、`/tmp/final-mobile-onboarding.png`
+
+### T20 · 游戏化验收
+
+- [x] 10 条路由 `--dump-dom` 均非空：identity 155,525B、expert 142,703B、marketplace 147,698B、task_1001 122,597B、audit 114,342B、audit/task_1001 128,814B、onboarding 125,206B、404 86,574B、非法任务 87,000B、非法战报 88,123B
+- [x] 必现字眼：identity+expert+marketplace 合并命中 `升级 / 打怪 / 副本 / 主线 / 大Boss`
+- [x] 非法 ID 文案：`副本不存在或已下线`、`战报加载失败`；正常页无 `页面不存在` / `加载失败`
+- [x] API 不变量：overview `"score":82` `"level":"HIGH"` `"blocked":true`；task_1003 `"blocked":true`；wallet `"available":3300`
+- [x] 截图走查：6 页 × 2 宽度（1440×1600 / 390×844），深色面板、无白色大块、无横向溢出、无遮挡
+- [ ] 提交：等待用户确认后执行（未 commit / 未 push）
 
 ---
 

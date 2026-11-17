@@ -39,12 +39,14 @@ export function AuditTaskRow({ task, chain, lastNodeAt }: AuditTaskRowProps) {
               <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
               <span className="inline-flex items-center gap-1">
                 <Clock3 className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
-                最近节点：
-                {lastNodeAt ? formatDateTime(lastNodeAt) : '暂无证据链'}
+                最近战报节点：
+                {lastNodeAt ? formatDateTime(lastNodeAt) : '暂无战报'}
               </span>
               <span className="inline-flex items-center gap-1">
                 <GitBranch className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
-                {chain.nodeCount > 0 ? `${chain.nodeCount} 个节点` : '0 个节点'}
+                {chain.nodeCount > 0
+                  ? `${chain.nodeCount} 个战报节点`
+                  : '0 个战报节点'}
               </span>
             </div>
           </div>
@@ -52,7 +54,7 @@ export function AuditTaskRow({ task, chain, lastNodeAt }: AuditTaskRowProps) {
           <div className="flex shrink-0 items-center justify-between gap-3 sm:flex-col sm:items-end">
             <ChainStateBadge state={chain.state} />
             <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600">
-              查看证据链
+              查看战报回放
               <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
             </span>
           </div>

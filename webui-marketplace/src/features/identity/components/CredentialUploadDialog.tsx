@@ -15,7 +15,7 @@ export interface CredentialUploadDialogProps {
 }
 
 /**
- * 认证凭证上传弹窗。
+ * 成就凭证上传弹窗。
  * 演示实现：只维护本地凭证类型与文件名状态，提交时推送 toast，不真正上传。
  */
 export function CredentialUploadDialog({
@@ -64,7 +64,7 @@ export function CredentialUploadDialog({
 
     pushToast({
       id: `credential-success-${Date.now()}`,
-      title: '凭证已提交审核',
+      title: '成就凭证已提交',
       description: `${selected.label} · ${fileName}（本地演示，不会真实上传）`,
       variant: 'success',
     });
@@ -75,20 +75,20 @@ export function CredentialUploadDialog({
     <Modal
       open={open}
       onClose={handleClose}
-      title="上传认证凭证"
-      description="学籍 / 工牌 / 企业资质，仅用于演示本地状态。"
+      title="上传成就凭证"
+      description="学籍 / 工牌 / 企业资质，用于点亮学院试炼、公会担保等成就徽章（本地演示）。"
       footer={
         <div className="flex items-center justify-end gap-2">
           <Button variant="secondary" onClick={handleClose}>
             取消
           </Button>
-          <Button onClick={handleSubmit}>提交审核</Button>
+          <Button onClick={handleSubmit}>提交认证</Button>
         </div>
       }
     >
       <div className="space-y-4">
         <div>
-          <p className="mb-2 text-xs font-medium text-slate-600">凭证类型</p>
+          <p className="mb-2 text-xs font-medium text-ink-muted">徽章凭证类型</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {CREDENTIAL_TYPE_OPTIONS.map((option) => {
               const active = option.value === credentialType;
@@ -101,20 +101,20 @@ export function CredentialUploadDialog({
                   className={cn(
                     'rounded-lg border p-3 text-left transition-colors',
                     active
-                      ? 'border-indigo-500 bg-indigo-50/60'
-                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50',
+                      ? 'border-gold/50 bg-gold/10'
+                      : 'border-panel-line bg-panel hover:border-gold/40 hover:bg-panel-soft',
                   )}
                 >
-                  <span className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
                     {option.label}
                     {active && (
                       <ShieldCheck
-                        className="h-3.5 w-3.5 text-indigo-600"
+                        className="h-3.5 w-3.5 text-gold"
                         aria-hidden="true"
                       />
                     )}
                   </span>
-                  <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+                  <span className="mt-0.5 block text-xs leading-5 text-ink-muted">
                     {option.hint}
                   </span>
                 </button>
@@ -124,13 +124,13 @@ export function CredentialUploadDialog({
         </div>
 
         <div>
-          <p className="mb-2 text-xs font-medium text-slate-600">凭证文件</p>
-          <label className="flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center transition-colors hover:border-indigo-400 hover:bg-indigo-50/40">
-            <FileUp className="h-5 w-5 text-slate-400" aria-hidden="true" />
-            <span className="text-sm text-slate-700">
+          <p className="mb-2 text-xs font-medium text-ink-muted">徽章凭证文件</p>
+          <label className="flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-panel-line bg-panel-soft px-4 py-6 text-center transition-colors hover:border-gold/50 hover:bg-gold/5">
+            <FileUp className="h-5 w-5 text-ink-dim" aria-hidden="true" />
+            <span className="text-sm text-ink">
               {fileName ?? '点击选择文件'}
             </span>
-            <span className="text-[11px] text-slate-400">
+            <span className="text-[11px] text-ink-dim">
               支持 PDF / PNG / JPG，单个文件不超过 10MB
             </span>
             <input

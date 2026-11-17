@@ -12,15 +12,15 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-indigo-600 text-white shadow-sm hover:bg-indigo-500 focus-visible:ring-indigo-500/50',
+    'game-cut bg-gradient-to-b from-gold to-[#d9a531] font-semibold text-slate-950 shadow-gold hover:from-[#ffdd8c] hover:to-gold focus-visible:ring-gold/50',
   secondary:
-    'bg-slate-100 text-slate-800 hover:bg-slate-200 focus-visible:ring-slate-400/50',
+    'border border-panel-line bg-panel-soft text-ink hover:border-neon/50 hover:text-neon focus-visible:ring-neon/40',
   ghost:
-    'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-slate-400/50',
+    'bg-transparent text-ink-muted hover:bg-panel-soft hover:text-ink focus-visible:ring-neon/30',
   danger:
-    'bg-rose-600 text-white shadow-sm hover:bg-rose-500 focus-visible:ring-rose-500/50',
+    'game-cut bg-gradient-to-b from-rose-500 to-rose-600 font-semibold text-white shadow-boss hover:from-rose-400 hover:to-rose-500 focus-visible:ring-rose-500/50',
   outline:
-    'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-400/50',
+    'border border-panel-line bg-transparent text-ink-muted hover:border-neon/60 hover:text-neon focus-visible:ring-neon/40',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -40,7 +40,7 @@ export function Button({
     <button
       type={type}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex items-center justify-center gap-2 rounded-md font-medium tracking-wide transition-all focus:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50',
         variantClasses[variant],
         sizeClasses[size],
         className,

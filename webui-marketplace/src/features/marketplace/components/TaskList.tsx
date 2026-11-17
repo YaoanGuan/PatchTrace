@@ -15,7 +15,7 @@ function TaskListSkeleton() {
       {Array.from({ length: 4 }).map((_, index) => (
         <div
           key={index}
-          className="h-40 animate-pulse rounded-xl border border-slate-200 bg-white p-4"
+          className="h-40 animate-pulse rounded-xl border border-slate-200 bg-panel p-4"
         >
           <div className="mb-3 h-4 w-2/3 rounded bg-slate-100" />
           <div className="mb-2 h-3 w-1/2 rounded bg-slate-100" />
@@ -40,11 +40,11 @@ export function TaskList({ tasks, category, loading }: TaskListProps) {
     return (
       <EmptyState
         icon={<ListChecks className="h-8 w-8 text-slate-400" />}
-        title="没有匹配的任务"
+        title="没有匹配的悬赏"
         description={
           tasks.length > 0
-            ? '当前类别下暂无任务，试试切换类别或放宽筛选条件。'
-            : '调整关键词、状态或赏金区间后再试一次。'
+            ? '当前类别下暂无副本，试试切换类别或放宽筛选条件。'
+            : '调整关键词、关卡状态或金币赏金区间后再试一次。'
         }
       />
     );
@@ -53,7 +53,7 @@ export function TaskList({ tasks, category, loading }: TaskListProps) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-xs text-slate-500">
-        <span>{filtered.length} 个任务</span>
+        <span>{filtered.length} 个悬赏</span>
         {loading && <span className="text-indigo-600">刷新中…</span>}
       </div>
       <div className="grid gap-3 md:grid-cols-2">

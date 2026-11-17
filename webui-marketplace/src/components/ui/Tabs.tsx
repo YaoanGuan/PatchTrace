@@ -18,7 +18,7 @@ export function Tabs({ items, value, onChange, className }: TabsProps) {
     <div
       role="tablist"
       className={cn(
-        'inline-flex flex-wrap items-center gap-1 rounded-lg bg-slate-100 p-1',
+        'inline-flex flex-wrap items-center gap-1 rounded-md border border-panel-line bg-panel-soft/70 p-1',
         className,
       )}
     >
@@ -33,10 +33,10 @@ export function Tabs({ items, value, onChange, className }: TabsProps) {
             disabled={item.disabled}
             onClick={() => onChange(item.key)}
             className={cn(
-              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+              'rounded px-3 py-1.5 text-xs font-medium tracking-wide transition-all disabled:cursor-not-allowed disabled:opacity-50',
               active
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-800',
+                ? 'bg-panel text-gold shadow-glow'
+                : 'text-ink-muted hover:bg-panel hover:text-ink',
             )}
           >
             {item.label}

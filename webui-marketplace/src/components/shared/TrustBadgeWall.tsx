@@ -40,8 +40,8 @@ export function TrustBadgeWall({ badges, className }: TrustBadgeWallProps) {
     return (
       <EmptyState
         className={className}
-        title="暂无认证徽章"
-        description="完成高校、企业或任务通关认证后，这里会展示你的信任凭证。"
+        title="暂无成就徽章"
+        description="完成学院试炼、公会担保或副本通关认证后，这里会点亮你的成就。"
       />
     );
   }
@@ -53,22 +53,22 @@ export function TrustBadgeWall({ badges, className }: TrustBadgeWallProps) {
         return (
           <div
             key={badge.id}
-            className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="flex items-start gap-3 rounded border border-panel-line bg-panel/70 p-4 shadow-sm transition-colors hover:border-gold/30"
           >
-            <span className="rounded-lg bg-indigo-50 p-2 text-indigo-600">
-              <Icon className="h-4 w-4" />
+            <span className="rounded border border-gold/30 bg-gold/10 p-2 text-gold">
+              <Icon className="h-4 w-4" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-start justify-between gap-2">
-                <h3 className="truncate text-sm font-medium text-slate-900">
+                <h3 className="truncate text-sm font-medium text-ink">
                   {badge.label}
                 </h3>
                 <Badge variant={statusVariants[badge.status]}>
                   {statusLabels[badge.status]}
                 </Badge>
               </div>
-              <p className="truncate text-xs text-slate-500">{badge.issuer}</p>
-              <p className="text-[11px] text-slate-400">
+              <p className="truncate text-xs text-ink-muted">{badge.issuer}</p>
+              <p className="font-mono text-[10px] text-ink-dim">
                 认证时间 {badge.verifiedAt.slice(0, 10)}
               </p>
             </div>

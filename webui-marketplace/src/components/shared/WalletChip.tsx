@@ -1,4 +1,4 @@
-import { Wallet } from 'lucide-react';
+import { Coins } from 'lucide-react';
 import { useWalletStore } from '../../app/store/walletStore';
 import { cn } from '../../lib/cn';
 
@@ -12,6 +12,7 @@ const formatAmount = (amount: number): string =>
     maximumFractionDigits: 2,
   });
 
+/** 金币袋：HUD 上的可用金币与押金。 */
 export function WalletChip({ className }: WalletChipProps) {
   const balance = useWalletStore((state) => state.balance);
   const symbol = balance.currency === 'CNY' ? '¥' : balance.currency;
@@ -19,19 +20,19 @@ export function WalletChip({ className }: WalletChipProps) {
   return (
     <div
       className={cn(
-        'inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600',
+        'inline-flex items-center gap-2 rounded border border-gold/30 bg-gold/10 px-3 py-1.5 text-xs text-gold',
         className,
       )}
-      title={`可用 ${symbol}${formatAmount(balance.available)} · 冻结 ${symbol}${formatAmount(balance.frozen)}`}
+      title={`可用金币 ${symbol}${formatAmount(balance.available)} · 押金冻结 ${symbol}${formatAmount(balance.frozen)}`}
     >
-      <Wallet className="h-4 w-4 text-indigo-600" />
-      <span className="font-semibold text-slate-900">
+      <Coins className="h-4 w-4" aria-hidden="true" />
+      <span className="font-mono font-semibold">
         {symbol}
         {formatAmount(balance.available)}
       </span>
       {balance.frozen > 0 && (
-        <span className="hidden text-slate-400 sm:inline">
-          冻结 {symbol}
+        <span className="hidden font-mono text-[10px] text-ink-dim sm:inline">
+          押金 {symbol}
           {formatAmount(balance.frozen)}
         </span>
       )}

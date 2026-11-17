@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Send } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
+import { Card } from '../../../components/ui/Card';
 import { useTaskStore } from '../../../app/store/taskStore';
 import { useUiStore } from '../../../app/store/uiStore';
 import { cn } from '../../../lib/cn';
@@ -9,7 +10,7 @@ import { ComplianceAck } from './ComplianceAck';
 import { RewardInput } from './RewardInput';
 
 const fieldClass =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100';
+  'w-full rounded-lg border border-slate-300 bg-panel px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100';
 
 function toLocalInput(date: Date): string {
   const offset = date.getTimezoneOffset();
@@ -56,13 +57,13 @@ export function TaskPublishForm() {
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};
     if (!title.trim()) {
-      next.title = '请填写任务标题';
+      next.title = '请填写悬赏标题';
     }
     if (!description.trim()) {
-      next.description = '请填写任务描述';
+      next.description = '请填写悬赏描述';
     }
     if (!reward || !Number.isFinite(reward) || reward <= 0) {
-      next.reward = '赏金必须大于 0';
+      next.reward = '金币赏金必须大于 0';
     }
     if (!deadline || Number.isNaN(new Date(deadline).getTime())) {
       next.deadline = '请选择有效的截止时间';
@@ -73,7 +74,7 @@ export function TaskPublishForm() {
         .map((line) => line.trim())
         .filter(Boolean).length === 0
     ) {
-      next.criteria = '至少填写一条验收标准';
+      next.criteria = '至少填写一条通关条件';
     }
     if (skills.length === 0) {
       next.skills = '至少选择一个所需技能';
@@ -115,8 +116,8 @@ export function TaskPublishForm() {
 
       pushToast({
         id: `publish-${created.id}`,
-        title: '任务已发布',
-        description: `赏金 ${formatMoney(created.reward.amount)} 已进入托管，等待 AI 指挥官接单。`,
+        title: '悬赏已发布',
+        description: `金币赏金 ${formatMoney(created.reward.amount)} 已进入赏金押金，等待 AI 指挥官接受挑战。`,
         variant: 'success',
       });
 
@@ -132,7 +133,7 @@ export function TaskPublishForm() {
     } catch (error) {
       pushToast({
         id: `publish-error-${Date.now()}`,
-        title: '任务发布失败',
+        title: '悬赏发布失败',
         description: errorMessage(error),
         variant: 'error',
       });
@@ -142,17 +143,17 @@ export function TaskPublishForm() {
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <Card className="space-y-3 p-4">
       <div>
-        <h2 className="text-sm font-semibold text-slate-900">发布新任务</h2>
-        <p className="mt-0.5 text-xs text-slate-500">
-          雇主视角：明确目标、验收标准与所需技能，发布后赏金进入平台托管。
+        <h2 className="text-sm font-semibold text-ink">发布悬赏</h2>
+        <p className="mt-0.5 text-xs text-ink-muted">
+          雇主视角：明确副本目标、通关条件与出战技能，发布后金币赏金进入赏金押金。
         </p>
       </div>
 
       <div className="space-y-1">
         <label className="text-xs font-medium text-slate-600" htmlFor="task-title">
-          任务标题
+          悬赏标题
         </label>
         <input
           id="task-title"
@@ -169,14 +170,14 @@ export function TaskPublishForm() {
           className="text-xs font-medium text-slate-600"
           htmlFor="task-description"
         >
-          任务描述
+          悬赏描述
         </label>
         <textarea
           id="task-description"
           rows={3}
           value={description}
           onChange={(event) => setDescription(event.target.value)}
-          placeholder="目标、范围、授权边界与可交付物"
+          placeholder="目标、范围、授权边界与可提交的战利品"
           className={cn(fieldClass, errors.description && 'border-rose-300')}
         />
         {errors.description && (
@@ -187,7 +188,7 @@ export function TaskPublishForm() {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
           <label className="text-xs font-medium text-slate-600" htmlFor="task-category">
-            任务类别
+            副本类别
           </label>
           <select
             id="task-category"
@@ -231,7 +232,7 @@ export function TaskPublishForm() {
 
       <div className="space-y-1">
         <label className="text-xs font-medium text-slate-600" htmlFor="task-criteria">
-          验收标准（每行一条）
+          通关条件（每行一条）
         </label>
         <textarea
           id="task-criteria"
@@ -246,7 +247,7 @@ export function TaskPublishForm() {
       </div>
 
       <div className="space-y-1">
-        <span className="text-xs font-medium text-slate-600">所需技能</span>
+        <span className="text-xs font-medium text-slate-600">出战技能</span>
         <div className="flex flex-wrap gap-1.5">
           {SKILL_OPTIONS.map((skill) => {
             const active = skills.includes(skill.value);
@@ -259,7 +260,7 @@ export function TaskPublishForm() {
                   'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
                   active
                     ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300',
+                    : 'border-slate-200 bg-panel text-slate-600 hover:border-slate-300',
                 )}
               >
                 {skill.label}
@@ -281,8 +282,8 @@ export function TaskPublishForm() {
         disabled={submitting}
       >
         <Send className="h-4 w-4" />
-        {submitting ? '发布中…' : '发布任务并托管赏金'}
+        {submitting ? '发布中…' : '发布悬赏并缴纳赏金押金'}
       </Button>
-    </div>
+    </Card>
   );
 }

@@ -15,7 +15,7 @@ export const EMPTY_VERIFICATION: ChainVerification = {
   issues: [],
   brokenAt: null,
   brokenNodeId: null,
-  reason: '暂无证据链',
+  reason: '暂无战报',
 };
 
 /** 哈希展示统一截断：前 10 位 + 后 6 位 */
@@ -93,7 +93,7 @@ export function verifyTrace(
     return {
       ...EMPTY_VERIFICATION,
       headHash: trace?.headHash ?? null,
-      reason: trace ? '暂无证据链节点' : '证据链加载失败',
+      reason: trace ? '暂无战报节点' : '战报加载失败',
     };
   }
 

@@ -12,7 +12,7 @@ export interface UseChannelRegistrationResult {
 }
 
 /**
- * 三通道注册共用提交流程：调用 API、同步本地审核状态、统一 toast。
+ * 三通道创建角色共用提交流程：调用 API、同步本地审核状态、统一 toast。
  * 认证状态只回传给页面本地，不写回 sessionStore，避免污染其他模块。
  */
 export function useChannelRegistration(
@@ -48,11 +48,11 @@ export function useChannelRegistration(
         id: `registration-${result.channel}-${Date.now()}`,
         title:
           result.status === 'VERIFIED'
-            ? `${CHANNEL_LABELS[result.channel]}认证已通过`
-            : `${CHANNEL_LABELS[result.channel]}资料已提交`,
+            ? `${CHANNEL_LABELS[result.channel]} · 试炼通过`
+            : `${CHANNEL_LABELS[result.channel]} · 已递交试炼`,
         description:
           result.status === 'VERIFIED'
-            ? '服务端已返回认证通过；平台保留后续复核与补充材料的权利。'
+            ? '服务端已返回试炼通过；平台保留后续复核与补充材料的权利。'
             : '资料已进入人工审核，预计 1–3 个工作日完成，请留意站内通知。',
         variant: result.status === 'VERIFIED' ? 'success' : 'info',
       });
@@ -61,7 +61,7 @@ export function useChannelRegistration(
     } catch (error) {
       pushToast({
         id: `registration-error-${channel}-${Date.now()}`,
-        title: '注册提交失败',
+        title: '试炼递交失败',
         description:
           error instanceof Error ? error.message : '网络异常，请稍后重试。',
         variant: 'error',

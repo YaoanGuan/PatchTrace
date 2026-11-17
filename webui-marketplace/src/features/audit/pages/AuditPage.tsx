@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getTasks, getTrace } from '../../../lib/api/client';
+import { Badge } from '../../../components/ui/Badge';
+import { QuestHeading } from '../../../components/game/QuestHeading';
 import { AuditFilterBar } from '../components/AuditFilterBar';
 import { AuditTaskList } from '../components/AuditTaskList';
 import { HashChainSummary } from '../components/HashChainSummary';
@@ -38,7 +40,7 @@ export function AuditPage() {
     } catch (caught) {
       setEntries([]);
       setError(
-        caught instanceof Error ? caught.message : '审计数据加载失败，请重试',
+        caught instanceof Error ? caught.message : '战报数据加载失败，请重试',
       );
     } finally {
       setLoading(false);
@@ -86,19 +88,16 @@ export function AuditPage() {
 
   return (
     <section className="space-y-6">
-      <div className="space-y-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-indigo-600">
-          M4 · 责任隔离与防篡改审计
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-          审计证据
-        </h1>
-        <p className="max-w-3xl text-sm leading-6 text-slate-500">
-          以任务为单位查看不可篡改的执行证据链。列表对已加载任务逐条执行
-          prevHash 校验，异常链路会标记并可进入详情定位断点；默认演示任务
-          task_1001 拥有完整的 6 类节点证据链。
-        </p>
-      </div>
+      <QuestHeading
+        chapter="WAR ARCHIVE · M4"
+        title="战报回放"
+        description="以副本为单位查看不可篡改的执行战报。列表对已加载副本逐条执行 prevHash 封印校验，封印破损的副本会标记并可进入详情定位断点；默认演示副本 task_1001 拥有完整的 6 类战报节点。"
+        badge={
+          <Badge variant="outline" className="font-mono">
+            副本 {counts.total}
+          </Badge>
+        }
+      />
 
       <AuditFilterBar
         keyword={keyword}

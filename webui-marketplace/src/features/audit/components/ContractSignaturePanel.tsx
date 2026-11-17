@@ -40,10 +40,10 @@ export function ContractSignaturePanel({
   const signDisabled = disabled || !allAccepted || signing || signed !== null;
 
   return (
-    <div className="space-y-3 rounded-lg border border-slate-200 bg-white px-3 py-3">
+    <div className="space-y-3 rounded-lg border border-slate-200 bg-panel px-3 py-3">
       <div className="flex items-center gap-2">
         <UserRoundCheck className="h-4 w-4 text-indigo-500" aria-hidden="true" />
-        <h3 className="text-sm font-semibold text-slate-900">签署信息</h3>
+        <h3 className="text-sm font-semibold text-ink">签署信息</h3>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -90,7 +90,7 @@ export function ContractSignaturePanel({
             aria-hidden="true"
           />
           <span>
-            契约已签署（演示）· {formatDateTime(signed.signedAt)}
+            战报契约已签署（演示）· {formatDateTime(signed.signedAt)}
           </span>
         </div>
       )}

@@ -23,10 +23,10 @@ export function ComplianceAck({
       <span className="space-y-1">
         <span className="flex items-center gap-1.5 text-sm font-medium text-amber-900">
           <ShieldCheck className="h-4 w-4" />
-          合规承诺
+          副本规则承诺
         </span>
         <span className="block text-xs leading-5 text-amber-800">
-          我承诺任务目标合法合规，不包含未授权的攻击目标或敏感数据；
+          我承诺副本目标合法合规，不包含未授权的攻击目标或敏感数据；
           已阅读平台责任边界，理解雇主、指挥官与平台三方责任划分。
         </span>
       </span>

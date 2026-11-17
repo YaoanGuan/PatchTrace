@@ -104,7 +104,7 @@ export function TraceNode({
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-slate-400">
+          <span className="font-mono text-xs font-semibold text-slate-400">
             #{String(index + 1).padStart(2, '0')}
           </span>
           <span className="text-sm font-semibold text-slate-900">
@@ -112,12 +112,20 @@ export function TraceNode({
           </span>
           <span className="text-xs text-slate-400">{meta.description}</span>
           {broken ? (
-            <Badge variant="danger">
+            <Badge
+              variant="danger"
+              className="border-boss/30 bg-boss/10 text-boss"
+            >
               <Link2Off className="h-3 w-3" aria-hidden="true" />
-              断链
+              封印破损
             </Badge>
           ) : (
-            <Badge variant="success">链校验通过</Badge>
+            <Badge
+              variant="success"
+              className="border-clear/30 bg-clear/10 text-clear"
+            >
+              封印完好
+            </Badge>
           )}
           <span className="ml-auto text-xs text-slate-400">
             {formatDateTime(node.at)}
@@ -126,9 +134,9 @@ export function TraceNode({
 
         <div
           className={cn(
-            'mt-2 rounded-lg border bg-white p-3',
+            'mt-2 rounded-lg border bg-panel p-3',
             broken
-              ? 'border-rose-200 ring-1 ring-rose-100'
+              ? 'border-boss/30 ring-1 ring-boss/20'
               : 'border-slate-200',
           )}
         >
@@ -148,7 +156,7 @@ export function TraceNode({
           <p className="mt-2 text-sm leading-6 text-slate-700">{node.summary}</p>
 
           <dl className="mt-3 grid gap-2 sm:grid-cols-2">
-            <EvidenceItem label="证据哈希">
+            <EvidenceItem label="战报哈希">
               <HashText hash={node.evidence.hash} />
             </EvidenceItem>
             <EvidenceItem label="载荷引用">
@@ -182,7 +190,7 @@ export function TraceNode({
             <span>当前</span>
             <HashText hash={node.hash} />
             {node.prevHash === null && (
-              <span className="text-slate-400">（链首节点）</span>
+              <span className="text-slate-400">（封印链首节点）</span>
             )}
           </div>
         </div>

@@ -9,21 +9,40 @@ export interface TrustPricingProps {
 }
 
 const SERVICE_ICONS = [GitCompareArrows, ScanLine, ShieldAlert];
-const SERVICE_FALLBACK_LABELS = ['交叉验证', '合规扫描', '风险阻断'];
+const SERVICE_FALLBACK_LABELS = [
+  '双人连携验证',
+  '副本规则扫描',
+  '大Boss 威胁封锁',
+];
 
 function normalizeService(service: string | undefined, index: number): string {
   const raw = (service ?? '').trim();
   const lower = raw.toLowerCase();
-  if (lower.includes('valid') || lower.includes('cross')) {
-    return '交叉验证';
+  if (
+    lower.includes('valid') ||
+    lower.includes('cross') ||
+    raw.includes('交叉') ||
+    raw.includes('验证')
+  ) {
+    return '双人连携验证';
   }
-  if (lower.includes('compliance') || lower.includes('scan')) {
-    return '合规扫描';
+  if (
+    lower.includes('compliance') ||
+    lower.includes('scan') ||
+    raw.includes('合规') ||
+    raw.includes('扫描')
+  ) {
+    return '副本规则扫描';
   }
-  if (lower.includes('risk') || lower.includes('block')) {
-    return '风险阻断';
+  if (
+    lower.includes('risk') ||
+    lower.includes('block') ||
+    raw.includes('风险') ||
+    raw.includes('阻断')
+  ) {
+    return '大Boss 威胁封锁';
   }
-  return raw || SERVICE_FALLBACK_LABELS[index] || '信任服务';
+  return raw || SERVICE_FALLBACK_LABELS[index] || '副本裁判服务';
 }
 
 function formatPrice(price: number | undefined): string {
@@ -34,8 +53,8 @@ function formatPrice(price: number | undefined): string {
 }
 
 /**
- * 信任服务计价卡：交叉验证 / 合规扫描 / 风险阻断三档单价。
- * 数据来自 overview.pricing，空数组时降级为说明文案。
+ * 副本裁判费计价卡：双人连携验证 / 副本规则扫描 / 大Boss 威胁封锁三档单价。
+ * 数据来自 overview.pricing，空数组时降级为说明文案；金额与计费口径保持原样。
  */
 export function TrustPricing({ pricing, className }: TrustPricingProps) {
   const items = pricing ?? [];
@@ -43,16 +62,16 @@ export function TrustPricing({ pricing, className }: TrustPricingProps) {
   return (
     <Card className={cn('p-4', className)}>
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold text-slate-900">信任服务计价</h2>
-        <span className="text-[10px] text-slate-400">按任务计费</span>
+        <h2 className="text-sm font-semibold text-ink">副本裁判费</h2>
+        <span className="text-[10px] text-ink-dim">按副本收取裁判费</span>
       </div>
-      <p className="mt-0.5 text-[11px] text-slate-500">
+      <p className="mt-0.5 text-[11px] text-ink-muted">
         不卖模型调用，只卖可信交付 · 不含上游 API 成本
       </p>
 
       {items.length === 0 ? (
-        <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
-          计价信息暂不可用
+        <div className="mt-3 rounded-lg border border-dashed border-panel-line bg-panel-soft px-3 py-4 text-center text-xs text-ink-muted">
+          裁判费计价信息暂不可用
         </div>
       ) : (
         <ul className="mt-3 space-y-2">
@@ -63,18 +82,18 @@ export function TrustPricing({ pricing, className }: TrustPricingProps) {
                 key={`${item.service ?? 'service'}-${index}`}
                 className="flex items-center gap-2.5"
               >
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-arcane/10 text-arcane ring-1 ring-inset ring-arcane/30">
                   <Icon className="h-4 w-4" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-slate-800">
+                  <p className="truncate text-xs font-medium text-ink">
                     {normalizeService(item.service, index)}
                   </p>
-                  <p className="truncate text-[10px] text-slate-500">
+                  <p className="truncate text-[10px] text-ink-muted">
                     计费单位 · {item.unit || '次'}
                   </p>
                 </div>
-                <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-900">
+                <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-gold">
                   {formatPrice(item.price)}
                 </span>
               </li>

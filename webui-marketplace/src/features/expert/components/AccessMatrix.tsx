@@ -11,6 +11,7 @@ import type {
 import {
   AI_TOOL_CATEGORY_LABEL,
   AI_TOOL_CATEGORY_ORDER,
+  AI_TOOL_GRADE_LABEL,
   AI_TOOL_GRADES,
 } from '../labels';
 import { ToolCard } from './ToolCard';
@@ -24,7 +25,7 @@ type CategoryFilter = AiToolCategory | 'ALL';
 type GradeFilter = AiToolGrade | 'ALL';
 
 /**
- * 接入矩阵：分类 + 信任等级双重筛选，网格展示所有已接入 / 待接入的 AI 工具。
+ * 战友召唤图鉴：召唤通道 + 稀有度双重筛选，网格展示所有已缔结契约 / 待召唤的 AI 战友。
  */
 export function AccessMatrix({ tools, className }: AccessMatrixProps) {
   const list = useMemo(() => tools ?? [], [tools]);
@@ -49,7 +50,7 @@ export function AccessMatrix({ tools, className }: AccessMatrixProps) {
       { key: 'ALL', label: '全部等级' },
       ...AI_TOOL_GRADES.map((key) => ({
         key,
-        label: `${key} 级`,
+        label: AI_TOOL_GRADE_LABEL[key],
       })),
     ],
     [],
@@ -73,23 +74,26 @@ export function AccessMatrix({ tools, className }: AccessMatrixProps) {
     <section className={cn('space-y-3', className)}>
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="flex items-center gap-1.5 text-base font-semibold text-slate-900">
-            <LayoutGrid className="h-4 w-4 text-indigo-600" />
-            接入矩阵
+          <h2 className="flex items-center gap-1.5 text-base font-semibold text-ink">
+            <LayoutGrid className="h-4 w-4 text-arcane" />
+            战友召唤图鉴
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            云托管计算机 / AI CLI / AI IDE / 聊天客户端四类全覆盖 · 共 {list.length}{' '}
-            个工具，{connectedCount} 个已连接
+          <p className="mt-0.5 text-xs text-ink-muted">
+            云座驾（云托管计算机）/ 命令行召唤（AI CLI）/ 锻造台（AI IDE）/
+            传声筒（聊天客户端）四类召唤通道全覆盖 · 共{' '}
+            <span className="font-mono text-ink">{list.length}</span> 位战友，
+            <span className="font-mono text-clear">{connectedCount}</span>{' '}
+            位已缔结契约
           </p>
         </div>
-        <p className="text-xs text-slate-400">
-          当前筛选：{filtered.length} 个
+        <p className="text-xs text-ink-dim">
+          当前筛选：<span className="font-mono text-ink">{filtered.length}</span> 位
         </p>
       </div>
 
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-slate-500">分类</span>
+          <span className="text-xs font-medium text-ink-muted">召唤类型</span>
           <Tabs
             items={categoryItems}
             value={category}
@@ -97,7 +101,7 @@ export function AccessMatrix({ tools, className }: AccessMatrixProps) {
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-slate-500">等级</span>
+          <span className="text-xs font-medium text-ink-muted">稀有度</span>
           <Tabs
             items={gradeItems}
             value={grade}
@@ -108,8 +112,8 @@ export function AccessMatrix({ tools, className }: AccessMatrixProps) {
 
       {filtered.length === 0 ? (
         <EmptyState
-          title="当前筛选下暂无接入工具"
-          description="尝试切换分类或信任等级；工具接入后会在这里展示协议、权限与合规标签。"
+          title="当前筛选下暂无已召唤战友"
+          description="尝试切换召唤类型或稀有度；战友缔结契约后会在这里展示召唤协议、权限与规则标签。"
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

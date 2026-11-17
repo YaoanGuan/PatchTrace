@@ -7,8 +7,16 @@ import type {
   ValidationVerdict,
 } from '../../types/domain';
 
-/** 接入工具分类 */
+/** 战友召唤图鉴：召唤通道分类（保留原英文枚举与后端数据）。 */
 export const AI_TOOL_CATEGORY_LABEL: Record<AiToolCategory, string> = {
+  CLOUD_COMPUTER: '云座驾',
+  AI_CLI: '命令行召唤',
+  AI_IDE: '锻造台',
+  CHAT_UI: '传声筒',
+};
+
+/** 分类对应的原始接入说明，用于副标题与 tooltip，避免语义丢失。 */
+export const AI_TOOL_CATEGORY_ORIGIN_LABEL: Record<AiToolCategory, string> = {
   CLOUD_COMPUTER: '云托管计算机',
   AI_CLI: 'AI CLI',
   AI_IDE: 'AI IDE',
@@ -22,97 +30,99 @@ export const AI_TOOL_CATEGORY_ORDER: AiToolCategory[] = [
   'CHAT_UI',
 ];
 
-/** 接入工具状态 */
+/** 契约状态：已缔结契约 / 待召唤 / 试炼场。 */
 export const AI_TOOL_STATUS_LABEL: Record<AiToolStatus, string> = {
-  CONNECTED: '已连接',
-  PENDING: '待接入',
-  SANDBOX: '沙箱环境',
+  CONNECTED: '已缔结契约',
+  PENDING: '待召唤',
+  SANDBOX: '试炼场',
 };
 
 export const AI_TOOL_STATUS_CLASS: Record<AiToolStatus, string> = {
-  CONNECTED: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20',
-  PENDING: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20',
-  SANDBOX: 'bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-600/20',
+  CONNECTED: 'bg-clear/10 text-clear ring-1 ring-inset ring-clear/30',
+  PENDING: 'bg-amber-500/10 text-amber-300 ring-1 ring-inset ring-amber-500/30',
+  SANDBOX: 'bg-neon/10 text-neon ring-1 ring-inset ring-neon/30',
 };
 
-/** 信任等级 */
+/** 稀有度：传说 / 史诗 / 稀有 / 普通（保留 S/A/B/C 字母）。 */
 export const AI_TOOL_GRADE_LABEL: Record<AiToolGrade, string> = {
-  S: 'S 级',
-  A: 'A 级',
-  B: 'B 级',
-  C: 'C 级',
+  S: '传说 S',
+  A: '史诗 A',
+  B: '稀有 B',
+  C: '普通 C',
 };
 
 export const AI_TOOL_GRADE_CLASS: Record<AiToolGrade, string> = {
-  S: 'bg-indigo-600 text-white',
-  A: 'bg-emerald-600 text-white',
-  B: 'bg-amber-500 text-white',
-  C: 'bg-slate-500 text-white',
+  S: 'bg-gold/15 text-gold ring-1 ring-inset ring-gold/40',
+  A: 'bg-arcane/15 text-arcane ring-1 ring-inset ring-arcane/40',
+  B: 'bg-neon/15 text-neon ring-1 ring-inset ring-neon/40',
+  C: 'bg-panel-soft text-ink-muted ring-1 ring-inset ring-panel-line',
 };
 
 export const AI_TOOL_GRADES: AiToolGrade[] = ['S', 'A', 'B', 'C'];
 
-/** 交叉验证判定 */
+/** 双人连携判定。 */
 export const VERDICT_LABEL: Record<ValidationVerdict, string> = {
-  PASS: '通过',
-  FAIL: '未通过',
+  PASS: '通关',
+  FAIL: '挑战失败',
   PENDING: '待定',
 };
 
 export const VERDICT_CLASS: Record<ValidationVerdict, string> = {
-  PASS: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20',
-  FAIL: 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20',
-  PENDING: 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-500/20',
+  PASS: 'bg-clear/10 text-clear ring-1 ring-inset ring-clear/30',
+  FAIL: 'bg-boss/10 text-boss ring-1 ring-inset ring-boss/30',
+  PENDING: 'bg-panel-soft text-ink-muted ring-1 ring-inset ring-panel-line',
 };
 
 export const VERDICT_STEP_CLASS: Record<ValidationVerdict, string> = {
-  PASS: 'border-emerald-200 bg-emerald-50/50',
-  FAIL: 'border-rose-200 bg-rose-50/50',
-  PENDING: 'border-slate-200 bg-slate-50/60',
+  PASS: 'border-clear/30 bg-clear/10',
+  FAIL: 'border-boss/30 bg-boss/10',
+  PENDING: 'border-panel-line bg-panel-soft',
 };
 
-/** 合规严重级别 */
+/** 副本规则扫描的严重级别。 */
 export const SEVERITY_LABEL: Record<ComplianceSeverity, string> = {
+  LOW: '低危',
+  MEDIUM: '警戒',
+  HIGH: '高危',
+  CRITICAL: '灭团级',
+};
+
+export const SEVERITY_CLASS: Record<ComplianceSeverity, string> = {
+  LOW: 'text-clear bg-clear/10',
+  MEDIUM: 'text-amber-300 bg-amber-500/10',
+  HIGH: 'text-orange-300 bg-orange-500/10',
+  CRITICAL: 'text-boss bg-boss/15',
+};
+
+/** 大Boss 威胁值等级。 */
+export const RISK_LEVEL_LABEL: Record<RiskLevel, string> = {
   LOW: '低',
   MEDIUM: '中',
   HIGH: '高',
   CRITICAL: '严重',
 };
 
-export const SEVERITY_CLASS: Record<ComplianceSeverity, string> = {
-  LOW: 'text-slate-600 bg-slate-100',
-  MEDIUM: 'text-amber-700 bg-amber-50',
-  HIGH: 'text-orange-700 bg-orange-50',
-  CRITICAL: 'text-rose-700 bg-rose-50',
-};
-
-/** 风险级别 */
-export const RISK_LEVEL_LABEL: Record<RiskLevel, string> = {
-  LOW: '低风险',
-  MEDIUM: '中风险',
-  HIGH: '高风险',
-  CRITICAL: '严重风险',
-};
-
 export const RISK_LEVEL_TEXT_CLASS: Record<RiskLevel, string> = {
-  LOW: 'text-emerald-600',
-  MEDIUM: 'text-amber-600',
-  HIGH: 'text-orange-600',
-  CRITICAL: 'text-rose-600',
+  LOW: 'text-clear',
+  MEDIUM: 'text-amber-300',
+  HIGH: 'text-orange-300',
+  CRITICAL: 'text-boss',
 };
 
 export const RISK_LEVEL_BADGE_CLASS: Record<RiskLevel, string> = {
-  LOW: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20',
-  MEDIUM: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20',
-  HIGH: 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-600/20',
-  CRITICAL: 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20',
+  LOW: 'bg-clear/10 text-clear ring-1 ring-inset ring-clear/30',
+  MEDIUM:
+    'bg-amber-500/10 text-amber-300 ring-1 ring-inset ring-amber-500/30',
+  HIGH:
+    'bg-orange-500/10 text-orange-300 ring-1 ring-inset ring-orange-500/30',
+  CRITICAL: 'bg-boss/15 text-boss ring-1 ring-inset ring-boss/40',
 };
 
 export const RISK_LEVEL_SEGMENT_CLASS: Record<RiskLevel, string> = {
-  LOW: 'bg-emerald-400',
+  LOW: 'bg-clear',
   MEDIUM: 'bg-amber-400',
   HIGH: 'bg-orange-500',
-  CRITICAL: 'bg-rose-600',
+  CRITICAL: 'bg-boss',
 };
 
 export const RISK_LEVEL_ORDER: RiskLevel[] = [

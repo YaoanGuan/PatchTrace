@@ -45,7 +45,7 @@ export function TraceabilityTimeline({
                 <p className="truncate text-[11px] font-medium text-slate-600">
                   {meta.label}
                 </p>
-                <p className="text-[11px] text-slate-400">{count} 个节点</p>
+                <p className="text-[11px] text-slate-400">{count} 个战报节点</p>
               </div>
             </div>
           );
@@ -54,8 +54,8 @@ export function TraceabilityTimeline({
 
       {nodes.length === 0 ? (
         <EmptyState
-          title="暂无证据链节点"
-          description="该任务尚未产生可审计的执行记录，无法执行哈希链校验或签署免责契约。"
+          title="暂无战报节点"
+          description="该副本尚未产生可回放的执行记录，无法执行封印链校验或签署战报契约。"
         />
       ) : (
         <ol className="space-y-0">

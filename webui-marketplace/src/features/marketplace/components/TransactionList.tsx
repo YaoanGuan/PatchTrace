@@ -42,41 +42,41 @@ export function TransactionList({
 
   if (items.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs text-slate-500">
-        暂无资金流水
+      <p className="rounded-lg border border-dashed border-panel-line bg-panel-soft px-3 py-6 text-center text-xs text-ink-muted">
+        暂无金币流水
       </p>
     );
   }
 
   return (
-    <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+    <div className="divide-y divide-panel-line rounded-lg border border-panel-line bg-panel">
       {items.map((transaction) => (
         <div
           key={transaction.id}
           className="flex items-center gap-3 px-3 py-2.5"
         >
-          <span className="rounded-lg bg-slate-100 p-1.5 text-slate-500">
+          <span className="rounded-lg bg-panel-soft p-1.5 text-ink-muted">
             <Receipt className="h-3.5 w-3.5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-slate-800">
+            <p className="text-sm font-medium text-ink">
               {TRANSACTION_TYPE_LABEL[transaction.type]}
             </p>
-            <p className="truncate text-xs text-slate-400">
-              {transaction.taskId ? `${transaction.taskId} · ` : ''}
+            <p className="truncate text-xs text-ink-dim">
+              {transaction.taskId ? `副本 ${transaction.taskId} · ` : ''}
               {formatDateTime(transaction.at)}
             </p>
           </div>
           <div className="text-right">
             <p
-              className={`text-sm font-semibold ${transactionTone(transaction.type)}`}
+              className={`font-mono text-sm font-semibold ${transactionTone(transaction.type)}`}
             >
               {transactionSign(transaction.type)}
               {formatMoney(transaction.amount)}
             </p>
             <Badge
               variant={STATUS_VARIANT[transaction.status]}
-              className="mt-0.5"
+              className="mt-0.5 whitespace-normal text-right"
             >
               {STATUS_LABEL[transaction.status]}
             </Badge>

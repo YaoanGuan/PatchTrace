@@ -24,8 +24,9 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const withSuspense = (node: ReactNode) => (
   <Suspense
     fallback={
-      <div className="flex h-48 items-center justify-center text-sm text-slate-400">
-        页面加载中…
+      <div className="flex h-48 items-center justify-center gap-2 font-mono text-sm text-ink-dim">
+        <span className="h-2 w-2 animate-pulse-glow rounded-full bg-neon" />
+        副本加载中…
       </div>
     }
   >

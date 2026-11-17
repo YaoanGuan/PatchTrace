@@ -45,7 +45,7 @@ export function FreelancerForm({ onRegistered }: FreelancerFormProps) {
 
     const nextErrors: ChannelFormErrors<FreelancerFormValues> = {};
     if (!values.realName.trim()) {
-      nextErrors.realName = '请填写真实姓名。';
+      nextErrors.realName = '请填写游侠实名。';
     }
     if (!values.portfolioUrl.trim()) {
       nextErrors.portfolioUrl = '请填写作品集链接。';
@@ -72,7 +72,7 @@ export function FreelancerForm({ onRegistered }: FreelancerFormProps) {
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField
           id="freelancer-real-name"
-          label="实名"
+          label="游侠实名"
           required
           error={errors.realName}
           hint="仅用于人工审核，不会公开展示。"
@@ -113,9 +113,9 @@ export function FreelancerForm({ onRegistered }: FreelancerFormProps) {
 
         <FormField
           id="freelancer-history"
-          label="历史评价说明"
+          label="历史战报说明"
           error={errors.historyNote}
-          hint="可补充过往合作方、代表性交付或争议说明，帮助审核人员判断初始信誉。"
+          hint="可补充过往合作方、代表性交付或争议说明，帮助审核人员判断初始声望。"
           className="sm:col-span-2"
         >
           <textarea
@@ -129,7 +129,7 @@ export function FreelancerForm({ onRegistered }: FreelancerFormProps) {
               'resize-y',
               errors.historyNote && inputErrorClassName,
             )}
-            placeholder="例如：曾为 3 家中小企业完成代码审计，交付证据链完整，无争议记录。"
+            placeholder="例如：曾为 3 家中小企业完成代码审计，交付战报完整，无争议记录。"
           />
         </FormField>
       </div>
@@ -137,10 +137,10 @@ export function FreelancerForm({ onRegistered }: FreelancerFormProps) {
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={submitting}>
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-          {submitting ? '提交中…' : '提交自由职业者申请'}
+          {submitting ? '递交中…' : '递交游侠自荐'}
         </Button>
-        <span className="text-xs text-slate-400">
-          作品集与历史评价说明用于人工审核展示，接口当前提交实名作为核验证据。
+        <span className="text-xs text-ink-dim">
+          作品集与历史战报说明用于人工审核展示，接口当前提交实名作为核验证据。
         </span>
       </div>
     </form>

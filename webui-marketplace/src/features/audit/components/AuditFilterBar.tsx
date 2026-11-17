@@ -19,8 +19,8 @@ export interface AuditFilterBarProps {
 
 const FILTERS: { key: ChainFilter; label: string }[] = [
   { key: 'ALL', label: '全部' },
-  { key: 'VALID', label: '已校验' },
-  { key: 'INVALID', label: '异常' },
+  { key: 'VALID', label: '封印完好' },
+  { key: 'INVALID', label: '封印破损' },
 ];
 
 export function AuditFilterBar({
@@ -44,10 +44,10 @@ export function AuditFilterBar({
           type="search"
           value={keyword}
           onChange={(event) => onKeywordChange(event.target.value)}
-          placeholder="搜索任务标题、ID 或发布者"
-          aria-label="搜索审计任务"
+          placeholder="搜索副本标题、ID 或发布者"
+          aria-label="搜索战报副本"
           className={cn(
-            'h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400',
+            'h-10 w-full rounded-lg border border-slate-300 bg-panel pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400',
             'focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20',
           )}
         />
@@ -56,7 +56,7 @@ export function AuditFilterBar({
       <div className="flex flex-wrap items-center gap-3">
         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
           <ShieldCheck className="h-4 w-4 text-indigo-500" aria-hidden="true" />
-          哈希链状态
+          封印链状态
         </span>
         <Tabs
           items={FILTERS.map((filter) => ({
@@ -68,7 +68,7 @@ export function AuditFilterBar({
         />
         {counts.unverified > 0 && (
           <span className="text-xs text-slate-400">
-            另有 {counts.unverified} 条暂无证据链
+            另有 {counts.unverified} 条暂无战报
           </span>
         )}
       </div>

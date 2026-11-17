@@ -1,5 +1,6 @@
 import { RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
+import { Card } from '../../../components/ui/Card';
 import { cn } from '../../../lib/cn';
 import type { TaskFilters as TaskFiltersValue, TaskStatus } from '../../../types/domain';
 import { STATUS_LABEL } from '../utils';
@@ -33,7 +34,7 @@ const STATUS_OPTIONS: Array<TaskStatus | 'ALL'> = [
 ];
 
 const inputClass =
-  'h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100';
+  'h-9 w-full rounded-lg border border-slate-300 bg-panel px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100';
 
 export function TaskFilters({
   filters,
@@ -45,16 +46,11 @@ export function TaskFilters({
   className,
 }: TaskFiltersProps) {
   return (
-    <div
-      className={cn(
-        'space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm',
-        className,
-      )}
-    >
+    <Card className={cn('space-y-3 p-4', className)}>
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-          <SlidersHorizontal className="h-4 w-4 text-indigo-600" />
-          任务筛选
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <SlidersHorizontal className="h-4 w-4 text-neon" />
+          悬赏筛选
         </h2>
         <Button variant="ghost" size="sm" onClick={onReset}>
           <RotateCcw className="h-3.5 w-3.5" />
@@ -80,7 +76,7 @@ export function TaskFilters({
         </label>
 
         <label className="space-y-1">
-          <span className="text-xs font-medium text-slate-600">类别</span>
+          <span className="text-xs font-medium text-slate-600">副本类别</span>
           <select
             value={category}
             onChange={(event) => onCategoryChange(event.target.value)}
@@ -95,7 +91,7 @@ export function TaskFilters({
         </label>
 
         <label className="space-y-1">
-          <span className="text-xs font-medium text-slate-600">状态</span>
+          <span className="text-xs font-medium text-slate-600">关卡状态</span>
           <select
             value={filters.status}
             onChange={(event) =>
@@ -115,7 +111,7 @@ export function TaskFilters({
         </label>
 
         <div className="space-y-1">
-          <span className="text-xs font-medium text-slate-600">赏金区间</span>
+          <span className="text-xs font-medium text-slate-600">金币赏金区间</span>
           <div className="flex items-center gap-2">
             <input
               type="number"
@@ -131,7 +127,7 @@ export function TaskFilters({
                   page: 1,
                 })
               }
-              placeholder="最低 ¥"
+              placeholder="最低金币"
               className={inputClass}
             />
             <span className="text-xs text-slate-400">至</span>
@@ -149,12 +145,12 @@ export function TaskFilters({
                   page: 1,
                 })
               }
-              placeholder="最高 ¥"
+              placeholder="最高金币"
               className={inputClass}
             />
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

@@ -54,12 +54,12 @@ export function EscrowWallet({ taskId, escrow, className }: EscrowWalletProps) {
   return (
     <div className={cn('space-y-3', className)}>
       <div>
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-          <Lock className="h-4 w-4 text-indigo-600" />
-          托管钱包
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <Lock className="h-4 w-4 text-gold" />
+          赏金押金钱包
         </h2>
-        <p className="mt-0.5 text-xs text-slate-500">
-          赏金发布即冻结，AI 交叉复核与合规扫描通过后释放；争议期间资金保持冻结。
+        <p className="mt-0.5 text-xs text-ink-muted">
+          金币赏金发布即冻结，裁判复核与规则扫描通关后释放；仲裁期间赏金押金保持冻结。
         </p>
       </div>
 
@@ -67,12 +67,12 @@ export function EscrowWallet({ taskId, escrow, className }: EscrowWalletProps) {
 
       <Card>
         <div className="space-y-2 p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            托管任务
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            赏金押金记录
           </h3>
           {visibleRows.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs text-slate-500">
-              {taskId ? '该任务暂无托管记录' : '暂无托管任务'}
+            <p className="rounded-lg border border-dashed border-panel-line bg-panel-soft px-3 py-6 text-center text-xs text-ink-muted">
+              {taskId ? '该副本暂无赏金押金记录' : '暂无赏金押金记录'}
             </p>
           ) : (
             <div className="space-y-2">
@@ -86,8 +86,8 @@ export function EscrowWallet({ taskId, escrow, className }: EscrowWalletProps) {
 
       <Card>
         <div className="space-y-2 p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            资金流水
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            金币流水
           </h3>
           <TransactionList transactions={transactions} taskId={taskId} />
         </div>

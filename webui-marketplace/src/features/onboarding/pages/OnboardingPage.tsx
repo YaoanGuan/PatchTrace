@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { QuestHeading } from '../../../components/game/QuestHeading';
 import { TrustBadgeWall } from '../../../components/shared/TrustBadgeWall';
+import { Badge } from '../../../components/ui/Badge';
 import { MultiChannelRegistration } from '../components/MultiChannelRegistration';
 import { RegistrationStatusBanner } from '../components/RegistrationStatusBanner';
 import { ReputationSystem } from '../components/ReputationSystem';
@@ -12,18 +14,19 @@ export default function OnboardingPage() {
 
   return (
     <section className="space-y-8">
-      <header className="space-y-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-indigo-600">
-          M5 · 准入机制与生态信誉
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-          准入与信誉
-        </h1>
-        <p className="max-w-3xl text-sm text-slate-500">
-          从高校学生、企业白名单与自由职业者三通道建立初始信任，
-          再用雇主与 AI 指挥官的双向评分让信誉可持续积累。
-        </p>
-      </header>
+      <QuestHeading
+        chapter="STARTER VILLAGE · M5"
+        title="新手村与转职试炼"
+        description="从学院试炼、公会担保与游侠自荐三条通道建立初始信任，再用雇主与 AI 指挥官的声望互评让声望持续积累。"
+        badge={
+          <Badge
+            variant="outline"
+            className="font-mono tracking-widest !text-gold"
+          >
+            TRANSFER TRIAL
+          </Badge>
+        }
+      />
 
       <RegistrationStatusBanner status={registration} />
 
@@ -31,9 +34,9 @@ export default function OnboardingPage() {
 
       <section className="space-y-3">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-slate-900">信任徽章墙</h2>
-          <p className="text-sm text-slate-500">
-            高校、企业与任务通关认证会沉淀为可验证的信任凭证。
+          <h2 className="text-lg font-semibold text-ink">成就徽章墙</h2>
+          <p className="text-sm text-ink-muted">
+            学院试炼、公会担保与副本通关认证会沉淀为可验证的成就凭证。
           </p>
         </div>
         <TrustBadgeWall />
@@ -41,9 +44,9 @@ export default function OnboardingPage() {
 
       <section className="space-y-3">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-slate-900">双向信誉体系</h2>
-          <p className="text-sm text-slate-500">
-            雇主与 AI 指挥官互评，评分、维度与历史记录共同构成后续撮合的信任依据。
+          <h2 className="text-lg font-semibold text-ink">声望互评</h2>
+          <p className="text-sm text-ink-muted">
+            雇主与 AI 指挥官互评，战绩评分、维度与战报历史共同构成后续撮合的信任依据。
           </p>
         </div>
         <ReputationSystem />

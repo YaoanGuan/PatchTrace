@@ -48,15 +48,15 @@ export function UniversityVerificationForm({
 
     const nextErrors: ChannelFormErrors<UniversityFormValues> = {};
     if (!values.school.trim()) {
-      nextErrors.school = '请填写学校名称。';
+      nextErrors.school = '请填写学院名称。';
     }
     if (!values.studentId.trim()) {
       nextErrors.studentId = '请填写学籍号。';
     }
     if (!values.schoolEmail.trim()) {
-      nextErrors.schoolEmail = '请填写学校邮箱。';
+      nextErrors.schoolEmail = '请填写学院邮箱。';
     } else if (!EMAIL_PATTERN.test(values.schoolEmail.trim())) {
-      nextErrors.schoolEmail = '请输入有效的邮箱地址，建议使用 .edu.cn 学校邮箱。';
+      nextErrors.schoolEmail = '请输入有效的邮箱地址，建议使用 .edu.cn 学院邮箱。';
     }
 
     setErrors(nextErrors);
@@ -79,7 +79,7 @@ export function UniversityVerificationForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField
           id="university-school"
-          label="学校名称"
+          label="学院名称"
           required
           error={errors.school}
           className="sm:col-span-2"
@@ -119,10 +119,10 @@ export function UniversityVerificationForm({
 
         <FormField
           id="university-email"
-          label="学校邮箱"
+          label="学院邮箱"
           required
           error={errors.schoolEmail}
-          hint="用于接收审核结果与认证通知。"
+          hint="用于接收试炼结果与认证通知。"
         >
           <input
             id="university-email"
@@ -141,10 +141,10 @@ export function UniversityVerificationForm({
 
       <FormField
         id="university-student-card"
-        label="学生证上传"
+        label="学员凭证上传"
         hint="演示占位：当前不会真正上传文件，仅记录文件名用于界面展示。"
       >
-        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-3">
+        <div className="rounded-lg border border-dashed border-arcane/40 bg-arcane/5 px-3 py-3">
           <input
             id="university-student-card"
             type="file"
@@ -156,9 +156,9 @@ export function UniversityVerificationForm({
           />
           <label
             htmlFor="university-student-card"
-            className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 transition-colors hover:text-slate-900"
+            className="flex cursor-pointer items-center gap-2 text-sm text-ink-muted transition-colors hover:text-arcane"
           >
-            <Upload className="h-4 w-4 shrink-0" />
+            <Upload className="h-4 w-4 shrink-0 text-arcane" />
             <span className="truncate">
               {values.studentCardName ||
                 '选择学生证照片或扫描件（演示占位）'}
@@ -170,10 +170,10 @@ export function UniversityVerificationForm({
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={submitting}>
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-          {submitting ? '提交中…' : '提交高校认证材料'}
+          {submitting ? '递交中…' : '递交学院试炼'}
         </Button>
-        <span className="text-xs text-slate-400">
-          提交后进入审核，认证状态以服务端返回为准。
+        <span className="text-xs text-ink-dim">
+          递交后进入试炼审核，认证状态以服务端返回为准。
         </span>
       </div>
     </form>

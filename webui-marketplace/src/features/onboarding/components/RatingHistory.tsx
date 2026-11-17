@@ -29,23 +29,23 @@ export function RatingHistory({
   return (
     <Card className={cn('p-5', className)}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-900">评分历史</h3>
-        <Badge variant="outline">{ordered.length} 条记录</Badge>
+        <h3 className="text-sm font-semibold text-ink">战绩评分历史</h3>
+        <Badge variant="outline">{ordered.length} 条战报</Badge>
       </div>
 
       {loading ? (
-        <div className="mt-4 flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
+        <div className="mt-4 flex items-center justify-center gap-2 py-8 text-sm text-ink-muted">
           <Loader2 className="h-4 w-4 animate-spin" />
-          评分历史加载中…
+          战报历史加载中…
         </div>
       ) : ordered.length === 0 ? (
         <EmptyState
           className="mt-4 border-none bg-transparent px-0 py-8"
-          title="暂无评分记录"
-          description="完成一次任务协作并提交互评后，评分历史会展示在这里。"
+          title="暂无战报点评"
+          description="完成一次副本协作并提交声望互评后，战报历史会展示在这里。"
         />
       ) : (
-        <ul className="mt-3 divide-y divide-slate-100">
+        <ul className="mt-3 divide-y divide-panel-line">
           {ordered.map((rating) => (
             <li key={rating.id} className="space-y-2 py-4 first:pt-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -53,15 +53,15 @@ export function RatingHistory({
                   <Badge variant={directionVariants[rating.direction]}>
                     {RATING_DIRECTION_LABELS[rating.direction]}
                   </Badge>
-                  <span className="inline-flex items-center gap-1 text-sm font-medium text-slate-900">
-                    <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                  <span className="inline-flex items-center gap-1 font-mono text-sm font-medium text-ink">
+                    <Star className="h-4 w-4 fill-gold text-gold" />
                     {rating.score.toFixed(1)}
-                    <span className="text-xs font-normal text-slate-400">
+                    <span className="font-mono text-xs font-normal text-ink-dim">
                       / 5.0
                     </span>
                   </span>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-slate-400">
+                <div className="flex items-center gap-3 text-xs text-ink-dim">
                   <span className="font-mono">{rating.taskId}</span>
                   <span>{rating.createdAt.slice(0, 10)}</span>
                 </div>
@@ -72,7 +72,7 @@ export function RatingHistory({
                   {rating.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600"
+                      className="rounded-full bg-panel-soft px-2 py-0.5 text-[11px] text-ink-muted"
                     >
                       {tag}
                     </span>
@@ -81,7 +81,7 @@ export function RatingHistory({
               )}
 
               {rating.comment && (
-                <p className="text-sm leading-relaxed text-slate-600">
+                <p className="text-sm leading-relaxed text-ink-muted">
                   {rating.comment}
                 </p>
               )}

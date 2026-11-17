@@ -2,10 +2,10 @@ import type { ReactNode } from 'react';
 import { cn } from '../../../lib/cn';
 
 export const inputClassName =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition-colors placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:bg-slate-50';
+  'w-full rounded-lg border border-slate-300 bg-panel px-3 py-2 text-sm text-ink shadow-sm outline-none transition-colors placeholder:text-ink-dim focus:border-neon focus:ring-2 focus:ring-neon/20 disabled:cursor-not-allowed disabled:bg-panel-soft';
 
 export const inputErrorClassName =
-  'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20';
+  'border-boss focus:border-boss focus:ring-boss/20';
 
 export interface FormFieldProps {
   id: string;
@@ -30,22 +30,22 @@ export function FormField({
     <div className={cn('space-y-1.5', className)}>
       <label
         htmlFor={id}
-        className="flex items-center gap-1 text-sm font-medium text-slate-700"
+        className="flex items-center gap-1 text-sm font-medium text-ink"
       >
         {label}
         {required && (
-          <span aria-hidden="true" className="text-rose-500">
+          <span aria-hidden="true" className="text-gold">
             *
           </span>
         )}
       </label>
       {children}
       {error ? (
-        <p role="alert" className="text-xs text-rose-600">
+        <p role="alert" className="text-xs text-boss">
           {error}
         </p>
       ) : hint ? (
-        <p className="text-xs text-slate-400">{hint}</p>
+        <p className="text-xs text-ink-dim">{hint}</p>
       ) : null}
     </div>
   );

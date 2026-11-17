@@ -30,7 +30,7 @@ export function SignatureHash({
       <div className="mt-2">
         <HashText
           hash={hash}
-          className="bg-white text-[12px] text-indigo-700 ring-1 ring-inset ring-indigo-100"
+          className="bg-panel text-[12px] text-indigo-700 ring-1 ring-inset ring-indigo-100"
         />
       </div>
 

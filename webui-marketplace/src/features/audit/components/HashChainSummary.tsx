@@ -20,23 +20,23 @@ export function HashChainSummary({ entries }: HashChainSummaryProps) {
   const overall =
     invalid > 0
       ? {
-          label: '存在异常链路',
+          label: '存在封印破损',
           variant: 'danger' as const,
-          description: `${invalid} 条任务的哈希链校验未通过，请进入详情定位异常节点。`,
+          description: `${invalid} 条副本的封印链校验未通过，请进入详情定位破损节点。`,
         }
       : valid > 0
         ? {
-            label: '已校验链路完整',
+            label: '封印完好',
             variant: 'success' as const,
             description:
               unverified > 0
-                ? `已获取证据链的 ${valid} 条任务校验全部通过，另有 ${unverified} 条任务暂无证据链。`
-                : '当前列表全部任务的 prevHash 与 headHash 校验均通过。',
+                ? `已获取战报的 ${valid} 条副本封印全部完好，另有 ${unverified} 条副本暂无战报。`
+                : '当前列表全部副本的 prevHash 与 headHash 封印校验均通过。',
           }
         : {
-            label: '暂无已校验链路',
+            label: '暂无封印记录',
             variant: 'outline' as const,
-            description: '当前列表中的任务均未提供证据链节点。',
+            description: '当前列表中的副本均未提供战报节点。',
           };
 
   return (
@@ -45,10 +45,10 @@ export function HashChainSummary({ entries }: HashChainSummaryProps) {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-indigo-500" aria-hidden="true" />
-            <h2 className="text-sm font-semibold text-slate-900">哈希链概览</h2>
+            <h2 className="text-sm font-semibold text-ink">封印链概览</h2>
           </div>
-          <p className="text-xs text-slate-500">
-            对当前列表逐条调用证据链接口，执行 prevHash → 上一节点 hash 的现算校验。
+          <p className="text-xs text-ink-muted">
+            对当前列表逐条调用战报接口，执行 prevHash → 上一节点 hash 的封印现算校验。
           </p>
         </div>
         <Badge variant={overall.variant}>{overall.label}</Badge>
@@ -56,31 +56,31 @@ export function HashChainSummary({ entries }: HashChainSummaryProps) {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <SummaryStat
-          label="已校验"
+          label="封印完好"
           value={valid}
           suffix="条"
-          tone="text-emerald-600"
+          tone="text-clear"
           icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}
         />
         <SummaryStat
-          label="异常"
+          label="封印破损"
           value={invalid}
           suffix="条"
-          tone="text-rose-600"
+          tone="text-boss"
           icon={<ShieldAlert className="h-4 w-4" aria-hidden="true" />}
         />
         <SummaryStat
-          label="未校验"
+          label="暂无战报"
           value={unverified}
           suffix="条"
-          tone="text-slate-500"
+          tone="text-ink-dim"
           icon={<ShieldOff className="h-4 w-4" aria-hidden="true" />}
         />
         <SummaryStat
-          label="节点总数"
+          label="战报节点总数"
           value={nodeTotal}
           suffix="个"
-          tone="text-indigo-600"
+          tone="text-neon"
           icon={<Activity className="h-4 w-4" aria-hidden="true" />}
         />
       </div>
@@ -88,8 +88,8 @@ export function HashChainSummary({ entries }: HashChainSummaryProps) {
       <Progress
         value={checked}
         max={Math.max(total, 1)}
-        label={`校验覆盖率（${checked}/${total} 条任务）`}
-        barClassName={invalid > 0 ? 'bg-rose-500' : 'bg-emerald-500'}
+        label={`封印校验覆盖率（${checked}/${total} 条副本）`}
+        barClassName={invalid > 0 ? 'bg-boss' : 'bg-clear'}
       />
 
       <p className="text-xs text-slate-400">{overall.description}</p>
@@ -112,7 +112,7 @@ function SummaryStat({ label, value, suffix, tone, icon }: SummaryStatProps) {
         {icon}
         {label}
       </div>
-      <p className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
+      <p className="mt-1 font-mono text-xl font-semibold tracking-tight text-ink">
         {value}
         <span className="ml-1 text-xs font-normal text-slate-400">{suffix}</span>
       </p>

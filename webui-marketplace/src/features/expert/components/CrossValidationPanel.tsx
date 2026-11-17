@@ -12,7 +12,13 @@ export interface CrossValidationPanelProps {
 }
 
 const VERDICT_FALLBACK_CLASS =
-  'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-500/20';
+  'bg-panel-soft text-ink-muted ring-1 ring-inset ring-panel-line';
+
+const CONSENSUS_LABEL: Record<ValidationVerdict, string> = {
+  PASS: '连携成功',
+  FAIL: '连携失败',
+  PENDING: '连携待裁决',
+};
 
 function formatCost(cost: number | undefined): string {
   if (typeof cost !== 'number' || !Number.isFinite(cost)) {
@@ -44,24 +50,26 @@ function formatAt(at: string | undefined): string {
 function VerdictMetric({
   label,
   verdict,
+  labels,
 }: {
   label: string;
   verdict: ValidationVerdict | undefined;
+  labels?: Record<ValidationVerdict, string>;
 }) {
   const safeVerdict: ValidationVerdict =
     verdict === 'PASS' || verdict === 'FAIL' || verdict === 'PENDING'
       ? verdict
       : 'PENDING';
   return (
-    <div className="rounded-lg bg-slate-50 px-3 py-2">
-      <p className="text-[11px] text-slate-500">{label}</p>
+    <div className="rounded-lg bg-panel-soft px-3 py-2 ring-1 ring-inset ring-panel-line">
+      <p className="text-[11px] text-ink-muted">{label}</p>
       <span
         className={cn(
           'mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold',
           VERDICT_CLASS[safeVerdict] ?? VERDICT_FALLBACK_CLASS,
         )}
       >
-        {VERDICT_LABEL[safeVerdict] ?? safeVerdict}
+        {(labels ?? VERDICT_LABEL)[safeVerdict] ?? safeVerdict}
       </span>
     </div>
   );
@@ -76,8 +84,8 @@ function confidenceText(confidence: number | undefined): string {
 }
 
 /**
- * 多 Agent 交叉验证面板：Claude 生成 → Codex 复核 → 平台共识。
- * 包含判定、共识、置信度、成本、耗时与时间。
+ * 双人连携验证面板：Claude 出招（生成 PoC）→ Codex 拆招（复核）→ 平台连携裁决。
+ * 包含判定、连携、置信度、成本、耗时与时间。
  */
 export function CrossValidationPanel({
   validation,
@@ -87,8 +95,8 @@ export function CrossValidationPanel({
     return (
       <EmptyState
         className={className}
-        title="暂无交叉验证结果"
-        description="任务进入 AI 验证阶段后，将展示生成、复核与共识三步判定。"
+        title="暂无连携验证结果"
+        description="任务进入双人连携阶段后，将展示出招、拆招与连携三步判定。"
       />
     );
   }
@@ -101,15 +109,15 @@ export function CrossValidationPanel({
     <Card className={cn('p-4', className)}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-            <GitCompareArrows className="h-4 w-4 text-indigo-600" />
-            多 Agent 交叉验证
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+            <GitCompareArrows className="h-4 w-4 text-arcane" />
+            双人连携验证
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Claude 生成 · Codex 复核 · 平台共识：任一环节未通过都不会直接放款。
+          <p className="mt-0.5 text-xs text-ink-muted">
+            Claude 出招（生成 PoC）· Codex 拆招（复核）· 平台连携裁决：任一环节未通关都不会直接放款。
           </p>
         </div>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] text-slate-500">
+        <span className="rounded-full bg-panel-soft px-2 py-0.5 font-mono text-[10px] text-ink-muted ring-1 ring-inset ring-panel-line">
           {validation.taskId || '任务未标注'}
         </span>
       </div>
@@ -119,48 +127,55 @@ export function CrossValidationPanel({
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <VerdictMetric label="生成判定" verdict={validation.generatorVerdict} />
-        <VerdictMetric label="复核判定" verdict={validation.reviewerVerdict} />
-        <VerdictMetric label="共识" verdict={validation.consensus} />
-        <div className="rounded-lg bg-slate-50 px-3 py-2">
-          <p className="text-[11px] text-slate-500">置信度</p>
-          <p className="mt-1 text-sm font-semibold text-slate-800">
+        <VerdictMetric label="出招判定" verdict={validation.generatorVerdict} />
+        <VerdictMetric label="拆招判定" verdict={validation.reviewerVerdict} />
+        <VerdictMetric
+          label="连携"
+          verdict={validation.consensus}
+          labels={CONSENSUS_LABEL}
+        />
+        <div className="rounded-lg bg-panel-soft px-3 py-2 ring-1 ring-inset ring-panel-line">
+          <p className="text-[11px] text-ink-muted">置信度</p>
+          <p className="mt-1 font-mono text-sm font-semibold text-arcane">
             {confidenceText(validation.confidence)}
           </p>
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-ink-muted">
         <span>
-          成本 <span className="font-medium text-slate-700">{formatCost(validation.cost)}</span>
+          成本{' '}
+          <span className="font-mono font-medium text-ink">
+            {formatCost(validation.cost)}
+          </span>
         </span>
         <span>
           耗时{' '}
-          <span className="font-medium text-slate-700">
+          <span className="font-mono font-medium text-ink">
             {formatElapsed(validation.elapsedMs)}
           </span>
         </span>
         <span>
           记录时间{' '}
-          <span className="font-medium text-slate-700">
+          <span className="font-mono font-medium text-ink">
             {formatAt(validation.at)}
           </span>
         </span>
       </div>
 
       {pass && (
-        <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-          交叉验证通过：生成与复核结论一致，进入合规扫描。
+        <p className="mt-3 rounded-lg bg-clear/10 px-3 py-2 text-xs text-clear ring-1 ring-inset ring-clear/30">
+          连携成功：出招与拆招结论一致，进入副本规则扫描。
         </p>
       )}
       {fail && (
-        <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">
-          交叉验证未通过：任务将被退回或阻断，不进入结算。
+        <p className="mt-3 rounded-lg bg-boss/10 px-3 py-2 text-xs text-boss ring-1 ring-inset ring-boss/30">
+          连携失败：任务将被退回或触发关卡封锁，不进入结算。
         </p>
       )}
       {!pass && !fail && (
-        <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          交叉验证进行中：等待生成与复核双方给出判定。
+        <p className="mt-3 rounded-lg bg-panel-soft px-3 py-2 text-xs text-ink-muted ring-1 ring-inset ring-panel-line">
+          连携进行中：等待出招与拆招双方给出判定。
         </p>
       )}
     </Card>

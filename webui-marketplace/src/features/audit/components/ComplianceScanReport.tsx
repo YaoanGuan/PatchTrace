@@ -23,7 +23,7 @@ const CHECK_TONE: Record<
   PASS: {
     label: '通过',
     icon: CheckCircle2,
-    className: 'text-emerald-600 bg-emerald-50 ring-emerald-100',
+    className: 'text-clear bg-clear/10 ring-clear/20',
   },
   WARN: {
     label: '关注',
@@ -33,7 +33,7 @@ const CHECK_TONE: Record<
   FAIL: {
     label: '失败',
     icon: XCircle,
-    className: 'text-rose-600 bg-rose-50 ring-rose-100',
+    className: 'text-boss bg-boss/10 ring-boss/20',
   },
 };
 
@@ -53,7 +53,7 @@ function buildChecks(
   return [
     {
       key: 'HASH_CHAIN',
-      label: '哈希链连续性',
+      label: '封印链连续性',
       status:
         verification.state === 'VALID'
           ? 'PASS'
@@ -62,21 +62,21 @@ function buildChecks(
             : 'FAIL',
       detail:
         verification.state === 'VALID'
-          ? `${verification.nodeCount} 个节点 prevHash 与 headHash 全部匹配`
+          ? `${verification.nodeCount} 个战报节点 prevHash 与 headHash 全部匹配`
           : verification.state === 'EMPTY'
-            ? '暂无证据链节点，无法执行哈希链校验'
-            : `${verification.issues.length} 处链接异常，首个异常节点 ${verification.brokenNodeId ?? '—'}`,
+            ? '暂无战报节点，无法执行封印链校验'
+            : `${verification.issues.length} 处封印破损，首个破损节点 ${verification.brokenNodeId ?? '—'}`,
     },
     {
       key: 'EVIDENCE_REF',
-      label: '证据引用完整性',
+      label: '战报引用完整性',
       status: missingPayloadRef === 0 && nodes.length > 0 ? 'PASS' : 'WARN',
       detail:
         nodes.length === 0
-          ? '暂无可检查节点'
+          ? '暂无可检查战报节点'
           : missingPayloadRef === 0
-            ? '全部节点均携带 payloadRef，证据可回指原始载荷'
-            : `${missingPayloadRef} 个节点缺少 payloadRef，证据不可回指`,
+            ? '全部战报节点均携带 payloadRef，证据可回指原始载荷'
+            : `${missingPayloadRef} 个战报节点缺少 payloadRef，证据不可回指`,
     },
     {
       key: 'MODEL_COST',
@@ -85,19 +85,19 @@ function buildChecks(
         modelCalls.length > 0 && incompleteModelCalls === 0 ? 'PASS' : 'WARN',
       detail:
         modelCalls.length === 0
-          ? '未发现模型调用节点'
+          ? '未发现模型调用战报节点'
           : incompleteModelCalls === 0
             ? `${modelCalls.length} 次模型调用均记录模型标识与成本`
             : `${incompleteModelCalls} 次模型调用缺少模型标识或成本`,
     },
     {
       key: 'CROSS_CHECK',
-      label: '平台交叉验证',
+      label: '平台连携验证',
       status: validations.length > 0 ? 'PASS' : 'WARN',
       detail:
         validations.length > 0
-          ? `发现 ${validations.length} 个 VALIDATION 节点，平台复核已留痕`
-          : '未发现 VALIDATION 节点，建议人工复核',
+          ? `发现 ${validations.length} 个 VALIDATION 战报节点，平台复核已留痕`
+          : '未发现 VALIDATION 战报节点，建议人工复核',
     },
   ];
 }
@@ -119,10 +119,10 @@ export function ComplianceScanReport({
             className="h-4 w-4 text-indigo-500"
             aria-hidden="true"
           />
-          <h2 className="text-sm font-semibold text-slate-900">合规扫描报告</h2>
+          <h2 className="text-sm font-semibold text-ink">副本规则报告</h2>
         </div>
-        <p className="text-xs text-slate-500">
-          数据来源：证据链节点本地推导 · 非平台合规引擎回执
+        <p className="text-xs text-ink-muted">
+          数据来源：战报节点本地推导 · 非平台规则引擎回执
         </p>
       </div>
 
@@ -167,7 +167,7 @@ export function ComplianceScanReport({
         })}
       </ul>
 
-      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+      <div className="rounded-lg border border-slate-200 bg-panel px-3 py-2.5">
         <p className="text-[11px] font-medium text-slate-400">
           最新平台复核结论
         </p>
@@ -183,7 +183,7 @@ export function ComplianceScanReport({
           </div>
         ) : (
           <p className="mt-1 text-xs text-slate-500">
-            暂无 VALIDATION 节点，报告仅基于本地推导。
+            暂无 VALIDATION 战报节点，报告仅基于本地推导。
           </p>
         )}
       </div>

@@ -28,10 +28,10 @@ const STAGE_ICON: Record<PipelineStageKey, typeof Bot> = {
 };
 
 const STATUS_RING: Record<PipelineStageStatus, string> = {
-  PENDING: 'border-slate-200 text-slate-400',
-  RUNNING: 'border-indigo-300 text-indigo-600',
-  DONE: 'border-emerald-300 text-emerald-600',
-  FAILED: 'border-rose-300 text-rose-600',
+  PENDING: 'border-panel-line text-ink-dim',
+  RUNNING: 'border-neon/50 text-neon',
+  DONE: 'border-clear/50 text-clear',
+  FAILED: 'border-boss/50 text-boss',
 };
 
 export interface PipelineStageProps {
@@ -64,14 +64,14 @@ export function PipelineStage({
           aria-hidden="true"
           className={cn(
             'absolute left-[calc(50%+1.5rem)] top-5 hidden h-px w-[calc(100%-3rem)] lg:block',
-            status === 'DONE' ? 'bg-emerald-300' : 'bg-slate-200',
+            status === 'DONE' ? 'bg-clear/50' : 'bg-panel-line',
           )}
         />
       )}
       <div className="flex items-start gap-3 lg:flex-col lg:items-center lg:text-center">
         <span
           className={cn(
-            'relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 bg-white',
+            'relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 bg-panel',
             STATUS_RING[status],
             status === 'RUNNING' && 'animate-pulse',
           )}
@@ -80,10 +80,10 @@ export function PipelineStage({
         </span>
         <div className="min-w-0 space-y-1 lg:flex lg:flex-col lg:items-center">
           <div className="flex flex-wrap items-center gap-1.5 lg:justify-center">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-              STEP {index + 1}
+            <span className="font-mono text-[11px] font-medium uppercase tracking-wide text-ink-dim">
+              关卡 {index + 1}
             </span>
-            <span className="text-sm font-semibold text-slate-900">
+            <span className="text-sm font-semibold text-ink">
               {STAGE_LABEL[keyName]}
             </span>
           </div>

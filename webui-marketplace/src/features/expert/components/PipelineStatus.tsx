@@ -13,9 +13,9 @@ export interface PipelineStatusProps {
   className?: string;
 }
 
-const FALLBACK_STEP_CLASS = 'border-slate-200 bg-slate-50/60';
+const FALLBACK_STEP_CLASS = 'border-panel-line bg-panel-soft';
 const FALLBACK_BADGE_CLASS =
-  'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-500/20';
+  'bg-panel-soft text-ink-muted ring-1 ring-inset ring-panel-line';
 
 function VerdictIcon({ verdict }: { verdict: ValidationVerdict }) {
   if (verdict === 'PASS') {
@@ -48,7 +48,7 @@ function normalizeVerdict(value: ValidationVerdict | undefined): ValidationVerdi
 }
 
 /**
- * 生成 → 复核 → 共识 三步流水线状态条，风格对齐 CI/CD 流水线。
+ * 出招 → 拆招 → 连携 三步关卡进度条，风格对齐副本战斗流水线。
  * validation 缺失时展示降级占位，不会抛错。
  */
 export function PipelineStatus({
@@ -60,11 +60,11 @@ export function PipelineStatus({
     return (
       <div
         className={cn(
-          'rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500',
+          'rounded-lg border border-dashed border-panel-line bg-panel-soft px-3 py-4 text-center text-xs text-ink-muted',
           className,
         )}
       >
-        暂无交叉验证流水线数据
+        暂无连携验证流水线数据
       </div>
     );
   }
@@ -83,25 +83,25 @@ export function PipelineStatus({
   const steps = [
     {
       key: 'generate',
-      title: '生成',
-      actor: validation.generator || '生成 Agent',
+      title: '出招',
+      actor: validation.generator || 'Claude 出招',
       model: validation.generatorModel || '模型未标注',
       verdict: generatorVerdict,
-      detail: '产出 PoC / 交付物',
+      detail: '生成 PoC / 交付物',
     },
     {
       key: 'review',
-      title: '复核',
-      actor: validation.reviewer || '复核 Agent',
+      title: '拆招',
+      actor: validation.reviewer || 'Codex 拆招',
       model: validation.reviewerModel || '模型未标注',
       verdict: reviewerVerdict,
-      detail: '独立复现与反证',
+      detail: '复核 PoC / 独立反证',
     },
     {
       key: 'consensus',
-      title: '共识',
-      actor: '平台裁决',
-      model: '交叉验证汇总',
+      title: '连携',
+      actor: '平台连携裁决',
+      model: '双人连携汇总',
       verdict: consensusVerdict,
       detail:
         confidence !== null ? `置信度 ${confidence}%` : '置信度未记录',
@@ -129,21 +129,21 @@ export function PipelineStatus({
             )}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
                 {step.title}
               </span>
               <VerdictBadge verdict={step.verdict} />
             </div>
-            <p className="mt-1 truncate text-sm font-medium text-slate-800">
+            <p className="mt-1 truncate text-sm font-medium text-ink">
               {step.actor}
             </p>
-            <p className="truncate text-[11px] text-slate-500">{step.model}</p>
-            <p className="mt-0.5 truncate text-[10px] text-slate-400">
+            <p className="truncate text-[11px] text-ink-muted">{step.model}</p>
+            <p className="mt-0.5 truncate font-mono text-[10px] text-ink-dim">
               {step.detail}
             </p>
           </div>
           {index < steps.length - 1 && (
-            <ArrowRight className="hidden h-4 w-4 shrink-0 self-center text-slate-300 md:block" />
+            <ArrowRight className="hidden h-4 w-4 shrink-0 self-center text-ink-dim md:block" />
           )}
         </li>
       ))}

@@ -11,13 +11,13 @@ export interface RoleSwitcherProps {
 }
 
 const ROLE_LABEL: Record<UserRole, string> = {
-  EMPLOYER: '雇主',
-  COMMANDER: 'AI 指挥官',
+  EMPLOYER: '雇主公会',
+  COMMANDER: '指挥官战队',
 };
 
 const ROLE_HINT: Record<UserRole, string> = {
-  EMPLOYER: '发布任务、冻结赏金、验收交付',
-  COMMANDER: '领取任务、调度 Agent、提交证据',
+  EMPLOYER: '发布悬赏、冻结赏金、验收战利品',
+  COMMANDER: '接取副本、调度 Agent、提交战利品',
 };
 
 const ROLE_ORDER: UserRole[] = ['EMPLOYER', 'COMMANDER'];
@@ -39,25 +39,25 @@ function RoleConfirmModal({
     <Modal
       open={open}
       onClose={onCancel}
-      title="切换视角"
-      description="activeRole 只影响当前可执行动作，不改变账号身份。"
+      title="切换身份"
+      description="身份只影响当前可执行的副本动作，不改变角色档案。"
       footer={
         <div className="flex items-center justify-end gap-2">
           <Button variant="secondary" onClick={onCancel}>
             取消
           </Button>
           <Button onClick={onConfirm}>
-            确认切换为{role ? ROLE_LABEL[role] : '新视角'}
+            确认切换为{role ? ROLE_LABEL[role] : '新身份'}
           </Button>
         </div>
       }
     >
-      <p className="text-sm leading-6 text-slate-600">
-        确认后，页面操作将以「{role ? ROLE_LABEL[role] : '新视角'}」视角呈现。
-        同一个人可以同时是发单方与接单方，切换视角不会改变账号身份。
+      <p className="text-sm leading-6 text-ink-muted">
+        确认后，页面操作将以「{role ? ROLE_LABEL[role] : '新身份'}」视角呈现。
+        同一个人可以同时是发悬赏的公会与接副本的战队，切换身份不会改变账号。
       </p>
       {role && (
-        <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+        <p className="mt-2 rounded border border-panel-line bg-panel-soft px-3 py-2 text-xs text-ink-muted">
           {ROLE_HINT[role]}
         </p>
       )}
@@ -97,30 +97,30 @@ export function RoleSwitcher({
                 }
               }}
               className={cn(
-                'flex items-start gap-3 rounded-xl border p-4 text-left transition-colors',
+                'flex items-start gap-3 rounded border p-4 text-left transition-all',
                 active
-                  ? 'border-indigo-500 bg-indigo-50/60'
-                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50',
+                  ? 'border-gold/40 bg-gold/10'
+                  : 'border-panel-line bg-panel/60 hover:border-neon/40 hover:bg-panel-soft',
               )}
             >
               <span
                 className={cn(
-                  'mt-0.5 rounded-lg p-2',
+                  'mt-0.5 rounded p-2',
                   active
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-100 text-slate-500',
+                    ? 'bg-gold text-slate-950'
+                    : 'bg-panel-soft text-ink-dim',
                 )}
               >
                 <Icon className="h-4 w-4" />
               </span>
               <span className="flex-1 space-y-1">
-                <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+                <span className="flex items-center gap-1.5 text-sm font-semibold text-ink">
                   {ROLE_LABEL[role]}
                   {active && (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-indigo-600" />
+                    <CheckCircle2 className="h-3.5 w-3.5 text-gold" />
                   )}
                 </span>
-                <span className="block text-xs leading-5 text-slate-500">
+                <span className="block text-xs leading-5 text-ink-muted">
                   {ROLE_HINT[role]}
                 </span>
               </span>
@@ -144,14 +144,14 @@ export function RoleSwitcher({
       <button
         type="button"
         onClick={toggleRole}
-        title="切换视角"
+        title="切换身份"
         className={cn(
-          'inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50',
+          'inline-flex items-center gap-2 rounded border border-panel-line bg-panel-soft px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-gold/40 hover:text-gold',
           className,
         )}
       >
-        <ActiveIcon className="h-4 w-4 text-indigo-600" />
-        <span>{ROLE_LABEL[activeRole]}</span>
+        <ActiveIcon className="h-4 w-4 text-gold" />
+        <span className="hidden sm:inline">{ROLE_LABEL[activeRole]}</span>
       </button>
       <RoleConfirmModal
         open={pendingRole !== null}

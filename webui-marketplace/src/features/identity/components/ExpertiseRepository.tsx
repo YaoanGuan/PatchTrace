@@ -29,9 +29,9 @@ const KIND_ICONS: Record<ExpertiseKind, typeof Bot> = {
 };
 
 const KIND_LABELS: Record<ExpertiseKind, string> = {
-  AGENT: 'Agent 能力',
-  DATA_ASSET: '数据资产',
-  PROMPT_TEMPLATE: '提示词模板',
+  AGENT: '战友技能',
+  DATA_ASSET: '战利品档案',
+  PROMPT_TEMPLATE: '咒语模板',
 };
 
 export interface ExpertiseCardProps {
@@ -39,7 +39,7 @@ export interface ExpertiseCardProps {
   className?: string;
 }
 
-/** Agent 能力 / 提示词模板卡片。 */
+/** 战友技能 / 咒语模板卡片。 */
 export function ExpertiseCard({ item, className }: ExpertiseCardProps) {
   const Icon = KIND_ICONS[item.kind] ?? Layers;
   const usageCount =
@@ -48,24 +48,24 @@ export function ExpertiseCard({ item, className }: ExpertiseCardProps) {
   return (
     <Card className={cn('flex h-full flex-col gap-3 p-4', className)}>
       <div className="flex items-start gap-3">
-        <span className="rounded-lg bg-indigo-50 p-2 text-indigo-600">
+        <span className="rounded-lg bg-arcane/10 p-2 text-arcane">
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <h4 className="truncate text-sm font-medium text-slate-900">
-            {item.title || '未命名能力'}
+          <h4 className="truncate text-sm font-medium text-ink">
+            {item.title || '未命名技能'}
           </h4>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {KIND_LABELS[item.kind] ?? '能力资产'}
+          <p className="mt-0.5 text-xs text-ink-muted">
+            {KIND_LABELS[item.kind] ?? '技能资产'}
           </p>
         </div>
         {item.level && <Badge variant="info">{item.level}</Badge>}
       </div>
 
-      <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+      <div className="mt-auto flex items-center justify-between border-t border-panel-line pt-3 text-[11px] text-ink-muted">
         <span className="inline-flex items-center gap-1">
           <Gauge className="h-3.5 w-3.5" aria-hidden="true" />
-          使用 {usageCount} 次
+          召唤 <span className="font-mono">{usageCount}</span> 次
         </span>
         <span className="inline-flex items-center gap-1">
           <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -81,7 +81,7 @@ export interface DataAssetCardProps {
   className?: string;
 }
 
-/** 数据资产卡片：与能力卡片区分视觉，强调语料/数据集的被引用次数。 */
+/** 战利品档案卡片：与技能卡片区分视觉，强调语料/数据集的被引用次数。 */
 export function DataAssetCard({ item, className }: DataAssetCardProps) {
   const usageCount =
     typeof item.usageCount === 'number' ? item.usageCount : 0;
@@ -89,29 +89,29 @@ export function DataAssetCard({ item, className }: DataAssetCardProps) {
   return (
     <Card
       className={cn(
-        'flex h-full flex-col gap-3 border-emerald-100 bg-emerald-50/30 p-4',
+        'flex h-full flex-col gap-3 border-emerald-500/25 bg-emerald-500/5 p-4',
         className,
       )}
     >
       <div className="flex items-start gap-3">
-        <span className="rounded-lg bg-emerald-100 p-2 text-emerald-700">
+        <span className="rounded-lg bg-emerald-500/10 p-2 text-emerald-300">
           <Database className="h-4 w-4" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <h4 className="truncate text-sm font-medium text-slate-900">
-            {item.title || '未命名数据资产'}
+          <h4 className="truncate text-sm font-medium text-ink">
+            {item.title || '未命名战利品'}
           </h4>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-ink-muted">
             {KIND_LABELS.DATA_ASSET}
           </p>
         </div>
         {item.level && <Badge variant="success">{item.level}</Badge>}
       </div>
 
-      <div className="mt-auto flex items-center justify-between border-t border-emerald-100 pt-3 text-[11px] text-emerald-800/80">
+      <div className="mt-auto flex items-center justify-between border-t border-emerald-500/20 pt-3 text-[11px] text-emerald-300">
         <span className="inline-flex items-center gap-1">
           <Layers className="h-3.5 w-3.5" aria-hidden="true" />
-          被引用 {usageCount} 次
+          被引用 <span className="font-mono">{usageCount}</span> 次
         </span>
         <span className="inline-flex items-center gap-1">
           <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -129,7 +129,7 @@ export interface ExpertiseRepositoryProps {
 }
 
 /**
- * 专家库：Agent 能力 / 数据资产 / 提示词模板三个 Tab。
+ * 技能图鉴：战友技能 / 战利品档案 / 咒语模板三个 Tab。
  * 数据来自 sessionStore.currentUser.expertise；子项为空时渲染 EmptyState。
  */
 export function ExpertiseRepository({
@@ -144,7 +144,7 @@ export function ExpertiseRepository({
   const [activeTab, setActiveTab] = useState<ExpertiseTabKey>('AGENT');
 
   const activeLabel =
-    EXPERTISE_TABS.find((tab) => tab.key === activeTab)?.label ?? '能力';
+    EXPERTISE_TABS.find((tab) => tab.key === activeTab)?.label ?? '技能';
   const filtered = source.filter((item) => item.kind === activeTab);
 
   return (
@@ -158,16 +158,16 @@ export function ExpertiseRepository({
           value={activeTab}
           onChange={(key) => setActiveTab(key as ExpertiseTabKey)}
         />
-        <span className="text-xs text-slate-500">
-          共 {source.length} 项能力沉淀
+        <span className="text-xs text-ink-muted">
+          共 <span className="font-mono">{source.length}</span> 项技能沉淀
         </span>
       </div>
 
       {filtered.length === 0 ? (
         <EmptyState
-          icon={<Layers className="h-8 w-8 text-slate-400" />}
+          icon={<Layers className="h-8 w-8 text-ink-dim" />}
           title={`暂无${activeLabel}沉淀`}
-          description="完成带复核的任务后，Agent 能力、数据资产与提示词模板会自动归档到这里。"
+          description="通关带复核的副本后，战友技能、战利品档案与咒语模板会自动归档到这里。"
           action={
             onUploadCredential ? (
               <Button
@@ -176,7 +176,7 @@ export function ExpertiseRepository({
                 onClick={onUploadCredential}
               >
                 <Upload className="h-4 w-4" aria-hidden="true" />
-                上传能力凭证
+                上传成就凭证
               </Button>
             ) : undefined
           }

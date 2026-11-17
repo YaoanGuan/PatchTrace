@@ -27,10 +27,10 @@ interface BridgeRole {
 const ROLES: BridgeRole[] = [
   {
     key: 'EMPLOYER',
-    title: '雇主 AI 接入',
+    title: '雇主公会 · AI 接入',
     subtitle: '接入后发布 / 托管任务',
     icon: Building2,
-    tone: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+    tone: 'bg-gold/10 text-gold ring-gold/30',
     actions: ['发布任务', '托管资金', '审核交付'],
     scopes: ['task:create', 'task:escrow', 'delivery:review'],
     audit: [
@@ -41,10 +41,10 @@ const ROLES: BridgeRole[] = [
   },
   {
     key: 'COMMANDER',
-    title: '指挥官 AI 接入',
+    title: '指挥官战队 · AI 接入',
     subtitle: '接入后领取 / 执行 / 提交任务',
     icon: UserCog,
-    tone: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
+    tone: 'bg-arcane/10 text-arcane ring-arcane/30',
     actions: ['领取任务', '执行任务', '提交证据'],
     scopes: ['task:accept', 'task:execute', 'evidence:submit'],
     audit: [
@@ -56,17 +56,19 @@ const ROLES: BridgeRole[] = [
 ];
 
 /**
- * 角色接入桥：雇主与指挥官两类 AI 的接入路径、所需 scope 与审计留存要求。
+ * 雇主公会 / 指挥官战队：两类 AI 的接入路径、所需 scope 与审计留存要求。
  * 纯静态说明区块，不依赖接口数据。
  */
 export function RoleBridge({ className }: RoleBridgeProps) {
   return (
     <section className={cn('space-y-3', className)}>
       <div>
-        <h2 className="text-base font-semibold text-slate-900">角色接入桥</h2>
-        <p className="mt-0.5 text-xs text-slate-500">
-          两类角色权限相互隔离：雇主负责发布与托管，指挥官负责执行与提交，
-          所有动作进入同一审计证据链。
+        <h2 className="text-base font-semibold text-ink">
+          雇主公会 / 指挥官战队
+        </h2>
+        <p className="mt-0.5 text-xs text-ink-muted">
+          两类角色权限相互隔离：雇主公会负责发布与托管，指挥官战队负责执行与提交，
+          所有动作进入同一战报证据链。
         </p>
       </div>
 
@@ -85,36 +87,36 @@ export function RoleBridge({ className }: RoleBridgeProps) {
                   <Icon className="h-4 w-4" />
                 </span>
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-900">
+                  <h3 className="text-sm font-semibold text-ink">
                     {role.title}
                   </h3>
-                  <p className="text-xs text-slate-500">{role.subtitle}</p>
+                  <p className="text-xs text-ink-muted">{role.subtitle}</p>
                 </div>
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
                 {role.actions.map((action, index) => (
                   <span key={action} className="flex items-center gap-1.5">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                    <span className="rounded-full bg-panel-soft px-2 py-0.5 text-[11px] font-medium text-ink-muted ring-1 ring-inset ring-panel-line">
                       {action}
                     </span>
                     {index < role.actions.length - 1 && (
-                      <ArrowRight className="h-3 w-3 text-slate-300" />
+                      <ArrowRight className="h-3 w-3 text-ink-dim" />
                     )}
                   </span>
                 ))}
               </div>
 
               <div className="mt-3">
-                <p className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-slate-500">
-                  <ShieldCheck className="h-3 w-3" />
+                <p className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-ink-muted">
+                  <ShieldCheck className="h-3 w-3 text-neon" />
                   所需 scope
                 </p>
                 <div className="flex flex-wrap gap-1">
                   {role.scopes.map((scope) => (
                     <span
                       key={scope}
-                      className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-600"
+                      className="rounded border border-panel-line bg-panel-soft px-1.5 py-0.5 font-mono text-[10px] text-ink-muted"
                     >
                       {scope}
                     </span>
@@ -122,18 +124,18 @@ export function RoleBridge({ className }: RoleBridgeProps) {
                 </div>
               </div>
 
-              <div className="mt-3 border-t border-slate-100 pt-3">
-                <p className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-slate-500">
-                  <ScrollText className="h-3 w-3" />
+              <div className="mt-3 border-t border-panel-line pt-3">
+                <p className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-ink-muted">
+                  <ScrollText className="h-3 w-3 text-arcane" />
                   审计留存要求
                 </p>
                 <ul className="space-y-1">
                   {role.audit.map((item) => (
                     <li
                       key={item}
-                      className="flex items-start gap-1.5 text-[11px] leading-5 text-slate-600"
+                      className="flex items-start gap-1.5 text-[11px] leading-5 text-ink-muted"
                     >
-                      <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-500" />
+                      <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-clear" />
                       <span>{item}</span>
                     </li>
                   ))}
