@@ -68,7 +68,7 @@ export function TopBar() {
             Trace the Patch, Uncover the Flaw.
           </span>
           <span className="text-xs font-semibold tracking-wide text-gold sm:text-sm">
-            寻迹补丁，洞见漏洞
+            循迹补丁，洞见漏洞
           </span>
         </div>
       </div>

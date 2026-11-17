@@ -127,7 +127,7 @@ export function SideNav({ onCollapse }: SideNavProps) {
           className="flex items-center gap-2 rounded border border-neon/30 bg-neon/10 px-3 py-2 text-xs font-semibold text-neon transition-colors hover:border-neon/60 hover:bg-neon/15 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neon"
         >
           <Crosshair className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span className="flex-1">渗透找外援就上寻迹</span>
+          <span className="flex-1">渗透找外援就上循迹</span>
           <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
         </a>
       </div>
