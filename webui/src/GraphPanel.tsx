@@ -78,6 +78,12 @@ function factBadgeVariant(type: string): BadgeVariant {
             return 'warning';
         case 'observation':
             return 'secondary';
+        case 'constraint':
+            return 'secondary';
+        case 'rule_hit':
+            return 'success';
+        case 'finding':
+            return 'destructive';
         default:
             return 'default';
     }
@@ -745,6 +751,9 @@ export default function GraphPanel({ baseURL, authHeader }: GraphPanelProps) {
                         <CardTitle>溯源图</CardTitle>
                         <div className="mt-1 text-xs text-muted-foreground">
                             图协议面板 · 事实 / 意图 / 提示 / 边 / 时间线
+                        </div>
+                        <div className="mt-1 text-[11px] text-muted-foreground">
+                            迭代能力：补丁反演 R7 · 推理 R8 · 沙箱 R9 · 判决 R10 · 规则 R11 · 人类意图 R12
                         </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 flex-wrap">

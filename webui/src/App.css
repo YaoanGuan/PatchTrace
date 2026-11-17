@@ -33,10 +33,34 @@ body {
     margin-bottom: 16px;
 }
 
+.aix-brand {
+    min-width: 0;
+}
+
 .aix-title {
     font-size: 18px;
     font-weight: 800;
     letter-spacing: 0.6px;
+    line-height: 1.25;
+}
+
+.aix-slogan {
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: rgba(0, 229, 255, 0.78);
+    text-shadow: 0 0 18px rgba(0, 229, 255, 0.18);
+}
+
+@media (max-width: 760px) {
+    .aix-title {
+        font-size: 15px;
+    }
+    .aix-slogan {
+        font-size: 10px;
+        letter-spacing: 0.1em;
+    }
 }
 
 .aix-subtitle {
