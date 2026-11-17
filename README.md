@@ -1,7 +1,7 @@
 # ParchTrace | 寻迹 - Autonomous Penetration System
 
 > **Trace the Patch, Uncover the Flaw.**
-> **追补丁，寻漏洞。**
+> **寻迹补丁，洞见漏洞。**
 
 ParchTrace 是一个**补丁驱动的自主渗透系统**。它从厂商修复 diff 出发，反演出漏洞成立所需的约束，把事实、意图和证据写成一张可追溯的溯源图，再由 Worker 在隔离沙箱中逐条实证。只有能沿图回溯到项目起点的结论，才会成为 Finding。
 
