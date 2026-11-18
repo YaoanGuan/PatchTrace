@@ -10,6 +10,7 @@ import GraphPanel from './GraphPanel';
 import GraphOverview from './GraphOverview';
 import { Input } from './components/ui/input';
 import { Textarea } from './components/ui/textarea';
+import logoMark from './assets/images/patchtrace-mark.png';
 import ReactMarkdown from 'react-markdown';
 
 type ApiResp<T> = {
@@ -3373,8 +3374,11 @@ function App() {
 
             <div className="aix-header">
                 <div className="aix-brand">
-                    <div className="aix-title">ParchTrace | 循迹 - 自主渗透系统</div>
-                    <div className="aix-slogan">Trace the Patch, Uncover the Flaw.</div>
+                    <img className="aix-logo" src={logoMark} alt="ParchTrace logo" />
+                    <div className="aix-brand-text">
+                        <div className="aix-title">ParchTrace | 循迹 - 自主渗透系统</div>
+                        <div className="aix-slogan">Trace the Patch, Uncover the Flaw.</div>
+                    </div>
                 </div>
                 <div className="aix-actions">
                     {view === 'detail' ? (

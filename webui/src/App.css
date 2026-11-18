@@ -28,38 +28,63 @@ body {
 .aix-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
-    gap: 16px;
+    align-items: center;
+    gap: 14px;
     margin-bottom: 16px;
+    flex-wrap: nowrap;
 }
 
 .aix-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.aix-logo {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 auto;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 229, 255, 0.24);
+    box-shadow: 0 0 18px rgba(0, 229, 255, 0.16);
+}
+
+.aix-brand-text {
     min-width: 0;
 }
 
 .aix-title {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 800;
-    letter-spacing: 0.6px;
+    letter-spacing: 0.4px;
     line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .aix-slogan {
-    margin-top: 4px;
-    font-size: 12px;
+    margin-top: 3px;
+    font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.05em;
     color: rgba(0, 229, 255, 0.78);
     text-shadow: 0 0 18px rgba(0, 229, 255, 0.18);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 @media (max-width: 760px) {
     .aix-title {
-        font-size: 15px;
+        font-size: 14px;
     }
     .aix-slogan {
         font-size: 10px;
-        letter-spacing: 0.1em;
+        letter-spacing: 0.08em;
     }
 }
 
@@ -100,33 +125,36 @@ body {
 
 .aix-actions {
     display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
+    gap: 5px;
+    flex-wrap: nowrap;
     align-items: center;
+    flex: 0 0 auto;
 }
 
 .aix-nav-pill {
     appearance: none;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.04);
     color: rgba(230, 237, 243, 0.7);
-    padding: 7px 14px;
-    border-radius: 20px;
+    padding: 6px 10px;
+    border-radius: 18px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
-    letter-spacing: 0.2px;
+    letter-spacing: 0.1px;
+    white-space: nowrap;
+    flex: 0 0 auto;
     transition: all 180ms ease;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
 }
 
 .aix-nav-pill svg {
-    width: 15px;
-    height: 15px;
+    width: 14px;
+    height: 14px;
     opacity: 0.8;
     flex-shrink: 0;
 }
@@ -161,8 +189,8 @@ body {
 
 .aix-nav-pill--muted {
     opacity: 0.55;
-    font-size: 12px;
-    padding: 6px 12px;
+    font-size: 11px;
+    padding: 5px 9px;
 }
 
 .aix-nav-pill--muted:hover {
@@ -171,9 +199,10 @@ body {
 
 .aix-nav-divider {
     width: 1px;
-    height: 20px;
+    height: 18px;
     background: rgba(255, 255, 255, 0.1);
-    margin: 0 4px;
+    margin: 0 2px;
+    flex: 0 0 auto;
 }
 
 .aix-btn {
@@ -728,28 +757,42 @@ body {
         padding: 10px;
     }
     .aix-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+    }
+    .aix-logo {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
     }
     .aix-title {
-        font-size: 16px;
+        font-size: 14px;
+    }
+    .aix-slogan {
+        display: none;
     }
     .aix-subtitle {
         font-size: 11px;
     }
     .aix-actions {
-        width: 100%;
-        justify-content: flex-start;
-        gap: 6px;
+        width: auto;
+        justify-content: flex-end;
+        gap: 4px;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .aix-actions::-webkit-scrollbar {
+        display: none;
     }
     .aix-btn {
         padding: 7px 10px;
         font-size: 12px;
     }
     .aix-nav-pill {
-        padding: 6px 10px;
-        font-size: 12px;
+        padding: 5px 8px;
+        font-size: 11px;
         gap: 4px;
     }
     .aix-nav-pill svg {
@@ -813,6 +856,13 @@ body {
 @media (max-width: 480px) {
     .aix-shell {
         padding: 8px;
+    }
+    .aix-brand-text {
+        display: none;
+    }
+    .aix-logo {
+        width: 32px;
+        height: 32px;
     }
     .aix-title {
         font-size: 14px;
