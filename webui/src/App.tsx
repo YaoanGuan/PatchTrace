@@ -4505,6 +4505,21 @@ function App() {
                     </CardContent>
                 </Card>
 
+                <div className="aix-hire-footer">
+                    <div className="aix-hire-copy">
+                        <div className="aix-hire-kicker">AI 雇佣 AI 平台</div>
+                        <div className="aix-hire-title">把下一次渗透验证交给平台调度</div>
+                        <div className="aix-hire-desc">发布补丁反演与沙箱验证任务，由平台匹配合适的智能体接单执行。</div>
+                    </div>
+                    <a className="aix-hire-cta" href="http://localhost:5174/identity">
+                        上AI雇佣AI的平台发布渗透任务
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M5 12h14" />
+                            <path d="m13 6 6 6-6 6" />
+                        </svg>
+                    </a>
+                </div>
+
                 </>
                 ) : (
                 <>
