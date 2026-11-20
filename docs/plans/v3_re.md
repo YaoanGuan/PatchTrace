@@ -144,18 +144,20 @@ type Claim struct {
     ID        string
     ProjectID string
     TaskType  string            // bootstrap | reason | explore | guardrail | poc | fingerprint
+    Point     string            // binding（工具调用准入）| completion（报告后是否完成）
     Signature string
     Content   string            // 判断什么（客观描述）
-    Options   []string
+    Options   []string          // 封闭选项；必须含 "defer"
     Features  map[string]any    // 结构化特征，不含目标隐私
 }
 
 type Result struct {
-    Bool       bool
-    Choice     string
-    Rank       []string
-    Score      float64
-    Confidence float64
+    Bool          bool
+    Choice        string             // 选中的选项；reflex 候选以 reflex ID 出现
+    Rank          []string           // 按概率降序
+    Probabilities map[string]float64 // 与 Rank 对齐，和 ≤ 1
+    Score         float64
+    Confidence    float64
 }
 
 type Decider interface {
@@ -165,7 +167,9 @@ type Decider interface {
 
 规则：
 
-- 默认 `HeuristicDecider`（本地、确定性、零 token）；模型决策必须走 `decision` 配置段、按签名缓存、有预算上限。
+- 默认 `HeuristicDecider`（本地、确定性、零 token）；模型决策必须走 `decision` 配置段、按签名缓存、有预算上限。判断是一组封闭选择，允许本地小模型回答。
+- **两个判断点**：`binding` 在每次工具调用前问“允许执行还是 defer”；`completion` 在报告返回后问“完成还是继续”。其余判断（bootstrap/reason 路由）复用同一契约。
+- 选项按概率排序输出（例：reflex `rb3218…` 86% / `defer` 14%，confidence 72%）；`defer` 表示“本 reflex 不适用，交回 Reason”。
 - 决策**只回答“下一步”**，不得输出“存在漏洞”。
 - 未知 claim 返回 `ErrInvalid`；决策服务不可用返回 `ErrUnavailable` 并回落。
 
@@ -208,7 +212,9 @@ type Record struct {
 ```go
 type Reflex struct {
     ID, Name, Signature string
-    Language            string // js
+    Language            string // js（goja）
+    Entry               string // 固定为 "run"
+    ArgsSchema          string // JSON Schema；描述 a 的字段，不含目标隐私
     Source              string
     Version             int
     Status              string // active | quarantined | retired
@@ -225,7 +231,33 @@ type Outcome struct {
 }
 ```
 
-reflex 只返回 Outcome；**写图由现有 runner 执行**，reflex 不得直接调用 graph 写接口。
+reflex 是**参数化程序**，入口固定 `function run(a, read, step, occurrence)`：
+
+```js
+function run(a, read, step, occurrence) {
+  var request = {name: 'bash', arguments: {
+    command: command('playwright', a), read: read, step: step, occurrence: occurrence,
+  }};
+  if (read) { request.step = step; request.occurrence = occurrence; }
+  return execute(request);
+}
+```
+
+- `a` 是本次任务参数（如 `url`/`fields`）；同一段程序换一组 `a` 即复用，**程序不变**。签名只描述“什么时候适用”，不包含 `a` 的具体值。
+- `execute(request)` 是 harness 工具边界：先过 `binding` 判断（accept/defer），再落到沙箱/工具执行；reflex 不自带网络、不直接调用 Docker。
+- 程序内部保留运行时判断（循环、条件、读回校验）；未覆盖情形 `return {defer: true}` 交回 Reason。
+- reflex 只返回 Outcome 或 defer；**写图由现有 runner 执行**，reflex 不得直接调用 graph 写接口。
+
+形成路径（与图片一致）：
+
+| 阶段 | 动作 | 本仓库落点 |
+|---|---|---|
+| 01 真实任务 | 当前任务、约束、真实工具结果 | explore 的一次完整 claim + evidence |
+| 02 提炼判断 | 形成 Claim，明确适用条件 | `claims` 表 + `Signature()` |
+| 03 构造 Reflex | 组织处理逻辑，保留运行时判断 | LLM 生成 `run()` 源码 + ArgsSchema |
+| 04 校验入库 | 验证可执行性，进入能力候选库 | Replay parity=100% → `reflexes` → candidate→published |
+
+Skill 与 Reflex 的区别：Skill 是经验文本，每次读入后重新理解、重新规划；Reflex 是已编译路径，短路“重新理解/重新规划”，只在判断点问 JEV。
 
 ---
 
@@ -234,7 +266,8 @@ reflex 只返回 Outcome；**写图由现有 runner 执行**，reflex 不得直�
 ### V3-R1 决策契约与默认零 token
 
 - 实现 `decision/` 四类判断；默认启发式；模型决策可选、按签名缓存、有预算。
-- 验收：四类单测；同输入同输出；未知 claim 报错；flag 关闭时 planner 行为与基线一致。
+- 覆盖两个判断点：`binding`（工具调用准入，accept/defer）与 `completion`（报告后是否完成）；reflex 候选以选项形式参与排序。
+- 验收：四类单测；同输入同输出；未知 claim 报错；binding/completion 各有用例；选项概率和 ≤1 且 `defer` 恒在选项集；flag 关闭时 planner 行为与基线一致。
 
 ### V3-R2 Claim 审计与签名稳定性
 
@@ -254,12 +287,15 @@ reflex 只返回 Outcome；**写图由现有 runner 执行**，reflex 不得直�
 ### V3-R5 短路、落回与隔离
 
 - 命中执行、失败落回、连续失败 quarantine；不得双写事实。
-- 验收：命中成功零主模型调用；失败仅计一次且落回；quarantine 后不命中；证据与 LLM 路径 parity。
+- reflex 内每次工具调用前过 `binding` 判断；`defer` 或拒绝即中止本次 reflex 并交回 Reason。
+- 报告返回后过 `completion` 判断，决定写 fact/verdict 还是继续。
+- 验收：命中成功零主模型调用；`binding=defer` 时只执行零次工具调用；失败仅计一次且落回；quarantine 后不命中；证据与 LLM 路径 parity。
 
 ### V3-R6 Reflex 生成与调试
 
 - 同签名成功 ≥3 次触发；5 claim 并行；候选必须通过回放调试才能入库。
-- 验收：不足阈值不生成；候选缺 stop/越权被拒；回放不一致拒绝入库。
+- 生成物必须是 `function run(a, read, step, occurrence)`，附带 ArgsSchema；只描述适用条件，不写死目标参数。
+- 验收：不足阈值不生成；候选缺 run/stop/越权被拒；同程序换 `a` 复用通过；回放不一致拒绝入库。
 
 ### V3-R7 版本、置信度与淘汰
 
@@ -317,7 +353,7 @@ reflex 只返回 Outcome；**写图由现有 runner 执行**，reflex 不得直�
 ### V3-R16 人类控制
 
 - 审批不绕过；一键停用 reflex；quarantine 人工复核；Hint 始终优先于 reflex 短路。
-- 验收：停用后立即回 LLM 路径；Hint 存在时同签名不得直接短路（需把 Hint 纳入签名或强制 reason）。
+- 验收：停用后立即回 LLM 路径；Hint 存在时同签名不得直接短路（需把 Hint 纳入签名或强制 reason）；reflex 返回 `defer` 时必须回 Reason，不得在同一任务内重试同一版本。
 
 ---
 
@@ -325,13 +361,14 @@ reflex 只返回 Outcome；**写图由现有 runner 执行**，reflex 不得直�
 
 ```sql
 CREATE TABLE claims (
-  id TEXT PRIMARY KEY, project_id TEXT, task_type TEXT, signature TEXT,
+  id TEXT PRIMARY KEY, project_id TEXT, task_type TEXT, point TEXT, signature TEXT,
   content TEXT, options_json TEXT, features_json TEXT, result_json TEXT,
   cost_tokens INTEGER, latency_ms INTEGER, outcome TEXT, created_at TEXT
 );
 
 CREATE TABLE reflexes (
-  id TEXT PRIMARY KEY, name TEXT, signature TEXT, language TEXT, source TEXT,
+  id TEXT PRIMARY KEY, name TEXT, signature TEXT, language TEXT, entry TEXT,
+  args_schema_json TEXT, source TEXT,
   version INTEGER, status TEXT, confidence REAL,
   hit_count INTEGER, confirm_count INTEGER, fail_count INTEGER,
   created_at TEXT, updated_at TEXT
@@ -423,3 +460,6 @@ CREATE TABLE fingerprints (
 | 2026-11-20 | 增加 Evidence 契约与 verified finding 口径 | 现有 finding 为代理口径，无法证明真实利用 |
 | 2026-11-20 | 内置 reflex 先于生成式 reflex | 生成式依赖真实样本；先交付确定性价值 |
 | 2026-11-20 | 决策默认零 token | 防止“用决策模型又烧一遍 token” |
+| 2026-11-20 | 增加 binding/completion 两个判断点 | `jev+reflex` 图片：工具准入与完成判定是 harness 的两个真实调用位置 |
+| 2026-11-20 | Reflex 固定入口 `run(a, read, step, occurrence)`，参数与程序分离 | 同一段程序换参数复用，签名只描述适用条件 |
+| 2026-11-20 | 决策输出改为带概率的排序选项，`defer` 恒在选项集 | 图片展示 86%/14% 排序与“不适用交回 Reason” |

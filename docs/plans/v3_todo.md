@@ -67,7 +67,7 @@
 
 ### T1 decision 契约
 
-- [ ] 四个 `TestJudge*` 失败测试
+- [ ] `TestJudge*` 失败测试（四类 + binding/completion + 概率排序）
 - [ ] `go test ./decision/ -run TestJudge -v` 确认 FAIL
 - [ ] 实现 `Claim/Result/Decider/Heuristic`
 - [ ] `go test ./decision/ -race` PASS
@@ -107,7 +107,7 @@
 
 ### T5 goja 运行时
 
-- [ ] 六个测试（越权/超时/输出上限/无宿主/证据/静态检查）
+- [ ] 八个测试（越权/超时/输出上限/无宿主/证据/defer/同程序换参/静态检查）
 - [ ] 验红
 - [ ] 白名单原语 + `vm.Interrupt` + parser 静态检查
 - [ ] 验绿
@@ -117,7 +117,7 @@
 
 ### T6 短路与落回
 
-- [ ] 六个测试（跳过 LLM/落回/quarantine/无双写/parity/stop）
+- [ ] 八个测试（跳过 LLM/落回/quarantine/无双写/parity/stop/binding defer/completion 闸门）
 - [ ] 验红
 - [ ] Matcher + ApplyFunc 注入 + 计数
 - [ ] 验绿
@@ -138,7 +138,7 @@
 
 ### T8 生成管线
 
-- [ ] 五个测试（阈值/5 并行/越权拒绝/去重/token 计数）
+- [ ] 六个测试（阈值/5 并行/run 入口/越权拒绝/去重/token 计数）
 - [ ] 验红
 - [ ] `Generator` + `prompts/reflex/generate.md`
 - [ ] 验绿
@@ -160,7 +160,7 @@
 
 - [ ] 四个测试（fail-closed/危险拒绝/未知审批/覆盖留痕）
 - [ ] 验红
-- [ ] `Guardrail` 接入 `aix.exec` 与 explore
+- [ ] `Guardrail` 接入 `execute(request)` 与 explore
 - [ ] 验绿
 - [ ] （待用户要求）提交
 
@@ -254,6 +254,9 @@
 | 2026-11-20 | reflex 只读图 + 执行命令；写图由 runner 统一做 | 避免双写与图协议分叉 |
 | 2026-11-20 | 内置 reflex 先于生成式 | 生成式依赖真实样本 |
 | 2026-11-20 | 首个验收场景 CVE-2025-3248 | 与现有 runbook/数据一致 |
+| 2026-11-20 | 决策设 binding/completion 两个判断点 | `jev+reflex` 图片：工具准入与完成判定是 harness 的真实调用位置 |
+| 2026-11-20 | Reflex 入口固定 `run(a, read, step, occurrence)`，参数与程序分离 | 同一段程序换 `a` 复用；签名只描述适用条件 |
+| 2026-11-20 | `execute(request)` 作为唯一工具边界，defer 交回 Reason | 图片中 execute→Harness 的 binding 判断 |
 
 ## 8. 验收口径
 

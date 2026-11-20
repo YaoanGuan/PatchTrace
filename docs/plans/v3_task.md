@@ -19,7 +19,7 @@
 ## Review Focus
 
 1. **签名碰撞**：新增 fact/hint 后签名不变，导致新态势被短路 → 必须有“签名对图变化敏感”的测试。
-2. **部分执行后失败**：reflex 已执行命令但写图前失败，落回 LLM 造成双写或脏状态 → 必须有 no-double-write 测试。
+2. **部分执行后失败 / defer 重试**：reflex 已执行命令但写图前失败，落回 LLM 造成双写或脏状态；`defer` 后同任务内重试同一版本造成循环 → 必须有 no-double-write 与 defer-once 测试。
 3. **护栏 fail-open**：分类器报错时放行危险命令 → 必须 fail-closed 测试。
 4. **JS 逃逸**：通过 `constructor`/`eval`/`import` 拿到宿主对象 → 静态检查 + 运行时白名单双保险测试。
 5. **Hint 被短路吞掉**：有 Hint 时 reflex 仍按旧签名命中 → Hint 纳入签名或强制 reason 的测试。
@@ -79,8 +79,19 @@ Expected: `patch_profile ≥1`、`exploit_idea fact ≥1`、`verdict ≥1`、`ru
 ```go
 type Judgment int
 const (JudgeBool Judgment = iota; JudgeChoice; JudgeRank; JudgeScore)
-type Claim struct { ID, ProjectID, TaskType, Signature, Content string; Options []string; Features map[string]any }
-type Result struct { Bool bool; Choice string; Rank []string; Score float64; Confidence float64 }
+type Point string
+const (PointBinding Point = "binding"; PointCompletion Point = "completion")
+type Claim struct {
+    ID, ProjectID, TaskType, Signature, Content string
+    Point Point
+    Options []string          // 必须含 "defer"
+    Features map[string]any
+}
+type Result struct {
+    Bool bool; Choice string; Rank []string
+    Probabilities map[string]float64
+    Score, Confidence float64
+}
 type Decider interface { Judge(context.Context, Claim) (Result, error) }
 var ErrInvalid = errors.New("decision: invalid claim")
 var ErrUnavailable = errors.New("decision: unavailable")
@@ -88,7 +99,7 @@ var ErrUnavailable = errors.New("decision: unavailable")
 
 - [ ] **Step 1: 写失败测试**
 
-`TestJudgeBool`、`TestJudgeChoice`、`TestJudgeRank`、`TestJudgeScore`、`TestHeuristicIsDeterministic`、`TestUnknownClaimReturnsInvalid`。
+`TestJudgeBool`、`TestJudgeChoice`、`TestJudgeRank`、`TestJudgeScore`、`TestJudgeBindingReturnsAcceptOrDefer`、`TestJudgeCompletionStopsOnGrounded`、`TestJudgeProbabilitiesSortedAndBounded`、`TestHeuristicIsDeterministic`、`TestUnknownClaimReturnsInvalid`。
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -97,7 +108,7 @@ Expected: FAIL（包不存在）。
 
 - [ ] **Step 3: 实现**
 
-启发式只读 `Features`：open intent 数、observation 数、intent class、历史失败率。未知 `TaskType` 返回 `ErrInvalid`；不得 panic。
+启发式只读 `Features`：open intent 数、observation 数、intent class、历史失败率。未知 `TaskType` 返回 `ErrInvalid`；不得 panic。`binding` 默认 `defer`，只有命中已发布 reflex 且置信度达阈值才返回该 reflex ID；`completion` 只在报告含 grounded 证据时返回完成。`Probabilities` 按 `Rank` 对齐、单调不增、总和 ≤1。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -233,15 +244,17 @@ Run: `go test ./dispatch/ ./decision/ -race` → PASS。
 **Interfaces:**
 ```go
 type ExecFunc func(ctx context.Context, projectID, command, workdir string, timeout time.Duration) (stdout, stderr string, exitCode int, err error)
-type Input struct { ProjectID, Workdir string; Timeout time.Duration; Vars map[string]string }
-type Outcome struct { Evidence evidence.Record; Fact string; Stop bool; Verdict *VerdictInput; TokensUsed int64 }
-type Runtime struct { Exec ExecFunc; MaxOutput int; DefaultTimeout time.Duration }
+type BindingJudge func(ctx context.Context, call ToolCall) (bool, error) // true=accept, false=defer
+type Input struct { ProjectID, Workdir string; Timeout time.Duration; Args map[string]any }
+type Outcome struct { Evidence evidence.Record; Fact string; Stop bool; Defer bool; Verdict *VerdictInput; TokensUsed int64 }
+type Runtime struct { Exec ExecFunc; Bind BindingJudge; MaxOutput int; DefaultTimeout time.Duration }
 func (r *Runtime) Run(ctx context.Context, src string, in Input) (Outcome, error)
 ```
+`Run` 调用程序入口 `function run(a, read, step, occurrence)`；`a` 即 `Input.Args`，`read/step/occurrence` 由调用方按当前任务传入。
 
 - [ ] **Step 1: 写失败测试**
 
-`TestRuntimeRejectsForbiddenIdentifiers`（`eval`/`Function`/`require`/`process`/`fetch`/`import`）、`TestRuntimeTimesOut`、`TestRuntimeCapsOutput`、`TestRuntimeHasNoHostObjects`、`TestRuntimeExecReturnsEvidence`、`TestStaticCheckRejectsEscapes`。
+`TestRuntimeRejectsForbiddenIdentifiers`（`eval`/`Function`/`require`/`process`/`fetch`/`import`）、`TestRuntimeTimesOut`、`TestRuntimeCapsOutput`、`TestRuntimeHasNoHostObjects`、`TestRuntimeExecReturnsEvidence`、`TestRuntimeDeferSkipsExecute`、`TestRuntimeSameProgramDifferentArgs`、`TestStaticCheckRejectsEscapes`。
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -249,7 +262,7 @@ Run: `go test ./reflex/ -run TestRuntime -v` → FAIL。
 
 - [ ] **Step 3: 实现**
 
-goja VM 只注入 `aix.exec/readFile/log/stop/finish`；不注入 `require`/`process`/`globalThis` 扩展；用 `vm.Interrupt` 做超时；输出上限默认 256KB；静态检查用 goja parser 拒绝动态代码与逃逸标识符。
+goja VM 只注入 `execute(request)`（request=`{name, arguments}`，先过 `Bind`，`name="bash"` 时映射到 `ExecFunc`）、`readFile/log/stop/finish`；不注入 `require`/`process`/`globalThis` 扩展；用 `vm.Interrupt` 做超时；输出上限默认 256KB；静态检查用 goja parser 拒绝动态代码与逃逸标识符，并要求存在入口 `run`。`Bind` 返回 false 时 `Run` 立即以 `Defer=true` 返回，且不执行任何工具调用。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -271,12 +284,13 @@ Run: `go test ./reflex/ -race` → PASS。
 ```go
 type Matcher interface { Match(ctx context.Context, projectID, signature string) (*Reflex, error) }
 type ApplyFunc func(ctx context.Context, p graph.Project, out Outcome) error
+type CompletionFunc func(ctx context.Context, out Outcome) (done bool, err error)
 ```
-`ApplyFunc` 由 `dispatch` 注入，复用 `tasks` 的写图helper；reflex 本身不 import `graphserver`。
+`ApplyFunc`/`CompletionFunc` 由 `dispatch` 注入，复用 `tasks` 的写图helper；reflex 本身不 import `graphserver`。
 
 - [ ] **Step 1: 写失败测试**
 
-`TestReflexHitSkipsLLM`、`TestReflexFailureFallsBack`、`TestReflexQuarantinesAfterThreeFailures`、`TestReflexNoDoubleWrite`、`TestReflexParityMismatchQuarantines`、`TestReflexRespectsStop`。
+`TestReflexHitSkipsLLM`、`TestReflexFailureFallsBack`、`TestReflexQuarantinesAfterThreeFailures`、`TestReflexNoDoubleWrite`、`TestReflexParityMismatchQuarantines`、`TestReflexRespectsStop`、`TestBindingJudgeDefersBeforeAnyExec`、`TestCompletionJudgeGatesApply`。
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -284,7 +298,9 @@ Run: `go test ./dispatch/ -run TestReflex -v` → FAIL。
 
 - [ ] **Step 3: 实现**
 
-执行前：签名 → Match → Run → `ApplyFunc`；失败：记 `reflex_runs`、`fail_count+1`、落回 runner；连续 3 次失败 → `quarantined`。成功：`hit_count+1`、记 tokens saved。
+执行前：签名 → Match → 注入 `Bind`（binding 判断）→ `Run`（内部每次 `execute` 再问 binding）→ `CompletionFunc`（completion 判断）→ `ApplyFunc`。
+`Run` 返回 `Defer=true`：不写图、不重试同版本、记 `reflex_runs(success=0,error=defer)`，落回 runner。
+失败：记 `reflex_runs`、`fail_count+1`、落回 runner；连续 3 次失败 → `quarantined`。成功：`hit_count+1`、记 tokens saved。
 Hint 存在时：签名必须包含 hint 摘要，或强制走 reason（二选一，测试固定行为）。
 
 - [ ] **Step 4: 跑测试确认通过**
@@ -319,7 +335,7 @@ Run: `go test ./reflex/builtin/ -v` → FAIL。
 - `http_probe`：`curl -sS -D -`，记录状态/头/正文摘要；不跟随外域。
 - `evidence_collect`：执行给定命令，失败也返回客观 Fact。
 - `stop_on_marker`：标记不存在 → `Stop=true` + refute 输入。
-全部走 `aix.exec`，不直连网络。
+全部走 `execute({name:'bash', arguments:{command:...}})`，不直连网络。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -340,12 +356,13 @@ Run: `go test ./reflex/builtin/ -race` → PASS。
 ```go
 type Generator struct { Threshold int; Complete func(ctx, prompt string) (string, error) }
 func (g *Generator) MaybeGenerate(ctx context.Context, sig string, claims []decision.Record) (*Candidate, error)
-type Candidate struct { Name, Source string; Signature string; Claims []string }
+type Candidate struct { Name, Source, ArgsSchema string; Signature string; Claims []string }
 ```
+`Source` 必须以 `function run(a, read, step, occurrence)` 开头并返回 `execute(...)` 或 `{defer:true}`；`ArgsSchema` 只描述参数结构，不含具体目标值。
 
 - [ ] **Step 1: 写失败测试**
 
-`TestGenerateRequiresThreshold`、`TestGenerateRunsFiveClaims`、`TestGenerateRejectsForbiddenSource`、`TestGenerateDeduplicatesCandidates`、`TestGenerateCountsTokens`。
+`TestGenerateRequiresThreshold`、`TestGenerateRunsFiveClaims`、`TestGenerateEmitsRunEntry`、`TestGenerateRejectsForbiddenSource`、`TestGenerateDeduplicatesCandidates`、`TestGenerateCountsTokens`。
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -353,7 +370,7 @@ type Candidate struct { Name, Source string; Signature string; Claims []string }
 
 - [ ] **Step 3: 实现**
 
-同签名成功 ≥ `misc.reflex_generate_threshold` 才触发；5 个 claim 并行（`errgroup` 或 WaitGroup），各自超时；候选必须含 `aix.stop` 或 `finish`；静态检查不过直接拒绝；生成 token 计入 claim/reflex 成本。
+同签名成功 ≥ `misc.reflex_generate_threshold` 才触发；5 个 claim 并行（`errgroup` 或 WaitGroup），各自超时；候选必须含 `run` 入口与 `stop`/`finish`/`{defer:true}` 之一；静态检查不过直接拒绝；prompt 里给出 `run(a, read, step, occurrence)` 骨架与一个真实 claim 的 `a` 示例（脱敏）；生成 token 计入 claim/reflex 成本。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -388,7 +405,7 @@ func (s *Store) Quarantine(ctx context.Context, id, reason string) error
 
 - [ ] **Step 3: 实现**
 
-回放必须 100% parity 才可入库；升版保留旧版；置信度按 hit/confirm/fail 更新；退役不删除历史。
+回放必须 100% parity 才可入库，且候选需通过“同程序换一组 `a` 仍可执行”的参数化检查（Mechanism validated）；升版保留旧版；置信度按 hit/confirm/fail 更新；退役不删除历史。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -424,7 +441,7 @@ type Guardrail interface { Classify(ctx context.Context, command string) (Comman
 
 - [ ] **Step 3: 实现**
 
-reflex `aix.exec` 与 explore 命令都先过 guardrail；`ClassForbidden` 直接拒绝并写审计；`ClassApproval` 走现有审批接口（由 dispatch 注入，不 import Web）。
+reflex 的 `execute(request)` 与 explore 命令都先过 guardrail；`ClassForbidden` 直接拒绝并写审计；`ClassApproval` 走现有审批接口（由 dispatch 注入，不 import Web）。
 
 - [ ] **Step 4: 跑测试确认通过** → PASS。
 
@@ -560,6 +577,8 @@ type V3Metrics struct {
 ## Self-Review
 
 **1. Spec coverage:** V3-R1→T1/T4；R2→T2；R3→T3；R4→T5；R5→T6；R6→T8；R7→T9；R8→T7/T12；R9→T10；R10→T11；R11→T12；R12→T13；R13→T14；R14→T0/T15；R15→T4/T16；R16→T4/T6/T9/T10/T16。无遗漏。
+
+图片校正（`jev+reflex/`，2026-11-20）已并入：两判断点（T1/T6）、`run(a, read, step, occurrence)` 入口（T5/T8）、`execute(request)` 工具边界（T5/T7）、概率排序与 `defer`（T1/T6）。
 
 **2. Step scan:** 每个 Task 五个步骤（红、验红、实现、验绿、提交），无 TBD；签名、表结构、错误语义均已给出。
 
