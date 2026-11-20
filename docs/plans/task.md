@@ -740,3 +740,15 @@ git commit -m "feat(eval): add patcheval dual-condition metrics and graph lane f
 **4. Review Focus:** 五个输入类分别在 T2（并发 claim）、T2（环检测）、T2（lease 回收）、T9（无溯源路径拒绝 complete）、T6（非法输出不写图）有测试。
 
 **5. Proportion:** 计划以签名、测试名与断言为主；仅原子认领 SQL 与错误映射给出实现细节，因为这两处决定正确性。
+
+---
+
+## 审计记录（2026-11-20，不修改本计划验收标准）
+
+按 `requirement.md` R1–R16 复核落地度，详细证据表见 `docs/plans/todo.md` §2.1。结论：
+
+- 代码与单测：`go build ./...` exit 0；`go test ./graph/ ./graphserver/ ./dispatch/... ./eval/ -race -count=1` 7 个包全 `ok`，共 223 个 Test；分层红线与工厂下标未被破坏。
+- 真实数据：`data/graph.db` 无 `patch_profile`、无 `verdict`、无 `support/refute` 边；两个项目 `bootstrap_enabled=0`；`rules.db` 0 行。前端当前展示的是 observation/gap 链，不是完整补丁反演链。
+- 因此 R7/R9/R10/R11/R15 与闸门 G3 **仍为未验收**；“该 Task 单测完成”不等于“需求闭环通过”。
+- R1 的“git status 干净”当前不成立；R13 仍按 requirement §12 后置，Finding 报告未交付。
+- 下一步唯一动作：真实 diff 建图项目并跑 bootstrap → explore/verdict → 规则回流，留下命令与输出后再回写状态。

@@ -2,21 +2,17 @@
 
 > 配套：`docs/plans/requirement.md`（需求）、`docs/plans/task.md`（实施计划）
 > 更新规则：每完成一步立即回写；没有命令输出就不打勾。
-> 当前轮次：第 1 轮 · 2026-11-16
+> 当前轮次：第 2 轮（复核审计）· 2026-11-20
 
 ---
 
 ## 0. 下一步动作（只做这一件）
 
-> **本轮迭代已完成并推送**：交付与评审收口 `9a9eac8`（分支 `feat/cairn-graph-backend` 同点）；本文件最终更新 `fbe6599` → `origin/main`。
-> **Task 11 已完成**：`b794e85` + `2c40df2` + `6cc683c`；评审 2 轮修复后 scoped re-review 全部 ADDRESSED。
-> **整支最终评审已完成**：`7d0e635..e83793f`；初评 1 Critical + 6 Important + 8 Minor；单轮修复 `f118081`、`5d56134`、`4c6b10a`、`c15edbd`、`9b2c2fa`、`e83793f`；scoped re-review 全部 findings ADDRESSED，无新增 Critical/Important；文档收口 `9a9eac8`。
-> 证据：`CGO_ENABLED=0 go build ./...` → BUILD_OK；`go test ./graph/ ./graphserver/ ./dispatch/... ./eval/ -race -count=1` 全 `ok`；`go test ./...` 仅遗留 ProjectManager 既有失败（base `7d0e635` 可复现，包未被本分支改动）。
-> 遗留（已裁定并记录）：R13 Web 面板已于 `199d0ca`+`2ef42ab`+`21b6626` 补齐（只读面板 + GraphOnly 车道 + snapshot 端点），评审无 Critical/Important，Minor 修复 `78febdb`，最终 `origin/main` = `20ec53c`；Finding 报告仍后置（requirement §12）；R6 一次性 driver；真实 CVE 实弹未跑；explore prompt 仍把 `command` 标为可选（无命令的 verdict 会被证据闸门丢弃，需后续收紧 prompt）。
-> 面板启用：`misc.graph_lane_enabled=true`（`data/AIxVuln.db`）后重启，模型未配置时自动退化为 GraphOnly 挂载 `/api/graph`；已验证 `/api/graph/projects`（401 未授权 / Bearer 后返回项目）与 snapshot 渲染。
-> 前端全协议对齐：`webui/src/GraphPanel.tsx` 覆盖新建项目、状态/完成/重开、Hint、Intent 声明/领取/心跳/释放/总结、总脑租约、YAML/时间线导出、provenance 追溯与车道状态；UI 实操验证 Hint 写入、Intent 领取+总结（新增 f003）、总脑领取+释放，`npx tsc --noEmit` 与构建通过。
-> 前端迭代：`f94a941`..`e008d0f` 已推送 `origin/main`；三份 `front_*.md` 与 `GraphOverview` 首页落地，旧实验室四来源/启停/进入入口保留；`tsc`、`npm run build`、`go build` 均 exit 0。9999 已用新二进制重启，`/` 200、图 API 401；首页断言 11/12（`enter_lab` 因隔离实例无实验室为 False，源码绑定保留），图面板断言 8/8；完成态收口后首页 21/22（新增排序/空态/降级/归一化检查），排序与归一化单测 7/7。
-> 下一动作：有 Docker + LLM 配置时，按 `docs/runbooks/cve-2025-3248.md` §2–§5 跑实弹验收（diff 导入 → 沙箱验证 → Finding → 规则库 +1）。
+> **第 2 轮结论（2026-11-20，只复核不改代码）**：P0 代码与测试基本落地，但“真实闭环”证据不足。按 `requirement.md` R1–R16 逐条核对，见 §2.1。
+> **关键事实**：真实 `data/graph.db` 中 `patch_profile` = 0、`verdict` = 0、`support/refute` 边 = 0、`finding` = 0；两个项目 `bootstrap_enabled` 都为 `0`；`data/patchintel/rules.db` 的 `rules` 表为 0 行。前端能看到的那张图是 observation/gap 链，不是“补丁 → 约束 → 思路 → 观测 → 判决 → finding”的完整反演链。
+> **本轮证据**：`CGO_ENABLED=0 go build ./...` → exit 0；`CGO_ENABLED=1 go test ./graph/ ./graphserver/ ./dispatch/... ./eval/ -race -count=1` → 7 个包全 `ok`（共 223 个 Test）；隔离数据目录起服务实测 flag=on 时 `GET projects` 200 / `POST projects` 201 / `POST hints` 201 / 空 hint 422 / 未知节点 404，flag=off 时 `/api/graph` 未挂载；只读查询 `data/graph.db` 与 `rules.db` 见 §2.1。
+> **更正上轮表述**：GraphOnly 只关闭 driver 与 executor，**存储仍可写**（实测 `POST /api/graph/projects` 返回 201），不是“只读面板”。
+> **下一步唯一动作**：用真实 Langflow diff 建图项目（`bootstrap_enabled=true`，origin 为 diff），让车道真实写出 `patch_profile` + `exploit_idea`；随后走 explore/verdict，并确认 `rules.db` 增长。完成前不得把 R7/R10/R11/R15/G3 计为通过。
 
 ---
 
@@ -82,7 +78,45 @@
 
 状态取值：`未开始` / `进行中` / `阻塞` / `完成`。
 
-### 2.1 上一轮已完成（基线，不用重做）
+> 复核备注（2026-11-20）：上表“完成”指**该 Task 的单测与代码交付**完成，不等于需求真实闭环通过。真实数据侧结论见 §2.1；含“完成”的 R7/R10/R11/R15 需要实弹证据才能升级为验收通过。
+
+### 2.1 R1–R16 复核表（2026-11-20，本轮新跑证据）
+
+复核口径：不看 todo 勾选，按 `requirement.md` 的验收标准逐条对照代码、测试、实时 API 与真实数据。
+
+| ID | 复核状态 | 本轮证据 | 缺口 / 说明 |
+|---|---|---|---|
+| R1 | **未达标** | `git status --porcelain` 非空：`dispatch/data/`、`logo.png`、`docs/claude/logo.png`、`docs/plans/marketplace/`、`docs/superpowers/plans/2026-11-17-game-theme-ui.md`、`webui-marketplace/` 未跟踪；`go build ./...` exit 0；`patchintel`/`toolCalling` 测试通过 | 验收要求“git status 干净”不成立 |
+| R2 | 达标 | 两个 SKILL.md + 三份/一份 references 均在；正文含“四层组件”“三类任务”；`go test ./toolCalling -run TestReadSkill` 2/2 PASS | 无 |
+| R3 | 达标 | `go test ./graph/ -race` ok；原子 claim、lease 回收、block 环检测均有测试 | 无 |
+| R4 | 达标 | `go test ./graphserver/ -race` ok；实时 API：401 未授权 / 200 列表 / 201 创建与 Hint / 404 未知 / 422 非法 body | 无 |
+| R5 | 达标（离线） | `TestLaneOfflineEndToEnd`、`TestPlan*`、`TestSelectWorker*`、`TestExecutor*`、`TestTick*` PASS | 真实模型/Docker 下未复跑 |
+| R6 | 达标但缩水 | driver/native/ParseResult/registry 测试 PASS | native 只 import `llm`/`misc`，未接 `toolCalling` 循环（§12 已记录） |
+| R7 | **仅单测** | `TestBootstrapWritesPatchProfileAndExploitIdeaFacts`、`TestBootstrapDeclaresInversionIntents` PASS | 真实库 `patch_profile` 事实 = 0；两个项目 `bootstrap_enabled=0`，bootstrap 从未真实执行 |
+| R8 | 达标 | reason 三分支、from 校验、gap/hint prompt 测试 PASS | 无 |
+| R9 | 部分 | 沙箱适配器、失败落客观结论、超时 fallback 测试 PASS | 真实项目只有 48 条 observation；没有 verdict，无法证明“实证→判决” |
+| R10 | **仅单测** | `TestVerdictRequiresSupportOrRefuteEdge`、`TestCompleteRejectsFindingWithoutProvenance`、`TestReopenCreatesCorrectionFact` PASS | 真实库 verdict = 0、support/refute 边 = 0；生产代码无 `finding` 节点生产者；完成项目仅凭 observation 事实 `from` 到 goal |
+| R11 | **仅单测** | `ApplyOutcome` 版本/置信度/hit/confirm 测试 PASS；`bootstrap.go:185` top-k 注入代码在 | 真实 `rules` 表 0 行，规则回流从未真实发生 |
+| R12 | 达标（有缺口） | 实时 Hint 201 + export yaml 可见；reason prompt 含 hint 测试 PASS | 没有 ~100 token 的硬截断，仅靠提示词约束 |
+| R13 | **未交付** | requirement §12 明示后置；现有 `GraphPanel`/`GraphOverview` 为既有前端（`6d918d2` 等），读 `/api/graph` | 无补丁面板、无 Finding 报告；上轮“面板已补齐”与 §12 口径冲突，以 §12 为准 |
+| R14 | 部分 | `eval/` 三指标 JSON、双条件 N≥3 测试 PASS；finding 为代理口径 | 仓库无真实对照评测 JSON，真实数据无法产生 finding |
+| R15 | **未验收** | 离线 `TestLaneOfflineEndToEnd`；`docs/runbooks/cve-2025-3248.md` 为操作步骤 | 无实机执行记录；真实规则库 0 行；G3 不成立 |
+| R16 | 达标 | `graph_lane_enabled` 默认 false；`TestGraphLaneFlagDefaultsOff` PASS；实时 flag=off 时 `/api/graph` 落到 SPA、既有 `/projects` 正常 | 无 |
+
+闸门：G0 部分（R1 未清）；G1 达标；G2 达标（离线）；G3 **未达标**；G4 部分（仅单测）。
+
+真实图库快照（只读查询，2026-11-20）：
+
+- `data/graph.db` 共 2 个项目、96 个节点、106 条边，**全部边为 `produce`**
+- 节点构成：observation 48、gap intent 45、goal 2、origin 2、hint 2、exploit_idea intent 2、human_intent 1
+- 缺失：`patch_profile`、`constraint`、`verdict`、`rule_hit`、`finding`；`derive`/`support`/`refute` 边为 0
+- `data/patchintel/rules.db`：`rules` 表 0 行
+
+### 2.2 复核后的产品面结论
+
+前端只能看到一张溯源图，根因不是渲染，而是数据：图里没有补丁事实、没有判决、没有 finding。“按补丁往下推理”目前只以文字形式存在于 origin/observation 的 content 中，图结构无法自证。补齐 R13 或跑通真实 bootstrap/verdict 之前，不应对外宣称“完整反演闭环已落地”。
+
+### 2.3 上一轮已完成（基线，不用重做）
 
 | 项 | 证据 |
 |---|---|
@@ -286,7 +320,9 @@
 
 | 日期 | Task | 现象 | 需要谁决策 | 状态 |
 |---|---|---|---|---|
-| — | — | 无 | — | — |
+| 2026-11-20 | R7/R10/R11/R15 | 真实 `graph.db` 无 `patch_profile`/`verdict`，`rules.db` 0 行；实弹未跑 | 用户提供 Docker + LLM 配置并批准实弹执行 | 阻塞 |
+| 2026-11-20 | R1 | `git status` 未清（`dispatch/data/` 等 6 项未跟踪） | 用户决定未跟踪文件的去留/忽略规则 | 待决策 |
+| 2026-11-20 | R13 | 上轮称“面板已补齐”，但 requirement §12 仍记后置；实为既有前端读图 API | 用户确认以 §12 为准，并在交付说明中写明 Finding 报告未交付 | 待决策 |
 
 ---
 
